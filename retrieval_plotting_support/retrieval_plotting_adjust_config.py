@@ -11,7 +11,6 @@ def Update_Config(DIR,Section,Variable,Newval,from_original_config=False):
         if from_original_config:
             config.read(DIR + 'input_original.ini')
         else:
-            print('hi')
             config.read(DIR + 'input.ini')
     else:
         shutil.copyfile(DIR+'input.ini', DIR+'input_orig.ini')
