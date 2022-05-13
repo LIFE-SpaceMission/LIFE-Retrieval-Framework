@@ -82,8 +82,8 @@ class retrieval_plotting(r_globals.globals):
         in order to generate the retrieval plots of interest to us.
         '''
         self.results_directory = results_directory
-        print(os.getcwd())
-        super().__init__(input_file=str(results_directory+'input.ini'),retrieval = False)
+        self.code_directory = os.path.dirname(os.path.realpath(__file__))
+        super().__init__(input_file=str(self.results_directory+'input.ini'),retrieval = False)
         
         if not os.path.exists(self.results_directory + 'Plots/'):
             os.makedirs(self.results_directory + 'Plots/')
@@ -100,7 +100,7 @@ class retrieval_plotting(r_globals.globals):
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
-            self.vae_pt = vae.VAE_PT_Model(file_path='retrieval_support/vae_pt_models/'+self.settings['vae_net'])
+            self.vae_pt = vae.VAE_PT_Model(file_path=self.code_directory+'/retrieval_support/vae_pt_models/'+self.settings['vae_net'])
 
         # Read the retrieval results from the chain files
         # self.n_params is the number of retrieved parameters
@@ -2035,7 +2035,7 @@ class retrieval_plotting(r_globals.globals):
 
 
         # Calculating the Ice Vapour pressure at different temperatures
-        T,p_part = np.loadtxt('retrieval_plotting_support/vapour_pressure_data/ice.dat').T
+        T,p_part = np.loadtxt(self.code_directory+'/retrieval_plotting_support/vapour_pressure_data/ice.dat').T
         p_part = np.log10(p_part/1000)
         p_part_fit = np.zeros_like(ret_surface_T)
 

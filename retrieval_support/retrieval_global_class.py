@@ -225,7 +225,7 @@ class globals:
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
-            self.vae_pt = vae.VAE_PT_Model(file_path='retrieval_support/vae_pt_models/'+self.settings['vae_net'])
+            self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'])
 
 
         # PROTECTION FROM BAD INPUTS
