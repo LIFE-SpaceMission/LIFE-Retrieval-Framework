@@ -13,7 +13,7 @@ def Update_Config(DIR,Section,Variable,Newval,from_original_config=False):
         else:
             config.read(DIR + 'input.ini')
     else:
-        shutil.copyfile(DIR+'input.ini', DIR+'input_orig.ini')
+        shutil.copyfile(DIR+'input.ini', DIR+'input_original.ini')
         config.read(DIR + 'input.ini')
 
     config[Section][Variable] = Newval

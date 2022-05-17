@@ -933,281 +933,19 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-
-
-
-    def PT_Envelope(self,ax = None, save=False, plot_clouds = False, color='C2', loc_surface='top right', x_lim =[0,1000], y_lim = [1e-6,1e4],
-                    quantiles=[0.01,0.10,0.25,0.75,0.90,0.99],skip=1):
-    
-        if not hasattr(self, 'pressures'):
-            self.Calc_PT_Profiles_uniform_bins(skip = skip)
-
-        # find the quantiles for the different pressures and temperatures
-        p_layers_quantiles = [np.nanquantile(self.pressure_full,q,axis=0) for q in quantiles]
-        T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0) for q in quantiles]
-        not_nan = np.count_nonzero(~np.isnan(self.pressure_full),axis = 0)/np.shape(self.pressure_full)[0]
-
-        for q in range(len(quantiles)):
-            T_layers_quantiles[q][np.where(not_nan<min(2*(1-quantiles[q]),2*(quantiles[q])))] = np.nan
-        
-            notnan = ~np.isnan(T_layers_quantiles[q])
-            T_layers_quantiles[q] = T_layers_quantiles[q][notnan]
-            p_layers_quantiles[q] = p_layers_quantiles[q][notnan]
-
-            X_Y_Spline = scp.make_interp_spline(np.array(p_layers_quantiles[q]),np.array(T_layers_quantiles[q]))
-            p_layers_quantiles[q] = np.logspace(np.log10(p_layers_quantiles[q].min()),np.log10(p_layers_quantiles[q].max()),80)
-            T_layers_quantiles[q] = X_Y_Spline(p_layers_quantiles[q])
-
-
-
-        # find the quantiles for the pressures above the clouds
-        if self.settings['clouds'] == 'opaque':
-            p_layers_quantiles_ct = [np.nanquantile(self.pressure_full_ct,q,axis=0) for q in quantiles]
-            T_layers_quantiles_ct = [np.nanquantile(self.temperature_full_ct,q,axis=0) for q in quantiles]
-            not_nan_ct = np.count_nonzero(~np.isnan(self.pressure_full_ct),axis = 0)/np.shape(self.pressure_full_ct)[0]
-            for q in range(len(quantiles)):
-                T_layers_quantiles_ct[q][np.where(not_nan_ct<min(2*(1-quantiles[q]),2*(quantiles[q])))] = np.nan
-            for q in range(len(quantiles)):
-                notnan_ct = ~np.isnan(T_layers_quantiles_ct[q])
-                T_layers_quantiles_ct[q] = T_layers_quantiles_ct[q][notnan_ct]
-                p_layers_quantiles_ct[q] = p_layers_quantiles_ct[q][notnan_ct]
-                
-                X_Y_Spline = scp.make_interp_spline(p_layers_quantiles_ct[q],T_layers_quantiles_ct[q])
-                p_layers_quantiles_ct[q] = np.logspace(np.log10(p_layers_quantiles_ct[q].min()),np.log10(p_layers_quantiles_ct[q].max()),80)
-                T_layers_quantiles_ct[q] = X_Y_Spline(p_layers_quantiles_ct[q])
-
-        #find the median and the mean pressure values
-        median_temperature, median_pressure = np.median(self.temperature,axis=0), np.median(self.pressure,axis=0)
-        mean_temperature, mean_pressure = np.mean(self.temperature,axis=0),np.mean(self.pressure,axis=0)
-        if self.settings['clouds'] == 'opaque':
-            median_temperature_extrapol, median_pressure_extrapol = np.median(self.temperature_extrapol,axis=0), np.median(self.pressure_extrapol,axis=0)
-            mean_temperature_extrapol, mean_pressure_extrapol = np.mean(self.temperature_extrapol,axis=0),np.mean(self.pressure_extrapol,axis=0)
-            median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top,axis=0), np.median(self.pressure_cloud_top,axis=0)
-            mean_temperature_cloud_top, mean_pressure_cloud_top = np.mean(self.temperature_cloud_top,axis=0),np.mean(self.pressure_cloud_top,axis=0)
-
-        # If wanted find the quantiles for cloud top and bottom pressures
-        if plot_clouds == True:
-            cloud_top_quantiles = [np.quantile(self.cloud_top,q,axis=0) for q in quantiles]
-            cloud_bottom_quantiles = [np.quantile(self.cloud_bottom,q,axis=0) for q in quantiles]
-
-        # Start of the plotting
-        ax_arg = ax
-        if ax is None:
-            figure = plt.figure() #figsize = (10,5))
-            ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
-        else:
-            pass
-        ax.set_xlim(x_lim)
-        ax.set_ylim(y_lim)
-
-        #If wanted plot the clouds
-        if plot_clouds:
-            if self.settings['clouds'] == 'opaque':
-                for i in range(len(quantiles)-1):
-                    ax.fill([0,10000,10000,0],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[i+1],cloud_top_quantiles[i+1]],
-                        color='black',alpha=0.1+i*0.07, lw = 0)
-                ax.fill([0,10000,10000,0],[cloud_top_quantiles[-1],cloud_top_quantiles[-1],1e4,1e4],
-                    color='black',alpha=0.1+(len(quantiles)-1)*0.07, lw = 0)
-            else:
-                for i in range(len(quantiles)-1):
-                    ax.fill([0,10000,10000,0],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[i+1],cloud_top_quantiles[i+1]],
-                        color='black',alpha=0.1+i*0.07, lw = 0)
-                    ax.fill([0,10000,10000,0],[cloud_bottom_quantiles[-i-1],cloud_bottom_quantiles[-i-1],cloud_bottom_quantiles[-i-2],cloud_bottom_quantiles[-i-2]],
-                        color='black',alpha=0.1+i*0.07, lw = 0)
-                ax.fill([0,10000,10000,0],[cloud_top_quantiles[-1],cloud_top_quantiles[-1],cloud_bottom_quantiles[0],cloud_bottom_quantiles[0]],
-                    color='black',alpha=0.1+(len(quantiles)-1)*0.07, lw = 0)
-
-        #plotting the uncertainty on the retrieved spectrum
-        for i in range(int(len(quantiles)/2)):
-            if self.settings['clouds'] == 'opaque':
-                alpha = 0.1
-            else:
-                alpha = 0.3
-            if i == 0:
-                ax.fill(np.append(T_layers_quantiles[i],np.flip(T_layers_quantiles[-i-1])),
-                        np.append(p_layers_quantiles[i],np.flip(p_layers_quantiles[-i-1])),color = 'white',lw = 0)
-            ax.fill(np.append(T_layers_quantiles[i],np.flip(T_layers_quantiles[-i-1])),
-                    np.append(p_layers_quantiles[i],np.flip(p_layers_quantiles[-i-1])),color = color,alpha=alpha,lw = 0)
-        
-        title = [r'$1\%-99\%$',r'$10\%-90\%$',r'$25\%-75\%$']
-        if self.settings['clouds'] == 'opaque':
-            for i in range(int(len(quantiles)/2)):
-                alpha = 0.3+i*0.3
-                
-                ax.fill(np.append(T_layers_quantiles_ct[i],np.flip(T_layers_quantiles_ct[-i-1])),
-                        np.append(p_layers_quantiles_ct[i],np.flip(p_layers_quantiles_ct[-i-1])),color = 'white',lw = 0)
-                ax.fill(np.append(T_layers_quantiles_ct[i],np.flip(T_layers_quantiles_ct[-i-1])),
-                        np.append(p_layers_quantiles_ct[i],np.flip(p_layers_quantiles_ct[-i-1])),color = color,alpha=alpha,lw = 0,label = title[i])
-
-        #if self.settings['clouds'] == 'opaque':
-        #    T = (T_layers_quantiles_extrapol[i//2][0]+T_layers_quantiles_extrapol[i//2+1][0])/2
-        #    ax.plot([0.5*T,1.5*T],[10**self.opacity[1],10**self.opacity[1]],'r-')
-        #    ax.fill([0.6*T,1.4*T,1.4*T,0.6*T],[10**self.opacity[2],10**self.opacity[2],10**self.opacity[0],10**self.opacity[0]],color='red',alpha=0.3,lw = 0)
-
-
-        # Plot best, mean and median fit profiles
-        #ax.semilogy(self.best_temperature,self.best_pressure,color ='green', label = 'Best Fit PT', zorder=4)
-        #ax.semilogy(median_temperature, median_pressure,color ='blue', linestyle='-.', label = 'Median fit', zorder=5)
-        #ax.semilogy(mean_temperature, mean_pressure,color ='darkorchid', linestyle=':',label = 'Mean fit', zorder=5)
-
-        
-        #if self.settings['clouds'] == 'opaque':
-        #    #ax.semilogy(self.best_temperature_extrapol,self.best_pressure_extrapol,color ='green',alpha=0.4, zorder=4)
-        #    ax.plot(median_temperature_extrapol, median_pressure_extrapol,color ='blue',alpha=0.4, linestyle='-.', zorder=5)
-        #    ax.plot(mean_temperature_extrapol, mean_pressure_extrapol,color ='darkorchid',alpha=0.4, linestyle=':', zorder=5)
-
-        # True input profile
-        ax.semilogy(self.input_temperature,self.input_pressure,color ='black', label = 'Input Profile', zorder=3)
-
-        # True surface temperature and surface pressure
-        y_bound = (np.log10(y_lim[1])-np.log10(y_lim[0]))/20
-        ax.plot([self.input_temperature[-1]-(x_lim[1]-x_lim[0])/40,self.input_temperature[-1]+(x_lim[1]-x_lim[0])/40],[self.input_pressure[-1],self.input_pressure[-1]],color='C3',linestyle = '-',linewidth = 2, zorder=6)
-        ax.plot([self.input_temperature[-1],self.input_temperature[-1]],[10**(np.log10(self.input_pressure[-1])+y_bound),10**(np.log10(self.input_pressure[-1])-y_bound)],color='C3',linestyle = '-',linewidth = 2, zorder=6)
-        ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='o',color='C3',ms=5, zorder=6)
-        #ax1.set_xlim(0.8*min(self.input_temperature),max(self.input_temperature)*1.2)
-
-        # True cloud top pressure and temperature
-        if self.settings['clouds'] == 'opaque':
-            ax.plot([self.true_temperature_cloud_top[0]-(x_lim[1]-x_lim[0])/40,self.true_temperature_cloud_top[0]+(x_lim[1]-x_lim[0])/40],[self.true_pressure_cloud_top[0],self.true_pressure_cloud_top[0]],color='C4',linestyle = '-',linewidth = 2, zorder=6)
-            ax.plot([self.true_temperature_cloud_top[0],self.true_temperature_cloud_top[0]],[10**(np.log10(self.true_pressure_cloud_top[0])+y_bound),10**(np.log10(self.true_pressure_cloud_top[0])-y_bound)],color='C4',linestyle = '-',linewidth = 2, zorder=6)
-            ax.plot(self.true_temperature_cloud_top[0],self.true_pressure_cloud_top[0],marker='s',color='C4',ms=5, zorder=6)
-
-        if ax_arg is None:
-            ax.set_xlabel('Temperature [K]')
-            ax.set_ylabel('Pressure [bar]')
-        ax.invert_yaxis()
-
-        # Position the 2d histogram according to the input
-        if ax_arg is None:
-            if loc_surface == 'bottom left':
-                ax2 = figure.add_axes([0.11, 0.12, 0.2, 0.4])
-            elif loc_surface == 'bottom right':
-                ax2 = figure.add_axes([1-0.11-0.2, 0.12, 0.2, 0.4])
-            elif loc_surface == 'top left':
-                ax2 = figure.add_axes([0.11, 1-0.12-0.4, 0.2, 0.4])
-            elif loc_surface == 'top right':
-                ax2 = figure.add_axes([1-0.12833-0.2, 1-0.12-0.2833, 0.21, 0.2833])
-                #ax2 = figure.add_axes([1-0.11-0.2, 1-0.12-0.4, 0.2, 0.4])
-        else:
-            if loc_surface == 'bottom left':
-                ax2 = ax.inset_axes([0.02*2/3, 0.02, 0.5*2/3, 0.5])
-            elif loc_surface == 'bottom right':
-                ax2 = ax.inset_axes([1-0.5*2/3, 0.02, 1-0.02*2/3, 0.5])
-            elif loc_surface == 'top left':
-                ax2 = ax.inset_axes([0.02*2/3, 1-0.5, 0.5*2/3, 1-0.02])
-            elif loc_surface == 'top right':
-                ax2 = ax.inset_axes([1-0.5*2/3-0.02*2/3, 1-0.5-0.02,0.5*2/3, 0.5])
-
-        if self.settings['clouds'] == 'opaque':
-            # make a 2d histogram of the surface pressures and temperatures
-            Z,X,Y=np.histogram2d(self.temperature_cloud_top[:,0],np.log10(self.pressure_cloud_top[:,0]),bins=15)
-            ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap='Greys',levels=np.array([0.05,0.15,0.3,0.45,0.6,0.75,0.95,1])*np.max(Z))
-
-            # set the limits of the subplot axes
-            #xlim = [X[0],X[-1]]
-            #ax2.set_xlim(xlim)
-            #ylim = [10**Y[-1],10**Y[0]]
-            #ax2.set_ylim(ylim)
-
-            # plot the true values that were used to generate the input spectrum
-            ax2.plot(ax2.get_xlim(),[self.true_pressure_cloud_top[0],self.true_pressure_cloud_top[0]],color='C4',linestyle = '-',linewidth = 2)
-            ax2.plot([self.true_temperature_cloud_top[0],self.true_temperature_cloud_top[0]],ax2.get_ylim(),color='C4',linestyle = '-',linewidth = 2)
-            ax2.plot(self.true_temperature_cloud_top[0],self.true_pressure_cloud_top[0],marker='s',color='C4',ms=5)
-
-            # plot the best fit median and mean surface pressures and temperatures
-            ax2.scatter(self.best_temperature_cloud_top[0],self.best_pressure_cloud_top[0], marker='x',color='green')
-            ax2.scatter(mean_temperature_cloud_top[0],mean_pressure_cloud_top[0], marker='x',color='darkorchid')
-            ax2.scatter(median_temperature_cloud_top[0],median_pressure_cloud_top[0], marker='x',color='blue')
-
-            # Define the Plot titles
-            xlabel = r'$\mathrm{T_{Cloud\,Top}}\,\,\left[\mathrm{K}\right]$'
-            ylabel = r'$\mathrm{P_{Cloud\,Top}}\,\,\left[\mathrm{bar}\right]$'
-        else:
-            # make a 2d histogram of the surface pressures and temperatures
-            Z,X,Y=np.histogram2d(self.temperature[:,-1],self.pressure[:,-1],bins=15)
-            ax2.contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap='Greys',levels=np.array([0.05,0.15,0.3,0.45,0.6,0.75,0.95,1])*np.max(Z))
-
-            # set the limits of the subplot axes
-            #xlim = [X[0],X[-1]]
-            #ax2.set_xlim(xlim)
-            #ylim = [Y[-1],Y[0]]
-            #ax2.set_ylim(ylim)
-
-            # plot the true values that were used to generate the input spectrum
-            ax2.plot(ax2.get_xlim(),[self.input_pressure[-1],self.input_pressure[-1]],color='C3',linestyle = '-',linewidth = 2)
-            ax2.plot([self.input_temperature[-1],self.input_temperature[-1]],ax2.get_ylim(),color='C3',linestyle = '-',linewidth = 2)
-            ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='o',color='C3',ms=5)
-
-            # plot the best fit median and mean surface pressures and temperatures
-            #ax2.scatter(self.best_temperature[-1],self.best_pressure[-1], marker='x',color='green')
-            ax2.scatter(mean_temperature[-1],mean_pressure[-1], marker='x',color='darkorchid')
-            ax2.scatter(median_temperature[-1],median_pressure[-1], marker='x',color='blue')
-
-            # Define the Plot titles
-            xlabel = r'$\mathrm{T_0}\,\,\left[\mathrm{K}\right]$'
-            ylabel = r'$\mathrm{P_0}\,\,\left[\mathrm{bar}\right]$'
-        xlim = ax2.get_xlim()
-        ylim = ax2.get_ylim()
-        xticks = [(1-pos)*xlim[0]+pos*xlim[1] for pos in [0.2,0.4,0.6,0.8]]
-        yticks = [(1-pos)*ylim[0]+pos*ylim[1] for pos in [0.2,0.4,0.6,0.8]]
-        
-        if loc_surface == 'bottom left':
-            ax2.set_ylabel(ylabel,va='top',rotation = 90)
-            ax2.set_xlabel(xlabel,va='bottom')
-            ax2.yaxis.set_label_position("right")
-            ax2.yaxis.tick_right()
-            ax2.xaxis.set_label_position("top")
-            ax2.xaxis.tick_top()
-        elif loc_surface == 'bottom right':
-            ax2.set_ylabel(ylabel,rotation = 90)
-            ax2.set_xlabel(xlabel,va='bottom')
-            ax2.xaxis.set_label_position("top")
-            ax2.xaxis.tick_top()
-        elif loc_surface == 'top left':
-            ax2.set_ylabel(ylabel,va='top',rotation = 90)
-            ax2.set_xlabel(xlabel)
-            ax2.yaxis.set_label_position("right")
-            ax2.yaxis.tick_right()
-        elif loc_surface == 'top right':
-            ax2.set_ylabel(ylabel,rotation = 90)
-            ax2.set_xlabel(xlabel)
-
-        #roundx = np.abs(np.min([0,np.floor(np.log10(np.abs(xticks[1]-xticks[0])))-1]))
-        #ax2.set_xticks(xticks)
-        #ax2.set_xticklabels(np.round(xticks,int(roundx)),rotation=90)
-
-        #roundy = np.abs(np.min([0,np.floor(np.log10(np.abs(yticks[1]-yticks[0])))-1]))
-        #ax2.set_yticks(yticks)
-        #ax2.set_yticklabels(np.round(yticks,int(roundy)))
-
-        handles, labels = ax.get_legend_handles_labels()
-        if ax_arg is not None:
-            pass
-        elif self.settings['clouds'] == 'opaque':
-            lgd = ax.legend(handles+['CloudTopPressure','SurfacePressure'], labels+['True Cloud Top','True Surface'],handler_map={str:  rp_hndl.Handles()}, ncol=4,loc=[0.13,-0.25])
-        else:
-            lgd = ax.legend(handles+['SurfacePressure'], labels+['True Surface'],handler_map={str: rp_hndl.Handles()}, ncol=4,loc=[0.17,-0.25])
-
-        if ax_arg is not None:
-            return handles+['CloudTopPressure','SurfacePressure'], labels+['True Cloud Top','True Surface']
-        elif save:
-            plt.savefig(self.results_directory+'Plots/plot_pt_structure.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
-        else:
-            return figure
-
-
-
-
-    def PT_Envelope_Residual(self,ax = None, save=False, plot_clouds = False, color='C2', loc_surface='top right', x_lim =[0,1000], y_lim = [1e-6,1e4],
-                    quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title = None,skip=1,case_identifier = ''):
+    def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                    quantiles_title = None, inlay_loc='top right', bins_inlay = 20, ax = None, color='C2', case_identifier = ''):
 
         #self.get_pt(skip=skip)
-        if not hasattr(self, 'pressures'):
+        if not hasattr(self, 'pressure'):
             self.Calc_PT_Profiles_uniform_bins(skip = skip)
 
         # find the quantiles for the different pressures and temperatures
         p_layers_quantiles = [np.nanquantile(self.pressure_full,q,axis=0) for q in quantiles]
-        T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0)-np.nanquantile(self.temperature_full,0.5,axis=0) for q in quantiles]
+        if plot_residual:
+            T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0)-np.nanquantile(self.temperature_full,0.5,axis=0) for q in quantiles]
+        else:
+            T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0) for q in quantiles]
         not_nan = np.count_nonzero(~np.isnan(self.pressure_full),axis = 0)/np.shape(self.pressure_full)[0]
 
         for q in range(len(quantiles)):
@@ -1238,7 +976,6 @@ class retrieval_plotting(r_globals.globals):
 
 
         # Start of the plotting
-        alpha_step=2/len(quantiles)
         ax_arg = ax
         if ax is None:
             figure = plt.figure()
@@ -1253,9 +990,9 @@ class retrieval_plotting(r_globals.globals):
         for i in range(N_levels):
             ax.fill(np.append(T_layers_quantiles[i],np.flip(T_layers_quantiles[-i-1])),
                     np.append(p_layers_quantiles[i],np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True)
-
-        ax.semilogy([0,0], [0,1000],color ='black', linestyle=':', zorder=5)
-        ax.annotate('Retrieved PT Median',[0-0.025*x_lim[1],10**(0.975*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(y_lim[0]))],color = 'black',rotation=90,ha='right')
+        if plot_residual:
+            ax.semilogy([0,0], [0,1000],color ='black', linestyle=':', zorder=5)
+            ax.annotate('Retrieved PT Median',[0-0.025*x_lim[1],10**(0.975*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(y_lim[0]))],color = 'black',rotation=90,ha='right')
 
         # If wanted: plotting the retrieved cloud top
         if plot_clouds:
@@ -1267,30 +1004,42 @@ class retrieval_plotting(r_globals.globals):
                     ax.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[i+1],cloud_top_quantiles[i+1]],color = 'black',alpha=alpha,lw = 0, zorder=5)
                     ax.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[-i-2],cloud_top_quantiles[-i-2],cloud_top_quantiles[-i-1],cloud_top_quantiles[-i-1]],color = 'black',alpha=alpha,lw = 0, zorder=5)
             ax.plot([-10000,10000],[median_pressure_cloud_top[0],median_pressure_cloud_top[0]],'k--', zorder=5)
-            ax.annotate('Retrieved Median Cloud Top',[x_lim[0]+0.025*x_lim[1],10**(-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(median_pressure_cloud_top[0]))],color = 'black',ha='left')
+            ax.annotate('Retrieved Median Cloud Top',[x_lim[0]+0.0125*(x_lim[1]-x_lim[0]),10**(-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(median_pressure_cloud_top[0]))],color = 'black',ha='left')
 
         # Plotting the true/input profile (interpolation for smoothing)
-        y = np.nanquantile(self.temperature_full,0.5,axis=0)
-        x = np.nanquantile(self.pressure_full,0.5,axis=0)
-        yinterp = np.interp(self.input_pressure, x, y)
-        ax.semilogy(gaussian_filter1d(self.input_temperature-yinterp,sigma = 100),(self.input_pressure),color ='black', label = 'Input Profile', zorder=6)
+        if plot_residual:
+            y = np.nanquantile(self.temperature_full,0.5,axis=0)
+            x = np.nanquantile(self.pressure_full,0.5,axis=0)
+            yinterp = np.interp(self.input_pressure, x, y)
+            ax.semilogy(gaussian_filter1d(self.input_temperature-yinterp,sigma = 100),(self.input_pressure),color ='black', label = 'Input Profile', zorder=6)
 
-        # Plotting the true/input surface temperature/pressure
-        ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0, zorder=6,label = 'Input Surface')
+            # Plotting the true/input surface temperature/pressure
+            ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0, zorder=6,label = 'Input Surface')
+        else:
+            ax.semilogy(self.input_temperature,self.input_pressure,color ='black', label = 'Input Profile', zorder=6)
+
+            # Plotting the true/input surface temperature/pressure
+            ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0, zorder=6,label = 'Input Surface')
 
         # If wanted: plotting the true/input cloud top temperature/pressure
         if plot_clouds:
             ind_ct = (np.argmin(np.abs(np.log10(self.true_pressure_cloud_top[0])-np.log10(np.nanquantile(self.pressure_full,0.5,axis=0)))))
             T_CT = np.nanquantile(self.temperature_full,0.5,axis=0)[ind_ct]
             if self.settings['clouds'] == 'opaque':
-                   ax.plot(self.true_temperature_cloud_top[0]-T_CT ,self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
+                if plot_residual:
+                    ax.plot(self.true_temperature_cloud_top[0]-T_CT,self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
+                else:
+                    ax.plot(self.true_temperature_cloud_top[0],self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
 
         # Print the case identifier
         ax.annotate(case_identifier,[x_lim[1]-0.025*(x_lim[1]-x_lim[0]),10**(np.log10(y_lim[1])-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0])))],ha='right',va='bottom')
 
         # If it is a single plot show the axes titles
         if ax_arg is None:
-            ax.set_xlabel('Temperature Relative to Retrieved Median [K]')
+            if plot_residual:
+                ax.set_xlabel('Temperature Relative to Retrieved Median [K]')
+            else:
+                ax.set_xlabel('Temperature [K]')
             ax.set_ylabel('Pressure [bar]')
         
         # Set the limits for the plot axes
@@ -1302,7 +1051,7 @@ class retrieval_plotting(r_globals.globals):
 
         # Inlay plot
         # generate and position the inlay plot
-        ax2 = rp_inlay.position_inlay(loc_surface,figure,ax_arg,ax)
+        ax2 = rp_inlay.position_inlay(inlay_loc,figure,ax_arg,ax)
 
         # Plotting the cloud top temperature/pressure
         if self.settings['clouds'] == 'opaque':
@@ -1310,47 +1059,84 @@ class retrieval_plotting(r_globals.globals):
             ax2_xlabel = r'$T^\mathrm{cloud}_\mathrm{top}\,\,\left[\mathrm{K}\right]$'
             ax2_ylabel = r'$P^\mathrm{cloud}_\mathrm{top}\,\,\left[\mathrm{bar}\right]$'
 
-            # Make a 2d histogram of the cloud top pressures and temperatures
-            Z,X,Y=np.histogram2d(self.temperature_cloud_top[:,0],np.log10(self.pressure_cloud_top[:,0]),bins=30,range = [[np.min(self.temperature_cloud_top[:,0]),np.max(self.temperature_cloud_top[:,0])], [-5, 0]])
+            # Define limits and make a 2d histogram of the cloud top pressures and temperatures
+            t_lim = [np.min(self.temperature_cloud_top[:,0]),np.max(self.temperature_cloud_top[:,0])]
+            t_range = t_lim[1]-t_lim[0]
+            p_lim = [np.min(np.log10(self.pressure_cloud_top[:,0])),np.max(np.log10(self.pressure_cloud_top[:,0]))]
+            p_range = p_lim[1]-p_lim[0]
+            Z,X,Y=np.histogram2d(self.temperature_cloud_top[:,0],np.log10(self.pressure_cloud_top[:,0]),bins=bins_inlay,
+                range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
 
         else:
             # Define the plot titles
             ax2_xlabel = r'$\mathrm{T_0}\,\,\left[\mathrm{K}\right]$'
             ax2_ylabel = r'$\mathrm{P_0}\,\,\left[\mathrm{bar}\right]$'
 
-            # Make a 2d histogram of the surface pressures and temperatures
-            Z,X,Y=np.histogram2d(self.temperature[:,-1],np.log10(self.pressure[:,-1]),bins=30,range = [[np.min(self.temperature[:,-1]),np.max(self.temperature[:,-1])], [-5, 0]])
+            # Define limits and make a 2d histogram of the surface pressures and temperatures
+            t_lim = [np.min(self.temperature[:,-1]),np.max(self.temperature[:,-1])]
+            t_range = t_lim[1]-t_lim[0]
+            p_lim = [np.min(np.log10(self.pressure[:,-1])),np.max(np.log10(self.pressure[:,-1]))]
+            p_range = p_lim[1]-p_lim[0]
+            Z,X,Y=np.histogram2d(self.temperature[:,-1],np.log10(self.pressure[:,-1]),bins=bins_inlay,
+                range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
 
         # Generate the colormap and plot the contours of the 2d histogram
         map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
-        ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
+        contour = ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
         # plot the true values that were used to generate the input spectrum
-        ax2.semilogy(self.input_temperature,self.input_pressure,color ='black')
-        ax2.semilogy(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
+        ax2.plot(self.input_temperature,self.input_pressure,color ='black')
+        ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
         try:
-            ax2.semilogy(self.true_temperature_cloud_top[0],(self.true_pressure_cloud_top[0]),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
+            ax2.plot(self.true_temperature_cloud_top[0],(self.true_pressure_cloud_top[0]),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
         except:
             pass
         
         # Arange the ticks for the inlay
-        rp_inlay.axesticks_inlay(ax2,ax2_xlabel,ax2_ylabel,loc_surface)
+        rp_inlay.axesticks_inlay(ax2,ax2_xlabel,ax2_ylabel,inlay_loc)
+
+
+
+        # Find the minima and maxima of the outermost contour
+        t_lim = [np.min([np.min(contour.allsegs[0][i][:,0]) for i in range(len(contour.allsegs[0]))]), np.max([np.max(contour.allsegs[0][i][:,0]) for i in range(len(contour.allsegs[0]))])]
+        p_lim = [np.min([np.min(contour.allsegs[0][i][:,1]) for i in range(len(contour.allsegs[0]))]), np.max([np.max(contour.allsegs[0][i][:,1]) for i in range(len(contour.allsegs[0]))])]
+
+        # Find the limits for the inlay plot from the contours (+- 10%)
+        # if the span in pressure exceeds 2 orders of magnitude use log axes 
+        ax2_xlim = [t_lim[0]-0.1*(t_lim[1]-t_lim[0]),t_lim[1]+0.1*(t_lim[1]-t_lim[0])]
+        if np.log10(p_lim[1])-np.log10(p_lim[0]) >= 2:
+            log_p = True
+            ax2_ylim = [10**(np.log10(p_lim[0])-0.1*(np.log10(p_lim[1])-np.log10(p_lim[0]))),10**(np.log10(p_lim[1])+0.1*(np.log10(p_lim[1])-np.log10(p_lim[0])))]
+            ax2.set_yscale('log')
+        else:
+            log_p = False
+            ax2_ylim = [max([p_lim[0]-0.1*(p_lim[1]-p_lim[0]),0]),p_lim[1]+0.1*(p_lim[1]-p_lim[0])]
 
         # Set the limits and ticks for the axes
         # x axis
-        ax2_xlim = [np.min(X[np.where(Z >= levels[0])[0]])*0.9,np.max(X[np.where(Z >= levels[0])[0]])*1.1]
         xticks = np.array([(1-pos)*ax2_xlim[0]+pos*ax2_xlim[1] for pos in [0.2,0.4,0.6,0.8]])
-        roundx = np.abs(np.min([0,np.floor(np.log10(np.abs(xticks[1]-xticks[0])))-1]))
+        roundx = np.log10(np.abs(xticks[1]-xticks[0]))
         ax2.set_xticks(xticks)
-        if roundx>=0:
+        if roundx>=0.5:
             ax2.set_xticklabels(((xticks*10**(-roundx)).astype(int)*10**(roundx)).astype(int),rotation=90)
         else:
-            ax2.set_xticklabels(np.round(xticks,int(roundx)),rotation=90)
+            ax2.set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),rotation=90)
         ax2.set_xlim(ax2_xlim)
 
         # y axis
-        ax2.set_yticks([1e-1,1e-2,1e-3,1e-4])
-        ax2.set_ylim([1e0,1e-5])
+        if log_p:
+            log_range = np.floor(np.log10(ax2_ylim)).astype(int)
+            yticks = [10**i for i in range(log_range[0]+1,log_range[1]+1)]
+            ax2.set_yticks(yticks)
+        else:
+            yticks = np.array([(1-pos)*ax2_ylim[0]+pos*ax2_ylim[1] for pos in [0.2,0.4,0.6,0.8]])
+            roundy = np.log10(np.abs(yticks[1]-yticks[0]))
+            ax2.set_yticks(yticks)
+            if roundy>=0.5:
+                ax2.set_yticklabels(((yticks*10**(-roundy)).astype(int)*10**(roundy)).astype(int))
+            else:
+                ax2.set_yticklabels(np.round(yticks,int(-np.floor(roundy-0.5))))
+        ax2.set_ylim(ax2_ylim[::-1])
 
 
 
@@ -1375,7 +1161,10 @@ class retrieval_plotting(r_globals.globals):
         if ax_arg is not None:
             return handles+['CloudTopPressure','SurfacePressure'], labels+['True Cloud Top','True Surface']
         elif save:
-            plt.savefig(self.results_directory+'Plots/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
+            if plot_residual:
+                plt.savefig(self.results_directory+'Plots/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
+            else:
+                plt.savefig(self.results_directory+'Plots/plot_pt_structure.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
             return figure, ax, ax2
         else:
             return figure, ax, ax2
