@@ -934,7 +934,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='top right', bins_inlay = 20, ax = None, color='C2', case_identifier = ''):
+                    quantiles_title = None, inlay_loc='top right', bins_inlay = 20, ax = None, color='C2', case_identifier = '', legend_loc = 'best'):
 
         #self.get_pt(skip=skip)
         if not hasattr(self, 'pressure'):
@@ -1104,7 +1104,7 @@ class retrieval_plotting(r_globals.globals):
         # Find the limits for the inlay plot from the contours (+- 10%)
         # if the span in pressure exceeds 2 orders of magnitude use log axes 
         ax2_xlim = [t_lim[0]-0.1*(t_lim[1]-t_lim[0]),t_lim[1]+0.1*(t_lim[1]-t_lim[0])]
-        if np.log10(p_lim[1])-np.log10(p_lim[0]) >= 2:
+        if np.log10(p_lim[1])-np.log10(p_lim[0]) >= 1.2:
             log_p = True
             ax2_ylim = [10**(np.log10(p_lim[0])-0.1*(np.log10(p_lim[1])-np.log10(p_lim[0]))),10**(np.log10(p_lim[1])+0.1*(np.log10(p_lim[1])-np.log10(p_lim[0])))]
             ax2.set_yscale('log')
@@ -1144,16 +1144,22 @@ class retrieval_plotting(r_globals.globals):
         handles, labels = ax.get_legend_handles_labels()
         if ax_arg is not None:
             pass
-        elif plot_clouds:
-            patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :]),tuple(3*[0.9-i*0.15])],[1,1]) for i in range(N_levels)]
+        else:
+            # Add the patches to the legend
+            if plot_clouds:
+                patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :]),tuple(3*[0.9-i*0.15])],[1,1]) for i in range(N_levels)]
+            else:
+                patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
+
+            # Define the titles for the patches
             if quantiles_title is None:
                 patch_labels = levels[:-1]
             else:
                 patch_labels = quantiles_title
+            
+            # Add the legend
             lgd = ax.legend(handles+patch_handles,labels+patch_labels,\
-                            handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc='upper left',frameon=False)
-        else:
-            lgd = ax.legend(handles+['SurfacePressure'], labels+['True Surface'],handler_map={str:  rp_hndl.Handles()}, ncol=4,loc=[0.17,-0.25])
+                            handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
 
 
 
@@ -1175,14 +1181,26 @@ class retrieval_plotting(r_globals.globals):
 
 
     
-    def PT_Histogram(self,ax = None, save=False, plot_clouds = False, color='C2', loc_surface='top right', x_lim =[0,1000], y_lim = [1e-6,1e4],skip=10):
+    def PT_Histogram(self, ax=None, save=False, plot_clouds=False, x_lim=[0,1000], y_lim=[1e-6,1e4], color_map=None, skip=10, bins=200, legend_color='white', truth_color='white', legend_loc = 'best'):
     
-        self.get_pt(skip=skip)
+        #self.get_pt(skip=skip)
+        if not hasattr(self, 'pressure'):
+            self.Calc_PT_Profiles_uniform_bins(skip = skip)
+
+        # Create colormap if requaested
+        if color_map is not None:
+            color_map = rp_col.uniform_color_map(color_map)
+        else:
+            color_map = 'afmhot'
+
+
+
+
 
         # Start of the plotting
         ax_arg = ax
         if ax is None:
-            figure = plt.figure(figsize = (10,5))
+            figure = plt.figure()
             ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
         else:
             pass
@@ -1190,37 +1208,44 @@ class retrieval_plotting(r_globals.globals):
         ax.set_ylim(y_lim)
 
 
-        #plotting the uncertainty on the retrieved spectrum
-        bins = np.array([np.linspace(x_lim[0],x_lim[1],400),np.logspace(np.log10(y_lim[0]),np.log10(y_lim[1]),400)])
-        ax.hist2d(self.temperature_full.flatten()[~np.isnan(self.temperature_full.flatten())],self.pressure_full.flatten()[~np.isnan(self.pressure_full.flatten())],bins=bins,cmap='afmhot')
-        ax.semilogy(self.input_temperature,self.input_pressure,color ='xkcd:azure', label = 'True Profile', zorder=3,lw=0.5)
 
-        # True surface temperature and surface pressure
-        ax.plot(x_lim,[self.input_pressure[-1],self.input_pressure[-1]],color='xkcd:red',linestyle = '-.', zorder=6,label = 'True Surface',lw=0.5)
+        # Plotting the histogram of the PT profiles in the equal weighted posterior
+        bins = np.array([np.linspace(x_lim[0],x_lim[1],bins),np.logspace(np.log10(y_lim[0]),np.log10(y_lim[1]),bins)])
+        ax.hist2d(self.temperature_full.flatten()[~np.isnan(self.temperature_full.flatten())],self.pressure_full.flatten()[~np.isnan(self.pressure_full.flatten())],bins=bins,cmap=color_map)
+        
+        # Plotting the input profile
+        ax.semilogy(self.input_temperature,self.input_pressure,color = truth_color, label = 'Input Profile', zorder=6)
 
-        # True cloud top pressure and temperature
-        if self.settings['clouds'] == 'opaque':
-            ax.plot(x_lim,[self.true_pressure_cloud_top[0],self.true_pressure_cloud_top[0]],color='xkcd:magenta',linestyle = '--', zorder=6,label = 'True Cloud Top',lw=0.5)
+        # Plotting the true/input surface temperature/pressure
+        ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor= truth_color,lw=0, zorder=6,label = 'Input Surface')
 
+        # If wanted: plotting the true/input cloud top temperature/pressure
+        if plot_clouds:
+            ax.plot(self.true_temperature_cloud_top[0],self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor = truth_color, zorder=6,label = 'Input Cloud Top')
+
+
+
+        # If it is a single plot show the axes titles
         if ax_arg is None:
             ax.set_xlabel('Temperature [K]')
             ax.set_ylabel('Pressure [bar]')
         ax.invert_yaxis()
 
-
+        # Legend cosmetics
         handles, labels = ax.get_legend_handles_labels()
         if ax_arg is not None:
             pass
         else:
-            lgd = ax.legend(handles, labels,handler_map={str:  rp_hndl.Handles()}, ncol=4,loc=[0.13,-0.25])
+            lgd = ax.legend(handles,labels, ncol=1,loc=legend_loc,frameon=False,labelcolor = legend_color)
 
+        # Save or pass back the figure
         if ax_arg is not None:
             return handles, labels
         elif save:
-            plt.savefig(self.results_directory+'Plots/pt_hist.png', bbox_inches='tight',bbox_extra_artists=(lgd,),dpi = 450)
+            plt.savefig(self.results_directory+'Plots/pt_hist.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
+            return figure, ax
         else:
-            return figure
-
+            return figure, ax
 
 
 

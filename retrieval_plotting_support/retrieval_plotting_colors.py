@@ -41,3 +41,22 @@ def  color_map(Z,color_levels,level_thresholds):
 
     # Return the colormap
     return map, norm, levels
+
+
+
+# Generate uniform colormap
+def uniform_color_map(color_map):
+    # Convert to colors to RGB
+    c1 = col.to_rgba(color_map[0])
+    c2 = col.to_rgba(color_map[1])
+
+    # Generate the levels
+    levels = np.linspace(0,1,1000)
+
+    # Generate the color levels
+    color_levels = np.ones((999, 4))
+    for rgb_ind in range(3):
+        color_levels[:, rgb_ind] = c1[rgb_ind]*(1-levels[1:])+c2[rgb_ind]*levels[:-1]
+
+    # Return the colormap
+    return col.from_levels_and_colors(levels,color_levels)[0]
