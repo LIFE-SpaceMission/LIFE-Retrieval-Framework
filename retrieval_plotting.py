@@ -7,6 +7,7 @@ __status__ = "Development"
 # Standard Libraries
 #from ctypes.wintypes import RGB
 import sys, os, re
+import pickle
 import math as m
 import numpy as np
 import scipy.interpolate as scp
@@ -57,18 +58,18 @@ class parallel():
         for proc in self.jobs:
             proc.join()
 
+        # Return the data to the user
         return self.result
 
     def __worker(self,process,results_direectory,function,function_args):
         # Initialization of a new radtrans object
         results_temp =  retrieval_plotting(results_direectory)
 
-        # Spectrum calculation
-        function_args['process']=process
-        getattr(results_temp,function)(**function_args)
+        # Function calculation
+        function_args['process'] = process
+        self.result[process] = getattr(results_temp,function)(**function_args)
 
-        # Sve the results to the manager
-        self.result[process] = results_temp.retrieved_fluxes
+
 
 
 
@@ -212,7 +213,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind):
+    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=False):
         '''
         This function creates libraries for the retrieved
         parameters in a retrieval for a given index of the
@@ -239,7 +240,7 @@ class retrieval_plotting(r_globals.globals):
                     self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])] = {}
                 try:
                     self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])][retrieved_params[par].split('_',2)[2]] = temp_equal_weighted_post[ind,par]
-                    if ind == 0:
+                    if ind == 0 or ind_bypass:
                         if self.settings['clouds'] == 'opaque':
                             if retrieved_params[par].split('_',2)[2] == 'thickness':
                                 min_cloud_center = temp_equal_weighted_post[2:,par-1]+temp_equal_weighted_post[2:,par]/2
@@ -252,76 +253,94 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def get_fluxes(self,skip=1000,n_processes=10):
+    def get_spectra(self,skip=1,n_processes=50):
         '''
-        gets the fluxes corresponding to the parameter values 
+        gets the PT profiles corresponding to the parameter values 
         of the equal weighted posteriors.
         '''
 
-        # If not yet done calculate the spectra corresponding
+        # If not yet done calculate the data corresponding
         # to the retrieved posterior distributions of partameters
         if not hasattr(self, 'retrieved_fluxes'):
-                  
-            # check if the spectra for the specified skip
-            # values are already calculated
-            try:
-                ret_spec = np.loadtxt(self.results_directory+'Ret_Fluxes_Skip_'+str(skip)+'.txt')
-                print('Loaded previously calculated retrieved spectra.')
-
-                self.retrieved_fluxes=ret_spec
-            except:
-                print('Calculating retrieved spectra from scratch.')
-                
-                # Check that we do not use too many CPUs
-                if (np.shape(self.equal_weighted_post)[0]//skip)//n_processes < 3:
-                    print('Not enough jobs for the specified number of processes!')
-                    while (np.shape(self.equal_weighted_post)[0]//skip)//n_processes < 3:
-                        n_processes -= 1
-                    print('I lowered n_processes to '+str(n_processes)+'.')
-
-                # Start the paralel calculation
-                parallel_calculation = parallel(n_processes)
-                result = parallel_calculation.calculate(self.results_directory,'Calc_Spectra',{'skip':skip,'n_processes':n_processes})
-
-                # Merge the calculated data
-                retrieved_fluxes = list(result[0])
-                for i in range(1,n_processes):
-                    retrieved_fluxes += list(result[i])
-
-                # Save the newly calculated data
-                self.retrieved_fluxes = np.array(retrieved_fluxes)
-                np.savetxt(self.results_directory+'Ret_Fluxes_Skip_'+str(skip)+'.txt',self.retrieved_fluxes)
-            
-            self.Calc_Spectra(skip=np.shape(self.equal_weighted_post)[0]-2)
-
-            self.flux_mean = np.mean(self.retrieved_fluxes,axis=0)
-            self.flux_median = np.median(self.retrieved_fluxes,axis=0)
+            function_args = {'skip':skip,'n_processes':n_processes}
+            self.__get_data(data_type='Spec',data_name='spectra',function_name='Calc_Spectra',function_args=function_args)
+        
+        #self.flux_mean = np.mean(self.retrieved_fluxes,axis=0)
+        #self.flux_median = np.median(self.retrieved_fluxes,axis=0)
 
 
-    def get_pt(self,skip=1000):
+
+    def get_pt(self,skip=1,layers=500,p_surf=4,n_processes=50):
         '''
-        gets the fluxes corresponding to the parameter values 
+        gets the PT profiles corresponding to the parameter values 
         of the equal weighted posteriors.
         '''
 
-        # If not yet done calculate the spectra corresponding
+        # If not yet done calculate the data corresponding
         # to the retrieved posterior distributions of partameters
-        if not hasattr(self, 'pressures'):
-                  
-            # check if the spectra for the specified skip
-            # values are already calculated
-            try:
-                ret_pt = np.loadtxt(self.results_directory+'Ret_PT_Skip_'+str(skip)+'.txt')
-                print('Loaded previously calculated retrieved pt profiles.')
+        if not hasattr(self, 'pressure'):
+            function_args = {'skip':skip,'layers':layers,'p_surf':p_surf,'n_processes':n_processes}
+            self.__get_data(data_type='PT',data_name='PT profiles',function_name='Calc_PT_Profiles',function_args=function_args)
 
-                self.Calc_PT_Profiles_uniform_bins(skip=np.shape(self.equal_weighted_post)[0]-2)
-                self.retrieved_fluxes=ret_pt
-            except:
-                print('Calculating retrieved spectra from scratch.')
-                
-                self.Calc_PT_Profiles_uniform_bins(skip=skip)
 
-                np.savetxt(self.results_directory+'Ret_PT_Skip_'+str(skip)+'.txt',self.temperature)
+
+    def __get_data(self,data_type,data_name,function_name,function_args):
+        '''
+        gets the data corresponding to the parameter values 
+        of the equal weighted posteriors.
+        '''
+
+        # check if the data for the specified skip
+        # values are already calculated
+        try:
+            load_file = open(self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl', "rb")
+            loaded_data = pickle.load(load_file)
+            load_file.close()
+
+            # Initialize class attributes for the data from the different processes
+            for key in loaded_data.keys():
+                setattr(self,key,loaded_data[key])
+
+            print('Loaded previously calculated '+data_name+' from '+self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl.')
+
+        # check if the data for the specified skip
+        # values are already calculated    
+        except:
+            print('Calculating retrieved '+data_name+' from scratch.')
+
+            # Check that we do not use too many CPUs
+            if (np.shape(self.equal_weighted_post)[0]//function_args['skip'])//function_args['n_processes'] < 3:
+                print('Not enough jobs for the specified number of processes!')
+                while (np.shape(self.equal_weighted_post)[0]//function_args['skip'])//function_args['n_processes'] < 3:
+                    function_args['n_processes'] -= 1
+                print('I lowered n_processes to '+str(function_args['n_processes'])+'.')
+
+            # Start the paralel calculation
+            parallel_calculation = parallel(function_args['n_processes'])
+            result_process = parallel_calculation.calculate(self.results_directory,function_name,function_args)
+
+            # Combine the data from the different processes
+            print('Combining all data.')
+            result_combined = {}
+            for key in result_process[0].keys():
+                combined = result_process[0][key].copy()
+                for process in range(1,function_args['n_processes']):
+                    try:
+                        combined = np.append(combined,result_process[process][key],axis = 0)
+                    except:
+                        pass
+                result_combined[key] = combined
+
+                # Initialize class attributes for the data from the different processes
+                setattr(self,key,combined)
+            print('Done combining all data.')
+
+            # Save the calculated data in a pickle file for later reloading to save time
+            save_file = open(self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl', "wb")
+            pickle.dump(result_combined, save_file)
+            save_file.close()
+            print('Saved calculated '+data_name+' in '+self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl.')
+
 
 
     def __g_test(self):
@@ -353,17 +372,6 @@ class retrieval_plotting(r_globals.globals):
         the correct format for petit radtrans
         '''
 
-        """
-        # for the vae_pt we currently cannot retrieve the surface pressure
-        if self.settings['parametrization'] == 'vae_pt':
-            if (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys()) or ('log_P0' in self.knowns.keys()) or ('P0' in self.knowns.keys())):
-                print("ERROR! For the VAE-PT profile model the surface pressure cannot be retrieved. It is fixed at a value of")
-                sys.exit()
-            else:
-                self.phys_vars['log_P0'] = np.log10(self.vae_pt.max_t) 
-                self.phys_vars['log_Ptop'] = np.log10(self.vae_pt.min_t) 
-        """
-        #else:
         if self.settings['clouds'] == 'opaque':
             # Choose a surface pressure below the lower cloud deck
             if not (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys())):
@@ -673,19 +681,11 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-
-
-
-    def Calc_PT_Profiles(self,skip = 10):
+    def Calc_PT_Profiles(self,skip = 1,layers=500,p_surf=4,n_processes=None,process=None):
         '''
         Function to calculate the PT profiles corresponding to the retrieved posterior distributions
         for subsequent plotting in the flux PT plotting functions.
         '''
-
-        # Import petitRADTRANS
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
 
         # Add the thest fit spectrum and the input parameters to the equal weighted posterior
         temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
@@ -693,131 +693,52 @@ class retrieval_plotting(r_globals.globals):
 
         # Fetch the known parameters
         temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
-        
-        # Print status of calculation
-        print('Starting PT-profile calculation.')
-        print('\t0.00 % of PT-profiles calculated.', end = "\r")
-
-        # Iterate over the equal weighted posterior distribution using the user-defined skip value
-        dimension = np.shape(temp_equal_weighted_post)[0]//skip   
-
-
-
-
-        for i in range(dimension):
-            ind = min(2,i)+skip*max(0,i-2)
-
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind)
-
-
-
-            # Test the values of P0 and g and change to required values if necessary
-            self.__g_test()            
-            self.__P0_test()
-
-            # Calculate the cloud bottom pressure from the cloud thickness parameter
-            cloud_tops = []
-            cloud_bottoms = []
-            for key in self.cloud_vars.keys():
-                cloud_bottoms += [self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']]
-                cloud_tops += [self.cloud_vars[key]['top_pressure']]
-                self.make_press_temp_terr(log_top_pressure=np.log10(np.min(cloud_tops)),layers=1000)
-                pressure_cloud_top = self.press
-                temperature_cloud_top = self.temp
-
-            # Calculate the pressure temperature profile corresponding to the set of parameters
-            if ((self.settings['clouds'] == 'opaque') and (i>0)):
-                self.make_press_temp_terr(log_top_pressure=self.cloud_opacity_cut[-1],layers=1000)
-                pressure_extrapol = self.press
-                temperature_extrapol = self.temp
-                self.phys_vars['log_P0'] = self.cloud_opacity_cut[-1]
-                self.make_press_temp_terr(layers=1000)
-            else:
-                self.make_press_temp_terr(layers=1000)
-
-            # store the calculated values
-            if i == 0:
-                if not hasattr(self, 'input_temperature'):
-                    self.input_pressure = self.press
-                    self.input_temperature = self.temp
-                if len(self.cloud_vars) != 0:
-                    self.true_cloud_top = cloud_tops
-                    self.true_cloud_bottom = cloud_bottoms
-                    self.true_pressure_cloud_top = pressure_cloud_top
-                    self.true_temperature_cloud_top = temperature_cloud_top
-            elif i == 1:
-                self.best_pressure = self.press
-                self.best_temperature = self.temp
-                if len(self.cloud_vars) != 0:
-                    self.best_cloud_top = cloud_tops
-                    self.best_cloud_bottom = cloud_bottoms
-                    self.best_pressure_cloud_top = pressure_cloud_top
-                    self.best_temperature_cloud_top = temperature_cloud_top
-                if self.settings['clouds'] == 'opaque':
-                    self.best_pressure_extrapol = pressure_extrapol
-                    self.best_temperature_extrapol = temperature_extrapol
-            elif i == 2:
-                self.pressure = np.array([self.press])
-                self.temperature = np.array([self.temp])
-                if len(self.cloud_vars) != 0:
-                    self.cloud_top = np.array([cloud_tops])
-                    self.cloud_bottom = np.array([cloud_bottoms])
-                    self.pressure_cloud_top = np.array([pressure_cloud_top])
-                    self.temperature_cloud_top = np.array([temperature_cloud_top])
-                if self.settings['clouds'] == 'opaque':
-                    self.pressure_extrapol = np.array([pressure_extrapol])
-                    self.temperature_extrapol = np.array([temperature_extrapol])
-            else:
-                self.pressure = np.append(self.pressure,np.array([self.press]),axis=0)
-                self.temperature = np.append(self.temperature,np.array([self.temp]),axis=0)
-                if len(self.cloud_vars) != 0:
-                    self.cloud_top = np.append(self.cloud_top,np.array([cloud_tops]),axis=0)
-                    self.cloud_bottom = np.append(self.cloud_bottom,np.array([cloud_bottoms]),axis=0)
-                    self.pressure_cloud_top = np.append(self.pressure_cloud_top,np.array([pressure_cloud_top]),axis=0)
-                    self.temperature_cloud_top = np.append(self.temperature_cloud_top,np.array([temperature_cloud_top]),axis=0)
-                if self.settings['clouds'] == 'opaque':
-                    self.pressure_extrapol = np.append(self.pressure_extrapol,np.array([pressure_extrapol]),axis=0)
-                    self.temperature_extrapol = np.append(self.temperature_extrapol,np.array([temperature_extrapol]),axis=0)
-            # Print status of calculation
-            print('\t'+str(np.round((i+1)/dimension*100,2))+' % of PT-profiles calculated.', end = "\r")
-
-        # Print status of calculation
-        print('\nPT-profile calculation completed.')
-
-
-
-
-
-    def Calc_PT_Profiles_uniform_bins(self,skip = 10,layers=5000,p_surf=4):
-        '''
-        Function to calculate the PT profiles corresponding to the retrieved posterior distributions
-        for subsequent plotting in the flux PT plotting functions.
-        '''
-
-        # Import petitRADTRANS
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
-
-        # Add the thest fit spectrum and the input parameters to the equal weighted posterior
-        temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
-        temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
-
-        # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
-        
-        # Print status of calculation
-        print('Starting PT-profile calculation.')
-        print('\t0.00 % of PT-profiles calculated.', end = "\r")
 
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
-        for i in range(dimension):
+
+        #If run in multiprocessing split up the jobs
+        if (n_processes is not None) and (process is not None):
+
+            ind_start = process*dimension//n_processes
+            ind_end = min(dimension,(process+1)*dimension//n_processes)
+
+            # Printing infor ffor the multiprocessing case
+            if process == 0:
+                print('\n-----------------------------------------------------')
+                print('\n    PT-Profile calculation on multiple CPUs:')
+                print('')
+                print('    PT-Profiles to calculate: ',str(dimension))
+                print('    Number of processes: '+str(n_processes))
+                print('')
+                print('    Distribution of tasks:')
+                for proc_ind in range(n_processes):
+                    print('\tProcess '+str(proc_ind)+':\tProfiles:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
+                print('\n-----------------------------------------------------\n')
+        else:
+            ind_start = 0
+            ind_end = dimension
+            process = 0
+
+        # Import petitRADTRANS
+        sys.path.append(self.path_prt)
+        from petitRADTRANS import Radtrans
+        from petitRADTRANS import nat_cst as nc
+
+        self.read_data(retrieval = False)
+        
+        # Print status of calculation
+        if process == 0:
+            print('Starting PT-profile calculation.')
+            print('\t0.00 % of PT-profiles calculated.', end = "\r")
+
+        results = {}
+        t_start = t.time()
+        for i in range(ind_start,ind_end):
             ind = min(2,i)+skip*max(0,i-2)
 
             # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind)
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
         
             # Test the values of P0 and g and change to required values if necessary
             self.__g_test()
@@ -830,8 +751,8 @@ class retrieval_plotting(r_globals.globals):
                 cloud_bottoms += [self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']]
                 cloud_tops += [self.cloud_vars[key]['top_pressure']]
                 self.make_press_temp_terr(log_top_pressure=np.log10(np.min(cloud_tops)),layers=layers)
-                pressure_cloud_top = self.press
-                temperature_cloud_top = self.temp
+                pressure_cloud_top = self.press[0]
+                temperature_cloud_top = self.temp[0]
 
             self.make_press_temp_terr(log_ground_pressure=p_surf,layers=layers)
             pressure_full = self.press
@@ -840,19 +761,8 @@ class retrieval_plotting(r_globals.globals):
             pressure_full[ind] = np.nan
             temperature_full[ind] = np.nan
 
-            if ((self.settings['clouds'] == 'opaque') and (i>0)):
-                self.make_press_temp_terr(log_ground_pressure=p_surf,layers=layers)
-                pressure_full_ct = self.press
-                temperature_full_ct = self.temp
-                ind = np.where(self.press > np.min(cloud_tops))
-                pressure_full_ct[ind] = np.nan
-                temperature_full_ct[ind] = np.nan
-
             # Calculate the pressure temperature profile corresponding to the set of parameters
             if ((self.settings['clouds'] == 'opaque') and (i>0)):
-                self.make_press_temp_terr(log_top_pressure=self.cloud_opacity_cut[-1],layers=layers)
-                pressure_extrapol = self.press
-                temperature_extrapol = self.temp
                 self.phys_vars['log_P0'] = self.cloud_opacity_cut[-1]
                 self.make_press_temp_terr(layers=layers)
             else:
@@ -861,63 +771,60 @@ class retrieval_plotting(r_globals.globals):
             # store the calculated values
             if i == 0:
                 if not hasattr(self, 'input_temperature'):
-                    self.input_pressure = self.press
-                    self.input_temperature = self.temp
+                    results['input_pressure'] = self.press
+                    results['input_temperature'] = self.temp
                 if len(self.cloud_vars) != 0:
-                    self.true_cloud_top = cloud_tops
-                    self.true_cloud_bottom = cloud_bottoms
-                    self.true_pressure_cloud_top = pressure_cloud_top
-                    self.true_temperature_cloud_top = temperature_cloud_top
+                    results['true_pressure_cloud_top'] = [pressure_cloud_top]
+                    results['true_temperature_cloud_top'] = [temperature_cloud_top]
             elif i == 1:
-                self.best_pressure = self.press
-                self.best_temperature = self.temp
+                results['best_pressure'] = self.press
+                results['best_temperature'] = self.temp
                 if len(self.cloud_vars) != 0:
-                    self.best_cloud_top = cloud_tops
-                    self.best_cloud_bottom = cloud_bottoms
-                    self.best_pressure_cloud_top = pressure_cloud_top
-                    self.best_temperature_cloud_top = temperature_cloud_top
-                if self.settings['clouds'] == 'opaque':
-                    self.best_pressure_extrapol = pressure_extrapol
-                    self.best_temperature_extrapol = temperature_extrapol
-            else:
-                if i==2:
-                    # initialize the arrays for storage
-                    self.pressure = np.zeros((dimension-2,len(self.press)))
-                    self.temperature = np.zeros((dimension-2,len(self.temp)))
-                    self.pressure_full = np.zeros((dimension-2,len(pressure_full)))
-                    self.temperature_full = np.zeros((dimension-2,len(temperature_full)))
-                    if len(self.cloud_vars) != 0:
-                        self.cloud_top = np.zeros((dimension-2,len(cloud_tops)))
-                        self.cloud_bottom = np.zeros((dimension-2,len(cloud_bottoms)))
-                        self.pressure_cloud_top = np.zeros((dimension-2,len(pressure_cloud_top)))
-                        self.temperature_cloud_top = np.zeros((dimension-2,len(temperature_cloud_top)))
-                    if self.settings['clouds'] == 'opaque':
-                        self.pressure_extrapol = np.zeros((dimension-2,len(pressure_extrapol)))
-                        self.temperature_extrapol = np.zeros((dimension-2,len(temperature_extrapol)))
-                        self.pressure_full_ct = np.zeros((dimension-2,len(pressure_full_ct)))
-                        self.temperature_full_ct = np.zeros((dimension-2,len(temperature_full_ct)))
+                    results['best_pressure_cloud_top'] = [pressure_cloud_top]
+                    results['best_temperature_cloud_top'] = [temperature_cloud_top]
 
-                self.pressure[i-2,:] = self.press
-                self.temperature[i-2,:] = self.temp
-                self.pressure_full[i-2,:] = pressure_full
-                self.temperature_full[i-2,:] = temperature_full
+            else:
+                if (i == 2) or (i==ind_start):
+                    if i==2:
+                        size = ind_end-ind_start-2
+                    else:
+                        size = ind_end-ind_start
+
+                    # Initialize the arrays for storage
+                    results['pressure'] = np.zeros((size,len(self.press)))
+                    results['temperature'] = np.zeros((size,len(self.temp)))
+                    results['pressure_full'] = np.zeros((size,len(pressure_full)))
+                    results['temperature_full'] = np.zeros((size,len(temperature_full)))
+                    if len(self.cloud_vars) != 0:
+                        results['pressure_cloud_top'] = np.zeros((size,len([pressure_cloud_top])))
+                        results['temperature_cloud_top'] = np.zeros((size,len([temperature_cloud_top])))
+
+                if process == 0:
+                    save = i - 2
+                else:
+                    save = i-ind_start
+
+                # Save the results
+                results['pressure'][save,:] = self.press
+                results['temperature'][save,:] = self.temp
+                results['pressure_full'][save,:] = pressure_full
+                results['temperature_full'][save,:] = temperature_full
                 if len(self.cloud_vars) != 0:
-                    self.cloud_top[i-2,:] = cloud_tops
-                    self.cloud_bottom[i-2,:] = cloud_bottoms
-                    self.pressure_cloud_top[i-2,:] = pressure_cloud_top
-                    self.temperature_cloud_top[i-2,:] = temperature_cloud_top
-                if self.settings['clouds'] == 'opaque':
-                    self.pressure_extrapol[i-2,:] = pressure_extrapol
-                    self.temperature_extrapol[i-2,:] = temperature_extrapol
-                    self.pressure_full_ct[i-2,:] = pressure_full_ct
-                    self.temperature_full_ct[i-2,:] = temperature_full_ct
+                    results['pressure_cloud_top'][save,:] = pressure_cloud_top
+                    results['temperature_cloud_top'][save,:] = temperature_cloud_top
 
             # Print status of calculation
-            print('\t'+str(np.round((i+1)/dimension*100,2))+' % of PT-profiles calculated.', end = "\r")
+            if process == 0:
+                t_end = t.time()
+                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
+                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of PT-profiles calculated. Estimated time remaining: '+str(remain_time//3600)+' h, '+str((remain_time%3600)//60)+' min.        ', end = "\r")
 
         # Print status of calculation
-        print('\nPT-profile calculation completed.')
-
+        if process == 0:
+            print('\nPT-profile calculation completed.')
+        
+        # Return the results
+        return results
 
 
 
@@ -934,11 +841,9 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='top right', bins_inlay = 20, ax = None, color='C2', case_identifier = '', legend_loc = 'best'):
+                    quantiles_title = None, inlay_loc='top right', bins_inlay = 20, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50):
 
-        #self.get_pt(skip=skip)
-        if not hasattr(self, 'pressure'):
-            self.Calc_PT_Profiles_uniform_bins(skip = skip)
+        self.get_pt(skip=skip,n_processes=n_processes)
 
         # find the quantiles for the different pressures and temperatures
         p_layers_quantiles = [np.nanquantile(self.pressure_full,q,axis=0) for q in quantiles]
@@ -961,8 +866,8 @@ class retrieval_plotting(r_globals.globals):
             
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
-            median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top,axis=0), np.median(self.pressure_cloud_top,axis=0)
-            cloud_top_quantiles = [np.quantile(self.cloud_top,q,axis=0) for q in quantiles]
+            median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top), np.median(self.pressure_cloud_top)
+            cloud_top_quantiles = [np.quantile(self.pressure_cloud_top,q) for q in quantiles]
 
 
 
@@ -1003,33 +908,33 @@ class retrieval_plotting(r_globals.globals):
                 else:
                     ax.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[i+1],cloud_top_quantiles[i+1]],color = 'black',alpha=alpha,lw = 0, zorder=5)
                     ax.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[-i-2],cloud_top_quantiles[-i-2],cloud_top_quantiles[-i-1],cloud_top_quantiles[-i-1]],color = 'black',alpha=alpha,lw = 0, zorder=5)
-            ax.plot([-10000,10000],[median_pressure_cloud_top[0],median_pressure_cloud_top[0]],'k--', zorder=5)
-            ax.annotate('Retrieved Median Cloud Top',[x_lim[0]+0.0125*(x_lim[1]-x_lim[0]),10**(-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(median_pressure_cloud_top[0]))],color = 'black',ha='left')
+            ax.plot([-10000,10000],[median_pressure_cloud_top,median_pressure_cloud_top],'k--', zorder=5)
+            ax.annotate('Retrieved Median Cloud Top',[x_lim[0]+0.0125*(x_lim[1]-x_lim[0]),10**(-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(median_pressure_cloud_top))],color = 'black',ha='left')
 
         # Plotting the true/input profile (interpolation for smoothing)
         if plot_residual:
             y = np.nanquantile(self.temperature_full,0.5,axis=0)
             x = np.nanquantile(self.pressure_full,0.5,axis=0)
             yinterp = np.interp(self.input_pressure, x, y)
-            ax.semilogy(gaussian_filter1d(self.input_temperature-yinterp,sigma = 100),(self.input_pressure),color ='black', label = 'Input Profile', zorder=6)
+            smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 10)
+            ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'Input Profile', zorder=6)
 
             # Plotting the true/input surface temperature/pressure
             ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0, zorder=6,label = 'Input Surface')
+
+            # If wanted: plotting the true/input cloud top temperature/pressure
+            if plot_clouds:
+                ind_ct = (np.argmin(np.abs(np.log10(self.true_pressure_cloud_top)-np.log10(self.input_pressure))))
+                ax.plot(smooth_T_true[ind_ct],self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
         else:
             ax.semilogy(self.input_temperature,self.input_pressure,color ='black', label = 'Input Profile', zorder=6)
 
             # Plotting the true/input surface temperature/pressure
             ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0, zorder=6,label = 'Input Surface')
 
-        # If wanted: plotting the true/input cloud top temperature/pressure
-        if plot_clouds:
-            ind_ct = (np.argmin(np.abs(np.log10(self.true_pressure_cloud_top[0])-np.log10(np.nanquantile(self.pressure_full,0.5,axis=0)))))
-            T_CT = np.nanquantile(self.temperature_full,0.5,axis=0)[ind_ct]
-            if self.settings['clouds'] == 'opaque':
-                if plot_residual:
-                    ax.plot(self.true_temperature_cloud_top[0]-T_CT,self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
-                else:
-                    ax.plot(self.true_temperature_cloud_top[0],self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
+            # If wanted: plotting the true/input cloud top temperature/pressure
+            if plot_clouds:
+                ax.plot(self.true_temperature_cloud_top,self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black', zorder=6,label = 'Input Cloud Top')
 
         # Print the case identifier
         ax.annotate(case_identifier,[x_lim[1]-0.025*(x_lim[1]-x_lim[0]),10**(np.log10(y_lim[1])-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0])))],ha='right',va='bottom')
@@ -1060,11 +965,11 @@ class retrieval_plotting(r_globals.globals):
             ax2_ylabel = r'$P^\mathrm{cloud}_\mathrm{top}\,\,\left[\mathrm{bar}\right]$'
 
             # Define limits and make a 2d histogram of the cloud top pressures and temperatures
-            t_lim = [np.min(self.temperature_cloud_top[:,0]),np.max(self.temperature_cloud_top[:,0])]
+            t_lim = [np.min(self.temperature_cloud_top),np.max(self.temperature_cloud_top)]
             t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(self.pressure_cloud_top[:,0])),np.max(np.log10(self.pressure_cloud_top[:,0]))]
+            p_lim = [np.min(np.log10(self.pressure_cloud_top)),np.max(np.log10(self.pressure_cloud_top))]
             p_range = p_lim[1]-p_lim[0]
-            Z,X,Y=np.histogram2d(self.temperature_cloud_top[:,0],np.log10(self.pressure_cloud_top[:,0]),bins=bins_inlay,
+            Z,X,Y=np.histogram2d(self.temperature_cloud_top[:,0],np.log10(self.pressure_cloud_top)[:,0],bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
 
         else:
@@ -1088,7 +993,7 @@ class retrieval_plotting(r_globals.globals):
         ax2.plot(self.input_temperature,self.input_pressure,color ='black')
         ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
         try:
-            ax2.plot(self.true_temperature_cloud_top[0],(self.true_pressure_cloud_top[0]),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
+            ax2.plot(self.true_temperature_cloud_top,(self.true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
         except:
             pass
         
@@ -1179,13 +1084,10 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-
+    def PT_Histogram(self, ax=None, save=False, plot_clouds=False, x_lim=[0,1000], y_lim=[1e-6,1e4], color_map=None, skip=1, bins=200, legend_color='white', truth_color='white',
+                    legend_loc = 'best',n_processes=50):
     
-    def PT_Histogram(self, ax=None, save=False, plot_clouds=False, x_lim=[0,1000], y_lim=[1e-6,1e4], color_map=None, skip=10, bins=200, legend_color='white', truth_color='white', legend_loc = 'best'):
-    
-        #self.get_pt(skip=skip)
-        if not hasattr(self, 'pressure'):
-            self.Calc_PT_Profiles_uniform_bins(skip = skip)
+        self.get_pt(skip=skip,n_processes=n_processes)
 
         # Create colormap if requaested
         if color_map is not None:
@@ -1221,7 +1123,7 @@ class retrieval_plotting(r_globals.globals):
 
         # If wanted: plotting the true/input cloud top temperature/pressure
         if plot_clouds:
-            ax.plot(self.true_temperature_cloud_top[0],self.true_pressure_cloud_top[0],marker='o',color='C1',lw=0,ms=7, markeredgecolor = truth_color, zorder=6,label = 'Input Cloud Top')
+            ax.plot(self.true_temperature_cloud_top,self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor = truth_color, zorder=6,label = 'Input Cloud Top')
 
 
 
@@ -1242,15 +1144,10 @@ class retrieval_plotting(r_globals.globals):
         if ax_arg is not None:
             return handles, labels
         elif save:
-            plt.savefig(self.results_directory+'Plots/pt_hist.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
+            plt.savefig(self.results_directory+'Plots/plot_pt_histogram.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
             return figure, ax
         else:
             return figure, ax
-
-
-
-
-
 
 
 
@@ -1303,9 +1200,11 @@ class retrieval_plotting(r_globals.globals):
         self.read_data(retrieval = False)
 
         # Print status of calculation
-        print('Starting spectrum calculation.')
-        print('\t0.00 % of spectra calculated.', end = "\r")
+        if process == 0:
+            print('Starting spectrum calculation.')
+            print('\t0.00 % of spectra calculated.', end = "\r")
 
+        results = {}
         t_start = t.time()
         for i in range(ind_start,ind_end):
             ind = min(2,i)+skip*max(0,i-2)
@@ -1358,16 +1257,29 @@ class retrieval_plotting(r_globals.globals):
 
                 #Store the calculated flux according to the considered case
                 if i == 0:
-                    self.wavelength = nc.c / self.rt_object.freq #self.dwlen[instrument]
-                    self.flux_true = np.array(self.rt_object.flux)
+                    results['wavelength'] = nc.c / self.rt_object.freq #self.dwlen[instrument]
+                    results['flux_true'] = np.array(self.rt_object.flux)
+
                 elif i == 1:
-                    self.wavelength = nc.c / self.rt_object.freq #self.dwlen[instrument]
-                    self.flux_best = np.array(self.rt_object.flux)
-                elif not hasattr(self,'retrieved_fluxes'):
-                    self.wavelength = nc.c / self.rt_object.freq #self.dwlen[instrument]
-                    self.retrieved_fluxes = np.array([self.rt_object.flux])
+                    results['flux_best'] = np.array(self.rt_object.flux)
+
                 else:
-                    self.retrieved_fluxes = np.append(self.retrieved_fluxes,np.array([self.rt_object.flux]),axis=0)
+                    if (i == 2) or (i==ind_start):
+                        if i==2:
+                            size = ind_end-ind_start-2
+                        else:
+                            size = ind_end-ind_start
+
+                        # Initialize the arrays for storage
+                        results['retrieved_fluxes'] = np.zeros((size,len(self.rt_object.flux)))
+
+                    if process == 0:
+                        save = i - 2
+                    else:
+                        save = i-ind_start
+                
+                    # Save the results
+                    results['retrieved_fluxes'][save,:] = self.rt_object.flux
             
             # Print status of calculation
             if process == 0:
@@ -1380,12 +1292,13 @@ class retrieval_plotting(r_globals.globals):
             print('\nSpectrum calculation completed.')
 
         #return the calculated results
-        pass
+        return results
 
 
-    
 
-    def Flux_Error(self,ax = None,skip=10,quantiles = [0.01,0.10,0.25,0.75,0.90,0.99],save=False,pptx=True,plot_points=False,n_processes=10):
+
+
+    def Flux_Error(self,ax = None,skip=1,quantiles = [0.01,0.10,0.25,0.75,0.90,0.99],color='C2',save=False,pptx=True,plot_points=False,n_processes=50):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval, the
@@ -1393,7 +1306,7 @@ class retrieval_plotting(r_globals.globals):
         median spectrum.
         '''
 
-        self.get_fluxes(skip=skip,n_processes=n_processes)
+        self.get_spectra(skip=skip,n_processes=n_processes)
         
         # Determining the quantiles of the different retrieved spectra
         flux_quantiles = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
@@ -1431,11 +1344,11 @@ class retrieval_plotting(r_globals.globals):
             alpha = 0.3 + 0.5*(1-abs(1-q/(num_quantiles//2-1)))
             if num_quantiles//2 > q:
                 ax.fill_between(self.wavelength/1e-4,flux_quantiles[q],flux_quantiles[q+1],
-                                facecolor='green',alpha=alpha,label = str(int(100*quantiles[q]))
+                                facecolor=color,alpha=alpha,label = str(int(100*quantiles[q]))
                                 +r'% - '+str(int(100*quantiles[-q-1]))+'%',zorder=1)
             else:
                 ax.fill_between(self.wavelength/1e-4,flux_quantiles[q],flux_quantiles[q+1],
-                                facecolor='green',alpha=alpha,zorder=1)
+                                facecolor=color,alpha=alpha,zorder=1)
         
         # Formatting of the plot and adding titles and the legend
         ax.set_xlabel(r'Wavelength [$\mu$m]',size=fs)
@@ -1461,7 +1374,7 @@ class retrieval_plotting(r_globals.globals):
             ax.legend(loc='best')
             return figure
 
-    def Flux_Error_noQuant(self,ax = None,skip=10,save=False,pptx=True,n_processes=10):
+    def Flux_Error_noQuant(self,ax = None,skip=1,save=False,pptx=True,n_processes=50):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval, the
@@ -1469,7 +1382,7 @@ class retrieval_plotting(r_globals.globals):
         median spectrum.
         '''
 
-        self.get_fluxes(skip=skip,n_processes=n_processes)
+        self.get_spectra(skip=skip,n_processes=n_processes)
 
         # Start generating the flux error plot
         ax_arg = ax
@@ -1523,7 +1436,7 @@ class retrieval_plotting(r_globals.globals):
             return figure
 
 
-    def Input_Flux(self,ax = None,skip=10,save=False,pptx=True,n_processes=10):
+    def Input_Flux(self,ax = None,skip=1,save=False,pptx=True,n_processes=50):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval, the
@@ -1531,7 +1444,7 @@ class retrieval_plotting(r_globals.globals):
         median spectrum.
         '''
 
-        self.get_fluxes(skip=skip,n_processes=n_processes)
+        self.get_spectra(skip=skip,n_processes=n_processes)
 
         # Start generating the flux error plot
         ax_arg = ax
@@ -1581,8 +1494,8 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Rel_Flux_Error(self,skip=10,quantiles = [0.0014,0.0228,0.1587,0.8413,0.9772,0.9986],quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
-                        save=False,ax=None,plot_best_fits=False,y_lim=[-4,4],color = 'C2',case_identifier='',n_processes=10):
+    def Rel_Flux_Error(self,skip=1,quantiles = [0.0014,0.0228,0.1587,0.8413,0.9772,0.9986],quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
+                        save=False,ax=None,plot_best_fits=False,y_lim=[-4,4],color = 'C2',case_identifier='',n_processes=50):
         '''
         This Function creates a plot that visualizes the relative uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
@@ -1591,7 +1504,7 @@ class retrieval_plotting(r_globals.globals):
         median spectrum.
         '''
 
-        self.get_fluxes(skip=skip,n_processes=n_processes)
+        self.get_spectra(skip=skip,n_processes=n_processes)
 
         # Determining the quantiles of the different retrieved spectra
         flux_quantiles = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
@@ -1659,8 +1572,8 @@ class retrieval_plotting(r_globals.globals):
         else:
             return figure
 
-    def Rel_Flux_Error_Noise(self,skip=10,quantiles = [0.0014,0.0228,0.1587,0.8413,0.9772,0.9986],quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
-                        save=False,ax=None,plot_best_fits=False,alpha_step = 0.15,y_lim=[-2,2],color='C2',n_processes=10):
+    def Rel_Flux_Error_Noise(self,skip=1,quantiles = [0.0014,0.0228,0.1587,0.8413,0.9772,0.9986],quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
+                        save=False,ax=None,plot_best_fits=False,alpha_step = 0.15,y_lim=[-2,2],color='C2',n_processes=50):
         '''
         This Function creates a plot that visualizes the relative uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
@@ -1669,7 +1582,7 @@ class retrieval_plotting(r_globals.globals):
         median spectrum.
         '''
 
-        self.get_fluxes(skip=skip,n_processes=n_processes)
+        self.get_spectra(skip=skip,n_processes=n_processes)
 
         # Determining the quantiles of the different retrieved spectra
         flux_quantiles = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
@@ -1734,7 +1647,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Rel_Flux_Error_noQuant(self,skip=10,n_processes=10,save=False):
+    def Rel_Flux_Error_noQuant(self,skip=1,n_processes=50,save=False):
        '''
        This Function creates a plot that visualizes the relative uncertainty on the
        retrieval results in comparison with the input spectrum for the retrieval.
@@ -1743,7 +1656,7 @@ class retrieval_plotting(r_globals.globals):
        median spectrum.
        '''
 
-       self.get_fluxes(skip=skip,n_processes=n_processes)
+       self.get_spectra(skip=skip,n_processes=n_processes)
 
        # Start generating the relative flux error plot
        figure = plt.figure()
@@ -1781,12 +1694,12 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Plot_Ret_Bond_Albedo(self,L_star,err_L_star,sep_planet,err_sep_planet,A_Bond_true = None,T_equ_true= None,
-                            skip=1,quantiles=[0.16, 0.5, 0.84],bins=50,save=False,plot=True):
+                            skip=1,quantiles=[0.16, 0.5, 0.84],bins=50,save=False,plot=True,n_processes=50):
         
-        self.get_pt(skip=skip)
+        self.get_pt(skip=skip,n_processes=n_processes)
 
         if self.settings['clouds'] == 'opaque': #if len(self.cloud_vars) != 0:
-            ret_surface_T = self.temperature_cloud_top[:,0]
+            ret_surface_T = self.temperature_cloud_top
             #ret_surface_T = self.temperature[:,-1]
         else:
             ret_surface_T = self.temperature[:,-1]
@@ -1836,13 +1749,13 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Plot_Ice_Surface_Test(self,MMW_atm=44,MMW_H2O=18,ax=None,skip=1,bins=50,save=False):
+    def Plot_Ice_Surface_Test(self,MMW_atm=44,MMW_H2O=18,ax=None,skip=1,bins=50,save=False,n_processes=50):
         
-        if not hasattr(self, 'pressure'):
-            self.Calc_PT_Profiles(skip = skip)
-        if self.settings['clouds'] == 'opaque': #if len(self.cloud_vars) != 0:
-            ret_surface_T = self.temperature_cloud_top[:,0]
-            ret_surface_p = self.pressure_cloud_top[:,0]
+        self.get_pt(skip=skip,n_processes=n_processes)
+
+        if self.settings['clouds'] == 'opaque':
+            ret_surface_T = self.temperature_cloud_top
+            ret_surface_p = self.pressure_cloud_top
         else:
             ret_surface_T = self.temperature[:,-1]
             ret_surface_p = self.pressure[:,-1]
@@ -2218,7 +2131,7 @@ class grid_plotting():
 
 
 
-    def Spectrum_grid(self,skip = 10, NoQuant = False):
+    def Spectrum_grid(self,skip = 1, NoQuant = False):
         
         # Iterate over models and wavelength ranges
         for model in self.model:
@@ -2353,17 +2266,17 @@ class grid_plotting():
                                         print()
                                         print('PT-Profile Calculation for:')
                                         print(model,wln,res,snr)
-                                        self.grid_results[model][wln][res][snr].Calc_PT_Profiles(skip = 1)
+                                        self.grid_results[model][wln][res][snr].get_pt
                                     if param in ['T0','T_eq']:
                                         if self.grid_results[model][wln][res][snr].settings['clouds'] == 'opaque': #len(self.grid_results[model][wln][res][snr].cloud_vars) != 0:
-                                            post = self.grid_results[model][wln][res][snr].temperature_cloud_top[:,0]
+                                            post = self.grid_results[model][wln][res][snr].temperature_cloud_top
                                             true = bond_params[5]
                                         else:
                                             post = self.grid_results[model][wln][res][snr].temperature[:,-1]
                                             true = bond_params[5]
                                     else:
                                         if self.grid_results[model][wln][res][snr].settings['clouds'] == 'opaque':
-                                            post = np.log10(self.grid_results[model][wln][res][snr].pressure_cloud_top[:,0])
+                                            post = np.log10(self.grid_results[model][wln][res][snr].pressure_cloud_top)
                                             true = np.log10(bond_params[6])
                                         else:
                                             post = np.log10(self.grid_results[model][wln][res][snr].pressure[:,-1])
@@ -2430,7 +2343,8 @@ class grid_plotting():
 
 
 
-    def Parameters_Hist(self, parameters=['R_pl','M_pl','H2O','CO2','CO','H2SO484(c)_am_top_pressure','H2SO484(c)_am','H2SO484(c)_am_thickness','H2SO484(c)_am_particle_radius','H2SO484(c)_am_sigma_lnorm','A_Bond'], priors = [True, True, False, False, False], units=['$\mathrm{R_\oplus}$','dex','dex','dex','dex','dex','dex','dex','dex','','',''], span = [0.2,0.5,0.5,20,0.1], titles = None, bond_params = [1,0.05,0.723,0.05*0.723,0.77,226,5e-2],filename=None):
+    def Parameters_Hist(self, parameters=['R_pl','M_pl','H2O','CO2','CO','H2SO484(c)_am_top_pressure','H2SO484(c)_am','H2SO484(c)_am_thickness','H2SO484(c)_am_particle_radius','H2SO484(c)_am_sigma_lnorm','A_Bond'], priors = [True, True, False, False, False], units=['$\mathrm{R_\oplus}$','dex','dex','dex','dex','dex','dex','dex','dex','','',''],
+                        span = [0.2,0.5,0.5,20,0.1], titles = None, bond_params = [1,0.05,0.723,0.05*0.723,0.77,226,5e-2],filename=None,skip=1,n_processes=50):
 
         # Parameters for plotting
         ms = 8
@@ -2506,17 +2420,17 @@ class grid_plotting():
                                         print()
                                         print('PT-Profile Calculation for:')
                                         print(model,wln,res,snr)
-                                        self.grid_results[model][wln][res][snr].Calc_PT_Profiles(skip = 1)
+                                        self.grid_results[model][wln][res][snr].get_pt(skip=skip,n_processes=n_processes)
                                     if param in ['T0','T_eq']:
                                         if self.grid_results[model][wln][res][snr].settings['clouds'] == 'opaque': #len(self.grid_results[model][wln][res][snr].cloud_vars) != 0:
-                                            post = self.grid_results[model][wln][res][snr].temperature_cloud_top[:,0]
+                                            post = self.grid_results[model][wln][res][snr].temperature_cloud_top
                                             true = bond_params[5]
                                         else:
                                             post = self.grid_results[model][wln][res][snr].temperature[:,-1]
                                             true = bond_params[5]
                                     else:
                                         if self.grid_results[model][wln][res][snr].settings['clouds'] == 'opaque':
-                                            post = np.log10(self.grid_results[model][wln][res][snr].pressure_cloud_top[:,0])
+                                            post = np.log10(self.grid_results[model][wln][res][snr].pressure_cloud_top)
                                             true = np.log10(bond_params[6])
                                         else:
                                             post = np.log10(self.grid_results[model][wln][res][snr].pressure[:,-1])
@@ -2591,7 +2505,8 @@ class grid_plotting():
 
 
 
-    def Parameters_Hist_Top(self, parameters=['R_pl','M_pl','H2O','CO2','CO','H2SO484(c)_am'], ranges = [0.1,0.1,1,1,1,1], units=['$\mathrm{R_\oplus}$','dex','dex','dex','dex','dex','dex','dex','dex','','',''],bins = 100, titles = None, bond_params = [1,0.05,0.723,0.05*0.723,0.77,226,5e-2],filename=None):
+    def Parameters_Hist_Top(self, parameters=['R_pl','M_pl','H2O','CO2','CO','H2SO484(c)_am'], ranges = [0.1,0.1,1,1,1,1], units=['$\mathrm{R_\oplus}$','dex','dex','dex','dex','dex','dex','dex','dex','','',''],bins = 100,
+                            titles = None, bond_params = [1,0.05,0.723,0.05*0.723,0.77,226,5e-2],filename=None,skip=1,n_processes=50):
 
         # Parameters for plotting
         ms = 8
@@ -2655,17 +2570,17 @@ class grid_plotting():
                                         print()
                                         print('PT-Profile Calculation for:')
                                         print(model,wln,res,snr)
-                                        self.grid_results[model][wln][res][snr].Calc_PT_Profiles(skip = 1)
+                                        self.grid_results[model][wln][res][snr].get_pt(skip=skip,n_processes=n_processes)
                                     if param in ['T0','T_eq']:
                                         if self.grid_results[model][wln][res][snr].settings['clouds'] == 'opaque': #len(self.grid_results[model][wln][res][snr].cloud_vars) != 0:
-                                            post = self.grid_results[model][wln][res][snr].temperature_cloud_top[:,0]
+                                            post = self.grid_results[model][wln][res][snr].temperature_cloud_top
                                             true = bond_params[5]
                                         else:
                                             post = self.grid_results[model][wln][res][snr].temperature[:,-1]
                                             true = bond_params[5]
                                     else:
                                         if self.grid_results[model][wln][res][snr].settings['clouds'] == 'opaque':
-                                            post = np.log10(self.grid_results[model][wln][res][snr].pressure_cloud_top[:,0])
+                                            post = np.log10(self.grid_results[model][wln][res][snr].pressure_cloud_top)
                                             true = np.log10(bond_params[6])
                                         else:
                                             post = np.log10(self.grid_results[model][wln][res][snr].pressure[:,-1])
