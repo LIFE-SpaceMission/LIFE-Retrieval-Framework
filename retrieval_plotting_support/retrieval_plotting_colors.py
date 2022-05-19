@@ -1,5 +1,15 @@
+__author__ = "Konrad"
+__copyright__ = "Copyright 2022, Konrad"
+__maintainer__ = "Björn S. Konrad"
+__email__ = "konradb@phys.ethz.ch"
+__status__ = "Development"
+
+# Standard Libraries
 import matplotlib.colors as col
 import numpy as np
+
+
+
 
 
 # Generate colorlevels for a set of provided quantiles and a base color
@@ -60,3 +70,4 @@ def uniform_color_map(color_map):
 
     # Return the colormap
     return col.from_levels_and_colors(levels,color_levels)[0]
+    

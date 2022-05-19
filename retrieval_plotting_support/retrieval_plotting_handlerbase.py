@@ -1,21 +1,29 @@
 __author__ = "Konrad"
 __copyright__ = "Copyright 2022, Konrad"
-__maintainer__ = "Bjorn Konrad"
+__maintainer__ = "Björn S. Konrad"
 __email__ = "konradb@phys.ethz.ch"
 __status__ = "Development"
 
-
+# Standard Libraries
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerBase
 import matplotlib.text as mtext
 from matplotlib.collections import PatchCollection
+
+
+
+
 
 # define an object that will be used by the legend
 class MulticolorPatch(object):
     def __init__(self, colors,alpha):
         self.colors = colors
         self.alpha = alpha
-        
+
+
+
+
+
 # define a handler for the MulticolorPatch object
 class MulticolorPatchHandler(object):
     def legend_artist(self, legend, orig_handle, fontsize, handlebox):
@@ -47,6 +55,9 @@ class MulticolorPatchHandler(object):
 
         handlebox.add_artist(patch)
         return patch
+
+
+
 
 
 class Handles(HandlerBase):
@@ -136,7 +147,3 @@ class Handles(HandlerBase):
         else:
             title = mtext.Text(x0, y0, orig_handle + '',weight='bold', usetex=False, **self.text_props,fontsize=18)
             return [title]
-
-
-
-

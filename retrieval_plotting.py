@@ -5,19 +5,15 @@ __email__ = "konradb@phys.ethz.ch"
 __status__ = "Development"
 
 # Standard Libraries
-#from ctypes.wintypes import RGB
 import sys, os, re
-import pickle
 import math as m
+import matplotlib.colors as col
+import matplotlib.pyplot as plt
 import numpy as np
+import pickle
+from scipy.ndimage.filters import gaussian_filter1d
 import scipy.interpolate as scp
 import scipy.optimize as sco
-import matplotlib.pyplot as plt
-import matplotlib.colors as col
-from scipy.ndimage.filters import gaussian_filter1d
-
-# Library for parallelization
-import multiprocessing as mp
 import time as t
 
 # Import additional external files
@@ -26,48 +22,11 @@ from retrieval_support import retrieval_posteriors as r_post
 from retrieval_plotting_support import retrieval_plotting_colors as rp_col
 from retrieval_plotting_support import retrieval_plotting_handlerbase as rp_hndl
 from retrieval_plotting_support import retrieval_plotting_inlay as rp_inlay
+from retrieval_plotting_support import retrieval_plotting_parallel as rp_parallel
 
 # Additional Libraries
 import pymultinest as nest
 import spectres as spectres
-
-
-
-
-
-# Class that enables the parallelization of a function
-class parallel():
-    def __init__(self,num_proc):
-        self.num_proc = num_proc
-
-        # Define a manager process that collects the
-        # data from the other processes
-        self.manager = mp.Manager()
-        self.result = self.manager.dict()
-        self.jobs = []
-
-    def calculate(self,results_directory,function,function_args):
-
-        # Initialize the processes and start the calculation
-        for process in range(self.num_proc):
-            p = mp.Process(target=self.__worker, args=(process,results_directory,function,function_args))
-            self.jobs.append(p)
-            p.start()
-
-        # Wait untill all the processes are done
-        for proc in self.jobs:
-            proc.join()
-
-        # Return the data to the user
-        return self.result
-
-    def __worker(self,process,results_direectory,function,function_args):
-        # Initialization of a new radtrans object
-        results_temp =  retrieval_plotting(results_direectory)
-
-        # Function calculation
-        function_args['process'] = process
-        self.result[process] = getattr(results_temp,function)(**function_args)
 
 
 
@@ -253,6 +212,298 @@ class retrieval_plotting(r_globals.globals):
 
 
 
+    def Calc_PT_Profiles(self,skip = 1,layers=500,p_surf=4,n_processes=None,process=None):
+        '''
+        Function to calculate the PT profiles corresponding to the retrieved posterior distributions
+        for subsequent plotting in the flux PT plotting functions.
+        '''
+
+        # Add the thest fit spectrum and the input parameters to the equal weighted posterior
+        temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
+        temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
+
+        # Fetch the known parameters
+        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
+
+        # Iterate over the equal weighted posterior distribution using the user-defined skip value
+        dimension = np.shape(temp_equal_weighted_post)[0]//skip
+
+        #If run in multiprocessing split up the jobs
+        if (n_processes is not None) and (process is not None):
+
+            ind_start = process*dimension//n_processes
+            ind_end = min(dimension,(process+1)*dimension//n_processes)
+
+            # Printing infor ffor the multiprocessing case
+            if process == 0:
+                print('\n-----------------------------------------------------')
+                print('\n    PT-Profile calculation on multiple CPUs:')
+                print('')
+                print('    PT-Profiles to calculate: ',str(dimension))
+                print('    Number of processes: '+str(n_processes))
+                print('')
+                print('    Distribution of tasks:')
+                for proc_ind in range(n_processes):
+                    print('\tProcess '+str(proc_ind)+':\tProfiles:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
+                print('\n-----------------------------------------------------\n')
+        else:
+            ind_start = 0
+            ind_end = dimension
+            process = 0
+
+        # Import petitRADTRANS
+        sys.path.append(self.path_prt)
+        from petitRADTRANS import Radtrans
+        from petitRADTRANS import nat_cst as nc
+
+        self.read_data(retrieval = False)
+        
+        # Print status of calculation
+        if process == 0:
+            print('Starting PT-profile calculation.')
+            print('\t0.00 % of PT-profiles calculated.', end = "\r")
+
+        results = {}
+        t_start = t.time()
+        for i in range(ind_start,ind_end):
+            ind = min(2,i)+skip*max(0,i-2)
+
+            # Fetch the retrieved parameters for a given ind
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
+        
+            # Test the values of P0 and g and change to required values if necessary
+            self.__g_test()
+            self.__P0_test(ind=i)
+            
+            # Calculate the cloud bottom pressure from the cloud thickness parameter
+            cloud_tops = []
+            cloud_bottoms = []
+            for key in self.cloud_vars.keys():
+                cloud_bottoms += [self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']]
+                cloud_tops += [self.cloud_vars[key]['top_pressure']]
+                self.make_press_temp_terr(log_top_pressure=np.log10(np.min(cloud_tops)),layers=layers)
+                pressure_cloud_top = self.press[0]
+                temperature_cloud_top = self.temp[0]
+
+            self.make_press_temp_terr(log_ground_pressure=p_surf,layers=layers)
+            pressure_full = self.press
+            temperature_full = self.temp
+            ind = np.where(self.press > 10**self.phys_vars['log_P0'])
+            pressure_full[ind] = np.nan
+            temperature_full[ind] = np.nan
+
+            # Calculate the pressure temperature profile corresponding to the set of parameters
+            if ((self.settings['clouds'] == 'opaque') and (i>0)):
+                self.phys_vars['log_P0'] = self.cloud_opacity_cut[-1]
+                self.make_press_temp_terr(layers=layers)
+            else:
+                self.make_press_temp_terr(layers=layers)
+
+            # store the calculated values
+            if i == 0:
+                if not hasattr(self, 'input_temperature'):
+                    results['input_pressure'] = self.press
+                    results['input_temperature'] = self.temp
+                if len(self.cloud_vars) != 0:
+                    results['true_pressure_cloud_top'] = [pressure_cloud_top]
+                    results['true_temperature_cloud_top'] = [temperature_cloud_top]
+            elif i == 1:
+                results['best_pressure'] = self.press
+                results['best_temperature'] = self.temp
+                if len(self.cloud_vars) != 0:
+                    results['best_pressure_cloud_top'] = [pressure_cloud_top]
+                    results['best_temperature_cloud_top'] = [temperature_cloud_top]
+
+            else:
+                if (i == 2) or (i==ind_start):
+                    if i==2:
+                        size = ind_end-ind_start-2
+                    else:
+                        size = ind_end-ind_start
+
+                    # Initialize the arrays for storage
+                    results['pressure'] = np.zeros((size,len(self.press)))
+                    results['temperature'] = np.zeros((size,len(self.temp)))
+                    results['pressure_full'] = np.zeros((size,len(pressure_full)))
+                    results['temperature_full'] = np.zeros((size,len(temperature_full)))
+                    if len(self.cloud_vars) != 0:
+                        results['pressure_cloud_top'] = np.zeros((size,len([pressure_cloud_top])))
+                        results['temperature_cloud_top'] = np.zeros((size,len([temperature_cloud_top])))
+
+                if process == 0:
+                    save = i - 2
+                else:
+                    save = i-ind_start
+
+                # Save the results
+                results['pressure'][save,:] = self.press
+                results['temperature'][save,:] = self.temp
+                results['pressure_full'][save,:] = pressure_full
+                results['temperature_full'][save,:] = temperature_full
+                if len(self.cloud_vars) != 0:
+                    results['pressure_cloud_top'][save,:] = pressure_cloud_top
+                    results['temperature_cloud_top'][save,:] = temperature_cloud_top
+
+            # Print status of calculation
+            if process == 0:
+                t_end = t.time()
+                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
+                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of PT-profiles calculated. Estimated time remaining: '+str(remain_time//3600)+
+                        ' h, '+str((remain_time%3600)//60)+' min.        ', end = "\r")
+
+        # Print status of calculation
+        if process == 0:
+            print('\nPT-profile calculation completed.')
+        
+        # Return the results
+        return results
+
+
+
+    def Calc_Spectra(self,skip,n_processes=None,process=None):
+        '''
+        Function to calculate the fluxes corresponding to the retrieved posterior distributions
+        for subsequent plotting in the flux plotting functions.
+        '''
+
+        # Add the thest fit spectrum and the input parameters to the equal weighted posterior
+        temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
+        temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
+
+        # Fetch the known parameters
+        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
+
+        # Iterate over the equal weighted posterior distribution using the user-defined skip value
+        dimension = np.shape(temp_equal_weighted_post)[0]//skip
+
+        #If run in multiprocessing split up the jobs
+        if (n_processes is not None) and (process is not None):
+
+            ind_start = process*dimension//n_processes
+            ind_end = min(dimension,(process+1)*dimension//n_processes)
+
+            # Printing infor ffor the multiprocessing case
+            if process == 0:
+                print('\n-----------------------------------------------------')
+                print('\n    Spectrum calculation on multiple CPUs:')
+                print('')
+                print('    Spectra to calculate: ',str(dimension))
+                print('    Number of processes: '+str(n_processes))
+                print('')
+                print('    Distribution of tasks:')
+                for proc_ind in range(n_processes):
+                    print('\tProcess '+str(proc_ind)+':\tSpectra:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
+                print('\n-----------------------------------------------------\n')
+        else:
+            ind_start = 0
+            ind_end = dimension
+            process = 0
+
+        # Import petitRADTRANS
+        sys.path.append(self.path_prt)
+        from petitRADTRANS import Radtrans
+        from petitRADTRANS import nat_cst as nc
+        self.init_rt()
+        self.read_data(retrieval = False)
+
+        # Print status of calculation
+        if process == 0:
+            print('Starting spectrum calculation.')
+            print('\t0.00 % of spectra calculated.', end = "\r")
+
+        results = {}
+        t_start = t.time()
+        for i in range(ind_start,ind_end):
+            ind = min(2,i)+skip*max(0,i-2)
+
+            # Fetch the retrieved parameters for a given ind
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind)
+
+            # Scaling physical variables of the system to correct units
+            try:
+                self.phys_vars['d_syst'] = self.phys_vars['d_syst'] * nc.pc / 100
+            except:
+                print("ERROR! Distance from the star is missing!")
+                sys.exit()
+            try:
+                self.phys_vars['R_pl'] = self.phys_vars['R_pl'] * nc.r_earth
+            except:
+                print("ERROR! Planetary radius is missing!")
+                sys.exit()
+
+            # Test the values of P0 and g and change to required values if necessary
+            self.__g_test()
+            self.__P0_test()
+
+            # Calculate the pressure temperature profile corresponding to the set of parameters
+            self.make_press_temp_terr()
+            self.rt_object.setup_opa_structure(self.press)
+
+            # Calculate the cloud bottom pressure from the cloud thickness parameter
+            for key in self.cloud_vars.keys():
+                self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
+
+            # Ensure that the total atmospheric weight is equal to 1
+            metal_sum = sum(self.chem_vars.values())
+            self.inert = (1-metal_sum) *np.ones_like(self.press)
+
+            # Calculate the forward model; this returns the wavelengths in cm
+            # and the flux F_nu in erg/cm^2/s/Hz.
+            self.retrieval_model_plain()
+
+            # Convert the calculated flux to the flux recieved at earth per m^2
+            if self.phys_vars['d_syst'] is not None:
+                self.rt_object.flux *= self.phys_vars['R_pl']**2/self.phys_vars['d_syst']**2
+
+            for instrument in self.dwlen.keys():  # CURRENTLY USELESS
+                # Rebin the spectrum according to the input spectrum
+                if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
+                    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
+                                                        nc.c / self.rt_object.freq,
+                                                        self.rt_object.flux)
+
+                #Store the calculated flux according to the considered case
+                if i == 0:
+                    results['wavelength'] = nc.c / self.rt_object.freq #self.dwlen[instrument]
+                    results['flux_true'] = np.array(self.rt_object.flux)
+
+                elif i == 1:
+                    results['flux_best'] = np.array(self.rt_object.flux)
+
+                else:
+                    if (i == 2) or (i==ind_start):
+                        if i==2:
+                            size = ind_end-ind_start-2
+                        else:
+                            size = ind_end-ind_start
+
+                        # Initialize the arrays for storage
+                        results['retrieved_fluxes'] = np.zeros((size,len(self.rt_object.flux)))
+
+                    if process == 0:
+                        save = i - 2
+                    else:
+                        save = i-ind_start
+                
+                    # Save the results
+                    results['retrieved_fluxes'][save,:] = self.rt_object.flux
+            
+            # Print status of calculation
+            if process == 0:
+                t_end = t.time()
+                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
+                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of spectra calculated. Estimated time remaining: '+str(remain_time//3600)+
+                        ' h, '+str((remain_time%3600)//60)+' min.         ', end = "\r")
+
+        # Print status of calculation
+        if process == 0:
+            print('\nSpectrum calculation completed.')
+
+        #return the calculated results
+        return results
+
+
+
     def get_spectra(self,skip=1,n_processes=50):
         '''
         gets the PT profiles corresponding to the parameter values 
@@ -316,7 +567,7 @@ class retrieval_plotting(r_globals.globals):
                 print('I lowered n_processes to '+str(function_args['n_processes'])+'.')
 
             # Start the paralel calculation
-            parallel_calculation = parallel(function_args['n_processes'])
+            parallel_calculation = rp_parallel.parallel(function_args['n_processes'])
             result_process = parallel_calculation.calculate(self.results_directory,function_name,function_args)
 
             # Combine the data from the different processes
@@ -681,150 +932,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Calc_PT_Profiles(self,skip = 1,layers=500,p_surf=4,n_processes=None,process=None):
-        '''
-        Function to calculate the PT profiles corresponding to the retrieved posterior distributions
-        for subsequent plotting in the flux PT plotting functions.
-        '''
 
-        # Add the thest fit spectrum and the input parameters to the equal weighted posterior
-        temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
-        temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
-
-        # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
-
-        # Iterate over the equal weighted posterior distribution using the user-defined skip value
-        dimension = np.shape(temp_equal_weighted_post)[0]//skip
-
-        #If run in multiprocessing split up the jobs
-        if (n_processes is not None) and (process is not None):
-
-            ind_start = process*dimension//n_processes
-            ind_end = min(dimension,(process+1)*dimension//n_processes)
-
-            # Printing infor ffor the multiprocessing case
-            if process == 0:
-                print('\n-----------------------------------------------------')
-                print('\n    PT-Profile calculation on multiple CPUs:')
-                print('')
-                print('    PT-Profiles to calculate: ',str(dimension))
-                print('    Number of processes: '+str(n_processes))
-                print('')
-                print('    Distribution of tasks:')
-                for proc_ind in range(n_processes):
-                    print('\tProcess '+str(proc_ind)+':\tProfiles:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
-                print('\n-----------------------------------------------------\n')
-        else:
-            ind_start = 0
-            ind_end = dimension
-            process = 0
-
-        # Import petitRADTRANS
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
-
-        self.read_data(retrieval = False)
-        
-        # Print status of calculation
-        if process == 0:
-            print('Starting PT-profile calculation.')
-            print('\t0.00 % of PT-profiles calculated.', end = "\r")
-
-        results = {}
-        t_start = t.time()
-        for i in range(ind_start,ind_end):
-            ind = min(2,i)+skip*max(0,i-2)
-
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
-        
-            # Test the values of P0 and g and change to required values if necessary
-            self.__g_test()
-            self.__P0_test(ind=i)
-            
-            # Calculate the cloud bottom pressure from the cloud thickness parameter
-            cloud_tops = []
-            cloud_bottoms = []
-            for key in self.cloud_vars.keys():
-                cloud_bottoms += [self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']]
-                cloud_tops += [self.cloud_vars[key]['top_pressure']]
-                self.make_press_temp_terr(log_top_pressure=np.log10(np.min(cloud_tops)),layers=layers)
-                pressure_cloud_top = self.press[0]
-                temperature_cloud_top = self.temp[0]
-
-            self.make_press_temp_terr(log_ground_pressure=p_surf,layers=layers)
-            pressure_full = self.press
-            temperature_full = self.temp
-            ind = np.where(self.press > 10**self.phys_vars['log_P0'])
-            pressure_full[ind] = np.nan
-            temperature_full[ind] = np.nan
-
-            # Calculate the pressure temperature profile corresponding to the set of parameters
-            if ((self.settings['clouds'] == 'opaque') and (i>0)):
-                self.phys_vars['log_P0'] = self.cloud_opacity_cut[-1]
-                self.make_press_temp_terr(layers=layers)
-            else:
-                self.make_press_temp_terr(layers=layers)
-
-            # store the calculated values
-            if i == 0:
-                if not hasattr(self, 'input_temperature'):
-                    results['input_pressure'] = self.press
-                    results['input_temperature'] = self.temp
-                if len(self.cloud_vars) != 0:
-                    results['true_pressure_cloud_top'] = [pressure_cloud_top]
-                    results['true_temperature_cloud_top'] = [temperature_cloud_top]
-            elif i == 1:
-                results['best_pressure'] = self.press
-                results['best_temperature'] = self.temp
-                if len(self.cloud_vars) != 0:
-                    results['best_pressure_cloud_top'] = [pressure_cloud_top]
-                    results['best_temperature_cloud_top'] = [temperature_cloud_top]
-
-            else:
-                if (i == 2) or (i==ind_start):
-                    if i==2:
-                        size = ind_end-ind_start-2
-                    else:
-                        size = ind_end-ind_start
-
-                    # Initialize the arrays for storage
-                    results['pressure'] = np.zeros((size,len(self.press)))
-                    results['temperature'] = np.zeros((size,len(self.temp)))
-                    results['pressure_full'] = np.zeros((size,len(pressure_full)))
-                    results['temperature_full'] = np.zeros((size,len(temperature_full)))
-                    if len(self.cloud_vars) != 0:
-                        results['pressure_cloud_top'] = np.zeros((size,len([pressure_cloud_top])))
-                        results['temperature_cloud_top'] = np.zeros((size,len([temperature_cloud_top])))
-
-                if process == 0:
-                    save = i - 2
-                else:
-                    save = i-ind_start
-
-                # Save the results
-                results['pressure'][save,:] = self.press
-                results['temperature'][save,:] = self.temp
-                results['pressure_full'][save,:] = pressure_full
-                results['temperature_full'][save,:] = temperature_full
-                if len(self.cloud_vars) != 0:
-                    results['pressure_cloud_top'][save,:] = pressure_cloud_top
-                    results['temperature_cloud_top'][save,:] = temperature_cloud_top
-
-            # Print status of calculation
-            if process == 0:
-                t_end = t.time()
-                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
-                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of PT-profiles calculated. Estimated time remaining: '+str(remain_time//3600)+' h, '+str((remain_time%3600)//60)+' min.        ', end = "\r")
-
-        # Print status of calculation
-        if process == 0:
-            print('\nPT-profile calculation completed.')
-        
-        # Return the results
-        return results
 
 
 
@@ -1153,146 +1261,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Calc_Spectra(self,skip,n_processes=None,process=None):
-        '''
-        Function to calculate the fluxes corresponding to the retrieved posterior distributions
-        for subsequent plotting in the flux plotting functions.
-        '''
 
-        # Add the thest fit spectrum and the input parameters to the equal weighted posterior
-        temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
-        temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
-
-        # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
-
-        # Iterate over the equal weighted posterior distribution using the user-defined skip value
-        dimension = np.shape(temp_equal_weighted_post)[0]//skip
-
-        #If run in multiprocessing split up the jobs
-        if (n_processes is not None) and (process is not None):
-
-            ind_start = process*dimension//n_processes
-            ind_end = min(dimension,(process+1)*dimension//n_processes)
-
-            # Printing infor ffor the multiprocessing case
-            if process == 0:
-                print('\n-----------------------------------------------------')
-                print('\n    Spectrum calculation on multiple CPUs:')
-                print('')
-                print('    Spectra to calculate: ',str(dimension))
-                print('    Number of processes: '+str(n_processes))
-                print('')
-                print('    Distribution of tasks:')
-                for proc_ind in range(n_processes):
-                    print('\tProcess '+str(proc_ind)+':\tSpectra:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
-                print('\n-----------------------------------------------------\n')
-        else:
-            ind_start = 0
-            ind_end = dimension
-            process = 0
-
-        # Import petitRADTRANS
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
-        self.init_rt()
-        self.read_data(retrieval = False)
-
-        # Print status of calculation
-        if process == 0:
-            print('Starting spectrum calculation.')
-            print('\t0.00 % of spectra calculated.', end = "\r")
-
-        results = {}
-        t_start = t.time()
-        for i in range(ind_start,ind_end):
-            ind = min(2,i)+skip*max(0,i-2)
-
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind)
-
-            # Scaling physical variables of the system to correct units
-            try:
-                self.phys_vars['d_syst'] = self.phys_vars['d_syst'] * nc.pc / 100
-            except:
-                print("ERROR! Distance from the star is missing!")
-                sys.exit()
-            try:
-                self.phys_vars['R_pl'] = self.phys_vars['R_pl'] * nc.r_earth
-            except:
-                print("ERROR! Planetary radius is missing!")
-                sys.exit()
-
-            # Test the values of P0 and g and change to required values if necessary
-            self.__g_test()
-            self.__P0_test()
-
-            # Calculate the pressure temperature profile corresponding to the set of parameters
-            self.make_press_temp_terr()
-            self.rt_object.setup_opa_structure(self.press)
-
-            # Calculate the cloud bottom pressure from the cloud thickness parameter
-            for key in self.cloud_vars.keys():
-                self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
-
-            # Ensure that the total atmospheric weight is equal to 1
-            metal_sum = sum(self.chem_vars.values())
-            self.inert = (1-metal_sum) *np.ones_like(self.press)
-
-            # Calculate the forward model; this returns the wavelengths in cm
-            # and the flux F_nu in erg/cm^2/s/Hz.
-            self.retrieval_model_plain()
-
-            # Convert the calculated flux to the flux recieved at earth per m^2
-            if self.phys_vars['d_syst'] is not None:
-                self.rt_object.flux *= self.phys_vars['R_pl']**2/self.phys_vars['d_syst']**2
-
-            for instrument in self.dwlen.keys():  # CURRENTLY USELESS
-                # Rebin the spectrum according to the input spectrum
-                if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
-                    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
-                                                        nc.c / self.rt_object.freq,
-                                                        self.rt_object.flux)
-
-                #Store the calculated flux according to the considered case
-                if i == 0:
-                    results['wavelength'] = nc.c / self.rt_object.freq #self.dwlen[instrument]
-                    results['flux_true'] = np.array(self.rt_object.flux)
-
-                elif i == 1:
-                    results['flux_best'] = np.array(self.rt_object.flux)
-
-                else:
-                    if (i == 2) or (i==ind_start):
-                        if i==2:
-                            size = ind_end-ind_start-2
-                        else:
-                            size = ind_end-ind_start
-
-                        # Initialize the arrays for storage
-                        results['retrieved_fluxes'] = np.zeros((size,len(self.rt_object.flux)))
-
-                    if process == 0:
-                        save = i - 2
-                    else:
-                        save = i-ind_start
-                
-                    # Save the results
-                    results['retrieved_fluxes'][save,:] = self.rt_object.flux
-            
-            # Print status of calculation
-            if process == 0:
-                t_end = t.time()
-                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
-                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of spectra calculated. Estimated time remaining: '+str(remain_time//3600)+' h, '+str((remain_time%3600)//60)+' min.         ', end = "\r")
-
-        # Print status of calculation
-        if process == 0:
-            print('\nSpectrum calculation completed.')
-
-        #return the calculated results
-        return results
 
 
 
