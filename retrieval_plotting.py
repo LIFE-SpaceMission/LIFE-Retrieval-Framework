@@ -685,6 +685,8 @@ class retrieval_plotting(r_globals.globals):
         if dimension is None:
             dimension=np.shape(data)[1]
     
+        print(dimension)
+        print(np.shape(data))    
         fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
         fig.subplots_adjust(hspace=0.0)
         fig.subplots_adjust(wspace=0.0)
@@ -802,7 +804,7 @@ class retrieval_plotting(r_globals.globals):
         # Set all titles at a uniform distance from the subplots
         fig.align_ylabels(axs[:, 0])
         fig.align_xlabels(axs[-1,:])
-        return fig
+        return fig, axs
 
 
 
@@ -942,8 +944,8 @@ class retrieval_plotting(r_globals.globals):
 
         if plot_bond is not None:
             if not hasattr(self, 'A_Bond_ret'):
-                results.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20)
-            local_equal_weighted_post = np.append(local_equal_weighted_post, np.array([self.ret_surface_T]).T,axis=1)
+                self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20)
+            local_equal_weighted_post = np.append(local_equal_weighted_post, np.array([self.ret_opaque_T]).T,axis=1)
             local_equal_weighted_post = np.append(local_equal_weighted_post, np.array([self.A_Bond_ret]).T,axis=1)
             local_truths += plot_bond[-2:]
             inds += [-2,-1]
@@ -1192,9 +1194,7 @@ class retrieval_plotting(r_globals.globals):
                 plt.savefig(self.results_directory+'Plots/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
             else:
                 plt.savefig(self.results_directory+'Plots/plot_pt_structure.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
-            return figure, ax, ax2
-        else:
-            return figure, ax, ax2
+        return figure, ax, ax2
 
 
 
@@ -1255,9 +1255,7 @@ class retrieval_plotting(r_globals.globals):
             return handles, labels
         elif save:
             plt.savefig(self.results_directory+'Plots/plot_pt_histogram.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
-            return figure, ax
-        else:
-            return figure, ax
+        return figure, ax
 
 
 
@@ -1400,9 +1398,7 @@ class retrieval_plotting(r_globals.globals):
                 plt.savefig(self.results_directory+'Plots/plot_spectrum_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
             else:
                 plt.savefig(self.results_directory+'Plots/plot_spectrum.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
-            return figure, ax
-        else:
-            return figure, ax
+        return figure, ax
 
 
 
@@ -1418,21 +1414,22 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Plot_Ret_Bond_Albedo(self,L_star,err_L_star,sep_planet,err_sep_planet,A_Bond_true = None,T_equ_true= None,
-                            skip=1,quantiles=[0.16, 0.5, 0.84],bins=50,save=False,plot=True,n_processes=50):
+    def Plot_Ret_Bond_Albedo(self, L_star, sigma_L_star, sep_planet, sigma_sep_planet, A_Bond_true = None, T_equ_true= None,
+                            skip=1, quantiles=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,precision = 2,
+                            titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$'],
+                            units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$','']):
         
         self.get_pt(skip=skip,n_processes=n_processes)
 
-        if self.settings['clouds'] == 'opaque': #if len(self.cloud_vars) != 0:
-            ret_surface_T = self.temperature_cloud_top
-            #ret_surface_T = self.temperature[:,-1]
+        # Find the temperature at which the atmosphere becomes opaque
+        if self.settings['clouds'] == 'opaque':
+            self.ret_opaque_T = self.temperature_cloud_top
         else:
-            ret_surface_T = self.temperature[:,-1]
-        self.ret_surface_T = ret_surface_T
+            self.ret_opaque_T = self.temperature[:,-1]
 
         # Generating random data for the stellar luminosity and the panet separation
-        L_star_data = L_star + err_L_star*np.random.randn(*ret_surface_T.shape)
-        sep_planet_data = sep_planet + err_sep_planet*np.random.randn(*ret_surface_T.shape)
+        L_star_data = L_star + sigma_L_star*np.random.randn(*self.ret_opaque_T.shape)
+        sep_planet_data = sep_planet + sigma_sep_planet*np.random.randn(*self.ret_opaque_T.shape)
 
         # Defining constants needed for the calculations
         L_sun = 3.826*1e26
@@ -1444,31 +1441,60 @@ class retrieval_plotting(r_globals.globals):
         sep_planet_data_SI = sep_planet_data * AU
 
         # Calculate the bond albedo
-        self.A_Bond_ret = 1 - 16*np.pi*sep_planet_data_SI**2*sigma_SBoltzmann*ret_surface_T**4/L_star_data_SI
+        self.A_Bond_ret = 1 - 16*np.pi*sep_planet_data_SI**2*sigma_SBoltzmann*self.ret_opaque_T**4/L_star_data_SI
 
+        if plot:
+            # Combine the different parameters into one array
+            data = np.hstack([L_star_data,sep_planet_data,self.ret_opaque_T,self.A_Bond_ret])
+            
 
-
-
-        
-        if plot == True:
-            # Define the figure and the font size fs depending on the number of
-            # overall retrieved parameters
-            data = np.vstack([L_star_data,sep_planet_data,ret_surface_T,self.A_Bond_ret]).T
-            titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
-            units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$','']
-            truths = [L_star,sep_planet,T_equ_true,A_Bond_true]
-            precision = 2
-
-            fig = self.Corner(data,titles,truths=truths,units=units,bins=bins,quantiles=quantiles)
+            # Generate the corner plot
+            fig, axs = self.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
+                                    quantiles=quantiles,precision=precision)
 
             # Save the figure or retrun the figure object
             if save:
-                plt.savefig(self.results_directory+'Plots/plot_Bond_Albedo.png',dpi = 400)
-            else:
-                return fig
-        else:
-            pass
+                plt.savefig(self.results_directory+'Plots/plot_bond_blbedo.pdf', bbox_inches='tight')
+            return fig, axs
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    """
+    #################################################################################
+    #                                                                               #
+    #   Plotting routine for the Bond Albedo                                        #
+    #                                                                               #
+    #################################################################################
+    """
 
 
 

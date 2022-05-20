@@ -8,6 +8,7 @@ __status__ = "Development"
 import matplotlib.colors as col
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
 
 
@@ -23,6 +24,8 @@ def position_inlay(loc_surface,figure,ax_arg,ax):
             ax2 = ax.inset_axes([0.03*3/4, 1-0.03-0.2833/0.8, 0.212/0.8, 0.2833/0.8])
         elif loc_surface == 'upper right':
             ax2 = ax.inset_axes([1-0.03*3/4-0.212/0.8, 1-0.03-0.2833/0.8, 0.212/0.8, 0.2833/0.8])
+        else:
+            sys.exit('ERROR: "'+str(loc_surface)+'" is invalid for the inlay position. Must be: [lower left, lower right, upper left, upper right]')
     else:
         if loc_surface == 'lower left':
             ax2 = ax.inset_axes([0.02*2/3, 0.02, 0.5*2/3, 0.5])
