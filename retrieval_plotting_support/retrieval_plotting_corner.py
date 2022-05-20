@@ -1,0 +1,143 @@
+__author__ = "Konrad"
+__copyright__ = "Copyright 2022, Konrad"
+__maintainer__ = "Björn S. Konrad"
+__email__ = "konradb@phys.ethz.ch"
+__status__ = "Development"
+
+# Standard Libraries
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Import additional external files
+from retrieval_plotting_support import retrieval_plotting_colors as rp_col
+
+
+
+
+
+def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
+            quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color2d='k',color_truth='C3',bins=50):
+    
+    # Find the dimension of the corner plot.
+    if dimension is None:
+        dimension=np.shape(data)[1]
+
+    # Generate colorlevels for the different quantiles
+    color_levels, level_thresholds, N_levels = rp_col.color_levels(color2d,quantiles2d)
+
+    # Start of plotting routine
+    fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
+    fig.subplots_adjust(hspace=0.0,wspace=0.0)
+    fs = 18
+    
+    # Iterate over the equal weighted posteriors of all retrieved parameters.
+    # Diagonal histogram plots
+    for i in range(dimension):
+        # Plot the 1d histogram for each retrieved parameter on the diagonal.
+        h = axs[i,i].hist(data[:,i],histtype='stepfilled',color=color2d,alpha=0.5,density=True,bins=bins)
+
+        # Define the limits of the plot and remove the yticks
+        axs[i,i].set_xlim([h[1][0],h[1][-1]])
+        axs[i,i].set_ylim([0,1.1*np.max(h[0])])
+        axs[i,i].set_yticks([])
+
+        # Plotting the secified quantiles
+        if quantiles1d is not None:
+            q = [np.quantile(data[:,i],ind) for ind in quantiles1d]
+            axs[i,i].vlines(q,axs[i,i].get_ylim()[0],axs[i,i].get_ylim()[1],colors='k', ls='--')
+
+            # Round q and print the retrieved value above the histogram plot
+            round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
+            if round>=0.5:
+                axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
+            else:
+                axs[i,i].set_title(str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
+                            str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
+                            str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
+
+        # Plot the ground truth values if known
+        if not truths[i] is None:
+            axs[i,i].plot([truths[i],truths[i]],axs[i,i].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
+    
+    # 2d histograms plotted below the diagonal
+    for i in range(dimension):
+        for j in range(dimension):
+            # Find the axis boundaries and set the x limits
+            ylim = axs[i,i].get_xlim()
+            xlim = axs[j,j].get_xlim()
+
+            # Setting 4 even ticks over the range defined by the limits of the subplot
+            yticks = [(1-pos)*ylim[0]+pos*ylim[1] for pos in [0.2,0.4,0.6,0.8]]
+            xticks = [(1-pos)*xlim[0]+pos*xlim[1] for pos in [0.2,0.4,0.6,0.8]]
+
+            # For all subplots below the Diagonal
+            if i > j:
+                # Plot the local truth values if provided
+                if not truths[j] is None:
+                    axs[i,j].plot([truths[j],truths[j]],ylim,color=color_truth,linestyle = ':',linewidth = 2)
+                if not truths[i] is None:
+                    axs[i,j].plot(xlim,[truths[i],truths[i]],color=color_truth,linestyle = ':',linewidth = 2)
+                if not ((truths[j] is None) or (truths[i] is None)):
+                    axs[i,j].plot(truths[j],truths[i],color=color_truth,marker='o',markersize=8)
+                
+                # Plot the 2d histograms between different parameters to show correlations between the parameters
+                Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=15,range = [list(xlim),list(ylim)])
+                map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
+                axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels))
+
+                # Setting the limit of the x,y-axis
+                axs[i,j].set_ylim(ylim)
+                axs[i,j].set_xlim(xlim)
+
+            # No Subplots show above the diagonal
+            elif i<j:
+                axs[i,j].axis('off')
+    
+            # Add the ticks and the axis labels where necessary on the y axis               
+            if j == 0 and i!=0:
+                axs[i,j].set_yticks(yticks)
+
+                # Rounding the ticklabels and printing them
+                roundy = np.log10(np.abs(yticks[1]-yticks[0]))
+                if roundy>=0.5:
+                    axs[i,j].set_yticklabels([int(i) for i in yticks],fontsize=fs,rotation=45)
+                else:
+                    axs[i,j].set_yticklabels(np.round(yticks,int(-np.floor(roundy-0.5))),fontsize=fs,rotation=45)
+                    
+                # Printing the labels for the axes
+                if units is None:
+                    axs[i,j].set_ylabel(titles[i],fontsize=fs)
+                else:
+                    if units[i] == '':
+                        axs[i,j].set_ylabel(titles[i],fontsize=fs)
+                    else:
+                        axs[i,j].set_ylabel(titles[i]+' '+units[i],fontsize=fs)
+            else:
+                axs[i,j].set_yticks([])
+
+            # Add the ticks and the axis labels where necessary on the y axis on the x axis 
+            if i == dimension-1:
+                axs[i,j].set_xticks(xticks)
+
+                # Rounding the ticklabels and printing them
+                roundx = np.log10(np.abs(xticks[1]-xticks[0]))
+                if roundx>=0.5:
+                    axs[i,j].set_xticklabels([int(i) for i in xticks],fontsize=fs,rotation=45,ha='right')
+                else:
+                    axs[i,j].set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),fontsize=fs,rotation=45,ha='right')
+                
+                # Printing the labels for the axes
+                if units is None:
+                    axs[i,j].set_xlabel(titles[j],fontsize=fs)
+                else:
+                    if units[j] == '':
+                        axs[i,j].set_xlabel(titles[j],fontsize=fs)
+                    else:
+                        axs[i,j].set_xlabel(titles[j]+' '+units[j],fontsize=fs)
+            else:
+                axs[i,j].set_xticks([])
+
+    # Set all titles at a uniform distance from the subplots
+    fig.align_ylabels(axs[:, 0])
+    fig.align_xlabels(axs[-1,:])
+    return fig, axs

@@ -19,6 +19,7 @@ import time as t
 from retrieval_support import retrieval_global_class as r_globals
 from retrieval_support import retrieval_posteriors as r_post
 from retrieval_plotting_support import retrieval_plotting_colors as rp_col
+from retrieval_plotting_support import retrieval_plotting_corner as rp_corner
 from retrieval_plotting_support import retrieval_plotting_handlerbase as rp_hndl
 from retrieval_plotting_support import retrieval_plotting_inlay as rp_inlay
 from retrieval_plotting_support import retrieval_plotting_parallel as rp_parallel
@@ -681,140 +682,6 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Corner(self,data,titles,units=None,truths=None,dimension=None,precision = 2,quantiles = [0.16, 0.5, 0.84],bins=50):
-        if dimension is None:
-            dimension=np.shape(data)[1]
-    
-        print(dimension)
-        print(np.shape(data))    
-        fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
-        fig.subplots_adjust(hspace=0.0)
-        fig.subplots_adjust(wspace=0.0)
-        fs = 18
-        
-        
-        # Iterate over the equal weighted posteriors of all retrieved parameters.
-        for i in range(dimension):
-            q = []
-
-            # Plot the 1d histogram for each retrieved parameter on the diagonal.
-            h = axs[i,i].hist(data[:,i],histtype='step',color='black',density=True,bins=bins)
-
-            # Define the limits of the plot and remove the yticks
-            axs[i,i].set_ylim([0,1.1*np.max(h[0])])
-            axs[i,i].set_yticks([])
-            axs[i,i].set_xlim([h[1][0],h[1][-1]])
-
-            # Plotting the secified quantiles
-            if quantiles is not None:
-                for ind in quantiles:
-                    q.append(np.quantile(data[:,i],ind))
-                    axs[i,i].plot([q[-1],q[-1]],axs[i,i].get_ylim(),'k--',linewidth = 1)
-            
-            # Plot the ground truth values if known
-            if not truths[i] is None:
-                axs[i,i].plot([truths[i],truths[i]],axs[i,i].get_ylim(),color='xkcd:red',linestyle = ':',linewidth = 2)
-        
-            # Print the defined quantiles for the retrieved value above the histogram plot
-            axs[i,i].set_title(str(np.round(q[1],int(precision)))+r' $_{\,'+\
-                            str(np.round(q[0]-q[1],int(precision)))+r'}^{\,+'+\
-                            str(np.round(q[2]-q[1],int(precision)))+r'}$',fontsize=fs)
-
-        for i in range(dimension):
-            for j in range(dimension):
-                # Find the axis boundaries and set the x limits
-                ylim = axs[i,i].get_xlim()
-                xlim = axs[j,j].get_xlim()
-
-                # Setting 4 even ticks over the range defined by the limits of the subplot
-                yticks = [(1-pos)*ylim[0]+pos*ylim[1] for pos in [0.2,0.4,0.6,0.8]]
-                xticks = [(1-pos)*xlim[0]+pos*xlim[1] for pos in [0.2,0.4,0.6,0.8]]
-
-                # Setting the limits of the x-Axis
-                axs[i,j].set_xticks(xticks)
-
-                # For all subplots below the Diagonal
-                if i > j:
-                    # Plot the local truth values if provided
-                    
-                    if not truths[j] is None:
-                        axs[i,j].plot([truths[j],truths[j]],ylim,color='xkcd:red',linestyle = ':',linewidth = 2)
-                    if not truths[i] is None:
-                        axs[i,j].plot(xlim,[truths[i],truths[i]],color='xkcd:red',linestyle = ':',linewidth = 2)
-                    if not ((truths[j] is None) or (truths[i] is None)):
-                        axs[i,j].plot(truths[j],truths[i],color='xkcd:red',marker='o',markersize=8)
-                    
-                    # Plot the 2d histograms between different parameters to show correlations between the parameters
-                    Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=15)
-                    axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap='Greys',levels=np.array([0.05,0.15,0.3,0.45,0.6,0.75,0.95,1])*np.max(Z))
-                    
-                    # Setting the limit of the y-axis
-                    axs[i,j].set_yticks(yticks)
-
-                    # Setting the boundaries for the axis
-                    axs[i,j].set_ylim(ylim)
-                    axs[i,j].set_xlim(xlim)
-
-                    # Removing unnecessary ticks and labels                   
-                    if j != 0:
-                        axs[i,j].set_yticklabels([])
-                        axs[i,j].tick_params(axis='y', length=0)
-                        
-                    if i != dimension-1:
-                        axs[i,j].tick_params(axis='x', length=0)
-
-                # No Subplots show above the diagonal
-                elif i<j:
-                    axs[i,j].axis('off')
-        
-                # Add the ticks and the axis labels where necessary on the y axis               
-                if j == 0 and i!=0:
-                    r = m.floor(np.log10(abs(yticks[0]-yticks[1])))-1
-                    if r >= 0:
-                        axs[i,j].set_yticklabels([int(y) for y in yticks],fontsize=fs,rotation=45)
-                    else:
-                        axs[i,j].set_yticklabels(np.round(yticks,-r),fontsize=fs,rotation=45)
-                        
-                    
-                    if units is None:
-                        axs[i,j].set_ylabel(titles[i],fontsize=fs)
-                    else:
-                        if units[i] == '':
-                            axs[i,j].set_ylabel(titles[i],fontsize=fs)
-                        else:
-                            axs[i,j].set_ylabel(titles[i]+' '+units[i],fontsize=fs)
-
-                # Add the ticks and the axis labels where necessary on the y axis on the x axis 
-                if i == dimension-1:
-                    r = m.floor(np.log10(abs(xticks[0]-xticks[1])))-1
-                    if r>=0:
-                        axs[i,j].set_xticklabels([int(x) for x in xticks],fontsize=fs,rotation=45)
-                    else:
-                        axs[i,j].set_xticklabels(np.round(xticks,-r),fontsize=fs,rotation=45,ha='right')
-                    
-                    
-                    if units is None:
-                        axs[i,j].set_xlabel(titles[j],fontsize=fs)
-                    else:
-                        if units[j] == '':
-                            axs[i,j].set_xlabel(titles[j],fontsize=fs)
-                        else:
-                            axs[i,j].set_xlabel(titles[j]+' '+units[j],fontsize=fs)
-
-        # Set all titles at a uniform distance from the subplots
-        fig.align_ylabels(axs[:, 0])
-        fig.align_xlabels(axs[-1,:])
-        return fig, axs
-
-
-
-
-
-
-
-
-
-
     def Corner_Plot(self, save=False, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt = True, plot_physparam = True, plot_clouds = True,plot_chemcomp=True,plot_bond=None, titles = None, units=None, bins=20,
                     quantiles=[0.16, 0.5, 0.84], precision=2):
         '''
@@ -950,7 +817,7 @@ class retrieval_plotting(r_globals.globals):
             local_truths += plot_bond[-2:]
             inds += [-2,-1]
             
-        fig = self.Corner(local_equal_weighted_post[:,inds],none_test(local_titles,inds),dimension = len(inds),truths=none_test(local_truths,inds),precision=precision,quantiles=quantiles,units=none_test(units,inds),bins=bins)
+        fig = rp_corner.Corner(local_equal_weighted_post[:,inds],none_test(local_titles,inds),dimension = len(inds),truths=none_test(local_truths,inds),precision=precision,quantiles=quantiles,units=none_test(units,inds),bins=bins)
         # Save the figure or retrun the figure object
         if save:
             plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
@@ -1415,7 +1282,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Plot_Ret_Bond_Albedo(self, L_star, sigma_L_star, sep_planet, sigma_sep_planet, A_Bond_true = None, T_equ_true= None,
-                            skip=1, quantiles=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,precision = 2,
+                            skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,
                             titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$'],
                             units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$','']):
         
@@ -1449,12 +1316,12 @@ class retrieval_plotting(r_globals.globals):
             
 
             # Generate the corner plot
-            fig, axs = self.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
-                                    quantiles=quantiles,precision=precision)
+            fig, axs = rp_corner.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
+                                    quantiles1d=quantiles1d)
 
             # Save the figure or retrun the figure object
             if save:
-                plt.savefig(self.results_directory+'Plots/plot_bond_blbedo.pdf', bbox_inches='tight')
+                plt.savefig(self.results_directory+'Plots/plot_bond_albedo.pdf', bbox_inches='tight')
             return fig, axs
 
 
