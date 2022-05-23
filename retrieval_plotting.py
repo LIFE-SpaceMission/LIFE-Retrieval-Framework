@@ -572,7 +572,7 @@ class retrieval_plotting(r_globals.globals):
                 t_end = t.time()
                 remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
                 print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of spectra calculated. Estimated time remaining: '+str(remain_time//3600)+
-                        ' h, '+str((remain_time%3600)//60)+' min.         ', end = "\r")
+                        ' h, '+str((remain_time%3600)//60)+' min.            ', end = "\r")
 
         # Print status of calculation
         if process == 0:

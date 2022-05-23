@@ -12,10 +12,10 @@ import numpy as np
 
 
 
-def Logistic_Function(self,x,L,k,hm):
+def Logistic_Function(x,L,k,hm):
     return L/(1+np.exp(-k*(x-hm)))
 
 
 
-def Inverse_Logistic_Function(self,y,L,k,hm):
+def Inverse_Logistic_Function(y,L,k,hm):
     return hm-np.log(L/y-1)/k
