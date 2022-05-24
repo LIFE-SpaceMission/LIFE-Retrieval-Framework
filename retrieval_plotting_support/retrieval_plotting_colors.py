@@ -31,7 +31,7 @@ def  color_levels(color,quantiles):
 
 
 # Generate colormap for a 2d histogram based on percentage levels
-def  color_map(Z,color_levels,level_thresholds):
+def color_map(Z,color_levels,level_thresholds):
     
     # Choose all bins with non-zero entries and sort them in ascending order
     level_counts = np.sort(Z.flatten())[np.where(np.sort(Z.flatten())>0)]
@@ -45,6 +45,10 @@ def  color_map(Z,color_levels,level_thresholds):
         if sum_level_counts/np.sum(level_counts)>=level_thresholds[threshold_ind]:
             threshold_ind += 1
             levels += [level_counts[i]]
+
+    # Boundary case where the maximum is reached before the last level
+    while len(levels) < 5:
+        levels += [levels[-1]+1]
 
     # Generate the colormap 
     map, norm  = col.from_levels_and_colors(levels,color_levels)

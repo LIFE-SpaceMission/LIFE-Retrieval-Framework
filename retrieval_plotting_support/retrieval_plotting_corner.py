@@ -16,14 +16,14 @@ from retrieval_plotting_support import retrieval_plotting_colors as rp_col
 
 
 def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
-            quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color2d='k',color_truth='C3',bins=50):
+            quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color='k',color_truth='C3',bins=50):
     
     # Find the dimension of the corner plot.
     if dimension is None:
         dimension=np.shape(data)[1]
 
     # Generate colorlevels for the different quantiles
-    color_levels, level_thresholds, N_levels = rp_col.color_levels(color2d,quantiles2d)
+    color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles2d)
 
     # Start of plotting routine
     fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
@@ -34,7 +34,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
     # Diagonal histogram plots
     for i in range(dimension):
         # Plot the 1d histogram for each retrieved parameter on the diagonal.
-        h = axs[i,i].hist(data[:,i],histtype='stepfilled',color=color2d,alpha=0.5,density=True,bins=bins)
+        h = axs[i,i].hist(data[:,i],histtype='stepfilled',color=color,alpha=0.5,density=True,bins=bins)
 
         # Define the limits of the plot and remove the yticks
         axs[i,i].set_xlim([h[1][0],h[1][-1]])

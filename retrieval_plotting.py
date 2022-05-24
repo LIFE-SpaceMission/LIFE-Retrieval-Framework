@@ -682,8 +682,8 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Corner_Plot(self, save=False, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt = True, plot_physparam = True, plot_clouds = True,plot_chemcomp=True,plot_bond=None, titles = None, units=None, bins=20,
-                    quantiles=[0.16, 0.5, 0.84], precision=2):
+    def Corner_Plot(self, save=False, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
+                    plot_clouds=True,plot_chemcomp=True,plot_bond=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k'):
         '''
         This function generates a corner plot for the retrieved parameters.
         '''
@@ -786,38 +786,44 @@ class retrieval_plotting(r_globals.globals):
                             local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
                             if not local_truths[i] is None: 
                                 local_truths[i] = np.log10(local_truths[i])
+                            local_titles[i] = 'log$_{10}$ P$_0$'
                         else:
-                            local_titles[i] = local_titles[i].split('_',1)[-1]
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-        
-        # exlude all unwanted p[arameters from the corner plot
-        inds =  [i for i in range(len(param_names))]
-        if not plot_pt:
-            inds += [i for i in range(len(param_names)) if i not in inds_pt]
-        if not plot_clouds:
-            inds += [i for i in range(len(param_names)) if i not in inds_clouds]
-        if not plot_chemcomp:
-            inds += [i for i in range(len(param_names)) if i not in inds_chemcomp]
-        if not plot_physparam:
-            inds += [i for i in range(len(param_names)) if i not in inds_physparam]
+                            local_titles[i] = 'log$_{10}$ P$_0$'
+                    
+
+        # add all wanted parameters to the corner plot
+        inds = []
+        if plot_pt:
+            inds += [i for i in range(len(param_names)) if i in inds_pt]
+        if plot_physparam:
+            inds += [i for i in range(len(param_names)) if i in inds_physparam]
+        if plot_chemcomp:
+            inds += [i for i in range(len(param_names)) if i in inds_chemcomp]
+        if plot_clouds:
+            inds += [i for i in range(len(param_names)) if i in inds_clouds]
+
         def none_test(input,inds):
             try:
                 return [input[i] for i in inds]
             except:
                 return None
 
-        if not titles is None:
-            local_titles=titles
-
+        # If wanted add the bond albedo and the equilibrium temperature to the plot
         if plot_bond is not None:
             if not hasattr(self, 'A_Bond_ret'):
                 self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20)
-            local_equal_weighted_post = np.append(local_equal_weighted_post, np.array([self.ret_opaque_T]).T,axis=1)
-            local_equal_weighted_post = np.append(local_equal_weighted_post, np.array([self.A_Bond_ret]).T,axis=1)
+            local_equal_weighted_post = np.append(local_equal_weighted_post, self.ret_opaque_T,axis=1)
+            local_equal_weighted_post = np.append(local_equal_weighted_post, self.A_Bond_ret,axis=1)
             local_truths += plot_bond[-2:]
             inds += [-2,-1]
+            local_titles += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
+
+        
+        if not titles is None:
+            local_titles=titles
             
-        fig = rp_corner.Corner(local_equal_weighted_post[:,inds],none_test(local_titles,inds),dimension = len(inds),truths=none_test(local_truths,inds),precision=precision,quantiles=quantiles,units=none_test(units,inds),bins=bins)
+        fig = rp_corner.Corner(local_equal_weighted_post[:,inds],none_test(local_titles,inds),dimension = len(inds),truths=none_test(local_truths,inds),
+                                quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color)
         # Save the figure or retrun the figure object
         if save:
             plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
@@ -840,7 +846,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50):
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -910,15 +916,26 @@ class retrieval_plotting(r_globals.globals):
             x = np.nanquantile(self.pressure_full,0.5,axis=0)
             yinterp = np.interp(self.input_pressure, x, y)
             smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 10)
-            ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'Input Profile')
 
-            # Plotting the true/input surface temperature/pressure
-            ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Input Surface')
+            # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
+            if np.isnan(smooth_T_true[-10]):
+                num_nan = np.count_nonzero(np.isnan(smooth_T_true))
+                ax.semilogy(smooth_T_true[:-num_nan-10],self.input_pressure[:-num_nan-10],color ='black', label = 'Input Profile')
+                ax.semilogy(smooth_T_true[-num_nan-10:],self.input_pressure[-num_nan-10:],color ='black', ls = ':')
+            else:
+                ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'Input Profile')
+
+                # Plotting the true/input surface temperature/pressure
+                ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Input Surface')
 
             # If wanted: plotting the true/input cloud top temperature/pressure
-            if plot_clouds:
+            try:
+                if true_cloud_top is not None:
+                    self.true_temperature_cloud_top,self.true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
                 ind_ct = (np.argmin(np.abs(np.log10(self.true_pressure_cloud_top)-np.log10(self.input_pressure))))
                 ax.plot(smooth_T_true[ind_ct],self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Input Cloud Top')
+            except:
+                pass
         else:
             ax.semilogy(self.input_temperature,self.input_pressure,color ='black', label = 'Input Profile')
 
@@ -926,8 +943,12 @@ class retrieval_plotting(r_globals.globals):
             ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Input Surface')
 
             # If wanted: plotting the true/input cloud top temperature/pressure
-            if plot_clouds:
+            try:
+                if true_cloud_top is not None:
+                    self.true_temperature_cloud_top,self.true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
                 ax.plot(self.true_temperature_cloud_top,self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Input Cloud Top')
+            except:
+                pass
 
         # Print the case identifier
         ax.annotate(case_identifier,[x_lim[1]-0.05*(x_lim[1]-x_lim[0]),10**(np.log10(y_lim[1])-0.05*(np.log10(y_lim[1])-np.log10(y_lim[0])))],ha='right',va='bottom')
@@ -1292,7 +1313,7 @@ class retrieval_plotting(r_globals.globals):
         if self.settings['clouds'] == 'opaque':
             self.ret_opaque_T = self.temperature_cloud_top
         else:
-            self.ret_opaque_T = self.temperature[:,-1]
+            self.ret_opaque_T = np.array([self.temperature[:,-1]]).T
 
         # Generating random data for the stellar luminosity and the panet separation
         L_star_data = L_star + sigma_L_star*np.random.randn(*self.ret_opaque_T.shape)
