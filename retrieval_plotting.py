@@ -19,7 +19,7 @@ import time as t
 from retrieval_support import retrieval_global_class as r_globals
 from retrieval_support import retrieval_posteriors as r_post
 from retrieval_plotting_support import retrieval_plotting_colors as rp_col
-from retrieval_plotting_support import retrieval_plotting_corner as rp_corner
+from retrieval_plotting_support import retrieval_plotting_posteriors as rp_posteriors
 from retrieval_plotting_support import retrieval_plotting_handlerbase as rp_hndl
 from retrieval_plotting_support import retrieval_plotting_inlay as rp_inlay
 from retrieval_plotting_support import retrieval_plotting_parallel as rp_parallel
@@ -682,7 +682,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Corner_Plot(self, save=False, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
+    def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
                     plot_clouds=True,plot_chemcomp=True,plot_bond=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k'):
         '''
         This function generates a corner plot for the retrieved parameters.
@@ -821,15 +821,27 @@ class retrieval_plotting(r_globals.globals):
         
         if not titles is None:
             local_titles=titles
-            
-        fig = rp_corner.Corner(local_equal_weighted_post[:,inds],none_test(local_titles,inds),dimension = len(inds),truths=none_test(local_truths,inds),
+
+        if plot_corner:        
+            fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],local_titles[inds],dimension = len(inds),truths=none_test(local_truths,inds),
                                 quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color)
-        # Save the figure or retrun the figure object
-        if save:
-            plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
-            pass
+            # Save the figure or retrun the figure object
+            if save:
+                plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
+            return fig, axs
         else:
-            return fig
+
+
+
+            
+            if not os.path.exists(self.results_directory + 'Plots/Posteriors/'):
+                os.makedirs(self.results_directory + 'Plots/Posteriors/')
+            for i in inds:
+                fig, axs = rp_posteriors.Posterior(local_equal_weighted_post[:,i],local_titles[i],truth=none_test(local_truths,[i]),
+                                    quantiles1d=quantiles1d,units=none_test(units,[i]),bins=bins,color=color)
+                if save:
+                    plt.savefig(self.results_directory+'Plots/Posteriors/'+list(self.params.keys())[i]+'.pdf', bbox_inches='tight')
+                plt.close(fig)
 
 
 
@@ -1337,7 +1349,7 @@ class retrieval_plotting(r_globals.globals):
             
 
             # Generate the corner plot
-            fig, axs = rp_corner.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
+            fig, axs = rp_posteriors.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
                                     quantiles1d=quantiles1d)
 
             # Save the figure or retrun the figure object
