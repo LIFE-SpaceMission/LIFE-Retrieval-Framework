@@ -822,18 +822,14 @@ class retrieval_plotting(r_globals.globals):
         if not titles is None:
             local_titles=titles
 
-        if plot_corner:        
-            fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],local_titles[inds],dimension = len(inds),truths=none_test(local_truths,inds),
+        if plot_corner:
+            fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],[local_titles[ind] for ind in inds],dimension = np.size(inds),truths=none_test(local_truths,inds),
                                 quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color)
             # Save the figure or retrun the figure object
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
             return fig, axs
         else:
-
-
-
-            
             if not os.path.exists(self.results_directory + 'Plots/Posteriors/'):
                 os.makedirs(self.results_directory + 'Plots/Posteriors/')
             for i in inds:
