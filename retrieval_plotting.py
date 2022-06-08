@@ -680,6 +680,84 @@ class retrieval_plotting(r_globals.globals):
     #################################################################################
     """
 
+    
+
+    def Scale_Posteriors(self, local_equal_weighted_post, local_truths, local_titles, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True):
+        '''
+        This ajusts a local copy of the posterior for plotting.
+        '''
+
+        # If we want to use log abundnces update data to log abundances
+        if log_abundances:
+            param_names = list(self.params.keys())
+            for i in range(len(param_names)):
+                # Adjust retrieved abundances for the line absorbers
+                if self.params[param_names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                    #Plotting for the special upper limit prior case
+                    if self.priors[i] == 'ULU':
+                        local_equal_weighted_post[:,i] = np.log10(1-local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}(1-$ ' + local_titles[i] + '$)$'
+                        if not local_truths[i] is None:
+                            local_truths[i] = np.log10(1-local_truths[i])
+                    else:
+                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
+                        if not local_truths[i] is None:
+                            local_truths[i] = np.log10(local_truths[i])
+                # Adjust retrieved abundances for the clod absorbers
+                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
+                    if len(param_names[i].split('_')) == 2:
+                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
+                        if not local_truths[i] is None: 
+                            local_truths[i] = np.log10(local_truths[i])
+        
+        # If we want to use log particle radii
+        if log_particle_radii:
+            param_names = list(self.params.keys())
+            for i in range(len(param_names)):
+                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
+                    if 'particle_radius' in param_names[i]:
+                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
+                        if not local_truths[i] is None: 
+                            local_truths[i] = np.log10(local_truths[i])
+        
+        # If we want to use log mass in the corner plot
+        if log_mass:
+            param_names = list(self.params.keys())
+            for i in range(len(param_names)):
+                if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
+                    if param_names[i] == 'M_pl':
+                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
+                        if not local_truths[i] is None: 
+                            local_truths[i] = np.log10(local_truths[i])
+
+        # If we want to use log pressures update data to log pressures
+        if log_pressures:
+            param_names = list(self.params.keys())
+            for i in range(len(param_names)):
+                # Adjust retrieved abundances for the clod absorbers
+                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
+                    var_type = param_names[i].split('_',2)[-1]
+                    if (var_type == 'top_pressure') or (var_type == 'thickness'):
+                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
+                        if not local_truths[i] is None: 
+                            local_truths[i] = np.log10(local_truths[i])
+                if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
+                    if 'P0' in param_names[i]:
+                        if not 'log' in param_names[i]:
+                            local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                            if not local_truths[i] is None: 
+                                local_truths[i] = np.log10(local_truths[i])
+                            local_titles[i] = 'log$_{10}$ P$_0$'
+                        else:
+                            local_titles[i] = 'log$_{10}$ P$_0$'
+        
+        return local_equal_weighted_post, local_truths, local_titles
+
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
@@ -720,77 +798,12 @@ class retrieval_plotting(r_globals.globals):
                         local_truths[i] = local_truths[i]**3
                 else:
                     pass
-
-        # If we want to use log abundnces update data to log abundances
-        if log_abundances:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                # Adjust retrieved abundances for the line absorbers
-                if self.params[param_names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                    #Plotting for the special upper limit prior case
-                    if self.priors[i] == 'ULU':
-                        local_equal_weighted_post[:,i] = np.log10(1-local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}(1-$ ' + local_titles[i] + '$)$'
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(1-local_truths[i])
-                    else:
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
-                # Adjust retrieved abundances for the clod absorbers
-                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                    if len(param_names[i].split('_')) == 2:
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
-                            local_truths[i] = np.log10(local_truths[i])
         
-        # If we want to use log particle radii
-        if log_particle_radii:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                    if param_names[i] == 'H2SO484(c)_am_particle_radius':
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
-                            local_truths[i] = np.log10(local_truths[i])
+        # Adust the local copy of the posteriors according to the users desires
+        local_equal_weighted_post, local_truths, local_titles = self.Scale_Posteriors(local_equal_weighted_post,
+                            local_truths, local_titles, log_pressures=log_pressures, log_mass=log_mass,
+                            log_abundances=log_abundances, log_particle_radii=log_particle_radii)
         
-        # If we want to use log mass in the corner plot
-        if log_mass:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
-                    if param_names[i] == 'M_pl':
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
-                            local_truths[i] = np.log10(local_truths[i])
-
-        # If we want to use log pressures update data to log pressures
-        if log_pressures:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                # Adjust retrieved abundances for the clod absorbers
-                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                    var_type = param_names[i].split('_',2)[-1]
-                    if (var_type == 'top_pressure') or (var_type == 'thickness'):
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
-                            local_truths[i] = np.log10(local_truths[i])
-                if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
-                    if 'P0' in param_names[i]:
-                        if not 'log' in param_names[i]:
-                            local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                            if not local_truths[i] is None: 
-                                local_truths[i] = np.log10(local_truths[i])
-                            local_titles[i] = 'log$_{10}$ P$_0$'
-                        else:
-                            local_titles[i] = 'log$_{10}$ P$_0$'
-                    
-
         # add all wanted parameters to the corner plot
         inds = []
         if plot_pt:
@@ -854,7 +867,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -923,7 +936,7 @@ class retrieval_plotting(r_globals.globals):
             y = np.nanquantile(self.temperature_full,0.5,axis=0)
             x = np.nanquantile(self.pressure_full,0.5,axis=0)
             yinterp = np.interp(self.input_pressure, x, y)
-            smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 10)
+            smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 5)
 
             # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
             if np.isnan(smooth_T_true[-10]):
@@ -1063,35 +1076,34 @@ class retrieval_plotting(r_globals.globals):
 
         # Legend cosmetics
         handles, labels = ax.get_legend_handles_labels()
-        if ax_arg is not None:
-            pass
-        else:
-            # Add the patches to the legend
-            if plot_clouds:
-                patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :]),tuple(3*[0.9-i*0.15])],[1,1]) for i in range(N_levels)]
-            else:
-                patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
 
-            # Define the titles for the patches
-            if quantiles_title is None:
-                patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
-            else:
-                patch_labels = quantiles_title
+        # Add the patches to the legend
+        if plot_clouds:
+            patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :]),tuple(3*[0.9-i*0.15])],[1,1]) for i in range(N_levels)]
+        else:
+            patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
+
+        # Define the titles for the patches
+        if quantiles_title is None:
+            patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
+        else:
+            patch_labels = quantiles_title
             
-            # Add the legend
-            lgd = ax.legend(handles+patch_handles,labels+patch_labels,\
-                            handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
+        # Add the legend
+        lgd = ax.legend(handles+patch_handles,labels+patch_labels,\
+                        handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
 
         # Save or pass back the figure
         if ax_arg is not None:
-            return handles+['CloudTopPressure','SurfacePressure'], labels+['True Cloud Top','True Surface']
+            pass
         elif save:
             if plot_residual:
                 plt.savefig(self.results_directory+'Plots/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
             else:
                 plt.savefig(self.results_directory+'Plots/plot_pt_structure.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
-        return figure, ax, ax2
-
+            return figure, ax
+        else:
+            return figure, ax
 
 
     def PT_Histogram(self, ax=None, save=False, plot_clouds=False, x_lim=[0,1000], y_lim=[1e-6,1e4], color_map=None, skip=1, bins=200, legend_color='white', truth_color='white',
@@ -1263,38 +1275,36 @@ class retrieval_plotting(r_globals.globals):
 
         # Legend cosmetics
         handles, labels = ax.get_legend_handles_labels()
-        if ax_arg is not None:
-            pass
+
+        # Add the patches to the legend
+        patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
+        if quantiles_title is None:
+            patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
         else:
-            # Add the patches to the legend
-            patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
-            if quantiles_title is None:
-                patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
-            else:
-                patch_labels = quantiles_title
+            patch_labels = quantiles_title
 
-            if plot_noise:
-                patch_handles = [rp_hndl.MulticolorPatch([(0.8,0.8,0.8)],[1])]+patch_handles
-                patch_labels = [noise_title]+patch_labels
+        if plot_noise:
+            patch_handles = [rp_hndl.MulticolorPatch([(0.8,0.8,0.8)],[1])]+patch_handles
+            patch_labels = [noise_title]+patch_labels
 
-            # Add the legend
-            if plot_residual:
-                lgd = ax.legend(handles+patch_handles,labels+patch_labels,
+        # Add the legend
+        if plot_residual:
+            lgd = ax.legend(handles+patch_handles,labels+patch_labels,
                     handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=len(labels+patch_labels),loc=legend_loc,frameon=False)
-            else:
-                lgd = ax.legend(handles+patch_handles,labels+patch_labels,
+        else:
+            lgd = ax.legend(handles+patch_handles,labels+patch_labels,
                     handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
 
 
         # Save or pass back the figure
         if ax_arg is not None:
-            return handles+patch_handles,labels+patch_labels
+            pass
         elif save:
             if plot_residual:
                 plt.savefig(self.results_directory+'Plots/plot_spectrum_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
             else:
                 plt.savefig(self.results_directory+'Plots/plot_spectrum.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
-        return figure, ax
+            return figure, ax
 
 
 

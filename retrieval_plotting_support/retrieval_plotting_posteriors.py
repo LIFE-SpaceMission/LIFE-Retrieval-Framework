@@ -149,38 +149,43 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
 
 # Routine for plotting the 1d posteriors
 def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84], 
-            quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color='k',color_truth='C3',bins=50,lw = 2):
+                color='k',color_truth='C3',bins=50,lw = 2,ax=None,histtype='stepfilled',alpha=0.5,hatch=None):
 
     # Start of plotting routine
-    fig, ax = plt.subplots(1,1,figsize=(2.5,2.5))
+    ax_arg = ax
+    if ax is None:
+        fig, ax = plt.subplots(1,1,figsize=(2.5,2.5))
+    else:
+        pass
 
     # Plot the 1d histogram for each retrieved parameter on the diagonal.
-    h = ax.hist(data,histtype='stepfilled',color=color,alpha=0.5,density=True,bins=bins)
+    h = ax.hist(data,histtype=histtype,color=color,alpha=alpha,density=True,bins=bins,hatch=hatch)
 
     # Define the limits of the plot and remove the yticks
-    xlim = [h[1][0],h[1][-1]]
-    ax.set_xlim(xlim)
-    ylim = [0,1.1*np.max(h[0])]
-    ax.set_ylim(ylim)
-    ax.set_yticks([])
+    if ax is None:
+        xlim = [h[1][0],h[1][-1]]
+        ax.set_xlim(xlim)
+        ylim = [0,1.1*np.max(h[0])]
+        ax.set_ylim(ylim)
+        ax.set_yticks([])
 
-    # Generating the title for the plot
-    if units is None or '':
-        title = title
-    else:
-        title = title+' '+units
-
-    # Plotting the secified quantiles
-    if quantiles1d is not None:
-        q = [np.quantile(data,ind) for ind in quantiles1d]
-        ax.vlines(q,ax.get_ylim()[0],ax.get_ylim()[1],colors='k', ls='--')
-
-        # Round q and print the retrieved value above the histogram plot
-        round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
-        if round>=0.5:
-            ax.set_title(title + ' = ' + str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$')
+        # Generating the title for the plot
+        if units is None or '':
+            title = title
         else:
-            ax.set_title(title + ' = ' + str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
+            title = title+' '+units
+
+        # Plotting the secified quantiles
+        if quantiles1d is not None:
+            q = [np.quantile(data,ind) for ind in quantiles1d]
+            ax.vlines(q,ax.get_ylim()[0],ax.get_ylim()[1],colors='k', ls='--')
+
+            # Round q and print the retrieved value above the histogram plot
+            round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
+            if round>=0.5:
+                ax.set_title(title + ' = ' + str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$')
+            else:
+                ax.set_title(title + ' = ' + str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$')
 
@@ -188,15 +193,18 @@ def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84],
     if not truth is None:
         ax.plot([truth,truth],ax.get_ylim(),color=color_truth,linestyle = ':')
 
-    # Setting 4 even ticks over the range defined by the limits of the subplot
-    xticks = [(1-pos)*xlim[0]+pos*xlim[1] for pos in [0.2,0.4,0.6,0.8]]
-    ax.set_xticks(xticks)
+    if ax is None:
+        # Setting 4 even ticks over the range defined by the limits of the subplot
+        xticks = [(1-pos)*xlim[0]+pos*xlim[1] for pos in [0.2,0.4,0.6,0.8]]
+        ax.set_xticks(xticks)
 
-    # Rounding the ticklabels and printing them
-    roundx = np.log10(np.abs(xticks[1]-xticks[0]))
-    if roundx>=0.5:
-        ax.set_xticklabels([int(i) for i in xticks],rotation=45,ha='right')
-    else:
-        ax.set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),rotation=45,ha='right')
+        # Rounding the ticklabels and printing them
+        roundx = np.log10(np.abs(xticks[1]-xticks[0]))
+        if roundx>=0.5:
+            ax.set_xticklabels([int(i) for i in xticks],rotation=45,ha='right')
+        else:
+            ax.set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),rotation=45,ha='right')
                 
-    return fig, ax
+        return fig, ax
+    else:
+        return ax, h

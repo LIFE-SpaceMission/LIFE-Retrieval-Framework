@@ -9,12 +9,14 @@ import sys, os
 import matplotlib.colors as col
 import matplotlib.pyplot as plt
 import numpy as np
+from pkg_resources import ResolutionError
 from scipy.ndimage.filters import gaussian_filter1d
 
 # Import additional external files
 import retrieval_plotting as rp
 from retrieval_support import retrieval_posteriors as r_post
 from retrieval_plotting_support import retrieval_plotting_handlerbase as rp_hndl
+from retrieval_plotting_support import retrieval_plotting_posteriors as rp_posteriors
 
 
 
@@ -22,50 +24,215 @@ from retrieval_plotting_support import retrieval_plotting_handlerbase as rp_hndl
 
 class grid_plotting():
 
-    def __init__(self, results_directory):
+    def __init__(self, results_directory, plots_dir='',object_info=None):
         '''
         This function reads the input.ini file as well as the retrieval
         results files of imterest to us and stores the read in data
         in order to generate the retrieval plots of interest to us.
         '''
 
-        self.results_directory = results_directory
         self.grid_results = {}
-        self.model = set()
-        self.wln = set()
-        self.res = set()
-        self.snr = set()
+        self.grid_results['item_classification'] = {}
+        self.grid_results['rp_object'] = {}
+
+        directories = results_directory
+        self.results_directory = plots_dir
+        if not os.path.exists(plots_dir+'Grid_Plots/'):
+            os.makedirs(plots_dir+'Grid_Plots/')
 
         # Iterating over all directories in the grid results folders
-        for model_item in os.listdir(results_directory):
-            model_type = os.path.join(results_directory, model_item)
-            if os.path.isdir(model_type):
-                self.grid_results[model_item]={}
-                self.model.add(model_item)
-                for item in os.listdir(model_type):
-                    model_run = os.path.join(model_type, item)
-                    if os.path.isdir(model_run):
-                        split = model_run.split('_')
+        for model_item in directories:
+            self.grid_results['item_classification'][model_item] = {}
 
-                        # Initiating instances of the retrieval plotting class and storing the data in a dict
-                        results = rp.retrieval_plotting(model_run+'/')
-                        self.wln.add(split[-1])
-                        self.res.add(int(split[-2][1:]))
-                        self.snr.add(int(split[-3][2:]))
-                        try:
-                            self.grid_results[model_item][split[-1]][int(split[-2][1:])][int(split[-3][2:])]=results
-                        except:
-                            try:
-                                self.grid_results[model_item][split[-1]][int(split[-2][1:])]={}
-                                self.grid_results[model_item][split[-1]][int(split[-2][1:])][int(split[-3][2:])]=results
-                            except:
-                                self.grid_results[model_item][split[-1]]={}
-                                self.grid_results[model_item][split[-1]][int(split[-2][1:])]={}
-                                self.grid_results[model_item][split[-1]][int(split[-2][1:])][int(split[-3][2:])]=results
+            # Initiating instances of the retrieval plotting class and storing the data in a dict
+            self.grid_results['rp_object'][model_item] = rp.retrieval_plotting(model_item)
+
+            # If no object classification library is is provided provided automatically generate a class linrary
+            if object_info is None:
+                self.grid_results['item_classification'][model_item]['Wavelength'] = (self.grid_results['rp_object'][model_item].config_file.items('LAMBDA RANGE')[0][1]
+                                                        + '-' + self.grid_results['rp_object'][model_item].config_file.items('LAMBDA RANGE')[1][1])
+                self.grid_results['item_classification'][model_item]['R'] = [i[1] for i in self.grid_results['rp_object'][model_item].config_file.items('CHEMICAL COMPOSITION PARAMETERS') if i[0] == 'settings_resolution'][0]
+                self.grid_results['item_classification'][model_item]['SN'] = [i[2:] for i in model_item.split('/')[-2].split('_') if 'SN' in i][0]
+                self.grid_results['item_classification'][model_item]['Model'] = model_item.split('/')[-3]
+            else:
+                self.grid_results['item_classification'] = object_info
 
 
 
+    def posteriors(self,x_category,y_category,overplot_categories='Model',fix_categories=None,subfig_size=[3,3],sharex=True,sharey=True,
+                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20):
 
+        # Get Lists wit the categories for the x and the y axis
+        x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
+        y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
+
+        local_grid_results = {}
+        # Get all of the unique keys we want to plot the posteriors of
+        posterior_keys = []
+        for run in self.grid_results['rp_object'].keys():
+            posterior_keys += self.grid_results['rp_object'][run].params.keys()
+
+            # Generate local copies of the posteriors 
+            local_grid_results[run]={}
+            local_grid_results[run]['local_equal_weighted_post'] = np.copy(self.grid_results['rp_object'][run].equal_weighted_post)
+            local_grid_results[run]['local_truths'] = self.grid_results['rp_object'][run].truths.copy()
+            local_grid_results[run]['local_titles'] = self.grid_results['rp_object'][run].titles.copy()
+            local_grid_results[run]['local_posterior_keys'] = list(self.grid_results['rp_object'][run].params.keys())
+
+            # Adust the local copy of the posteriors according to the users desires
+            local_grid_results[run]['local_equal_weighted_post'], local_grid_results[run]['local_truths'], local_grid_results[run]['local_titles'] = self.grid_results['rp_object'][run].Scale_Posteriors(local_grid_results[run]['local_equal_weighted_post'],
+                            local_grid_results[run]['local_truths'], local_grid_results[run]['local_titles'], log_pressures=log_pressures, log_mass=log_mass,log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+        unique_posterior_keys = list(set(posterior_keys)) 
+
+        # Loop over all of the unique retieved variables             
+        for key in unique_posterior_keys:
+            fig,ax = plt.subplots(len(y_cat),len(x_cat),figsize = (len(x_cat)*subfig_size[0],len(y_cat)*subfig_size[1]),
+                            sharex=sharex,sharey=sharey,squeeze=False)
+
+            for run in self.grid_results['rp_object'].keys():
+                if key in local_grid_results[run]['local_posterior_keys']:
+                    # Identify the indices for the considered case
+                    x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
+                    y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+                    ind = np.where(np.array(local_grid_results[run]['local_posterior_keys']) == key)[0][0]
+
+                    # Choose the correct color and hatches
+                    if colors is None:
+                        color = 'k'
+                    else:
+                        color = colors[[i for i in colors.keys() if i in run][0]]
+                    if hist_settings is None:
+                        hist_setting = {'histtype':'stepfilled'}
+                    else:
+                        hist_setting = hist_settings[[i for i in hist_settings.keys() if i in run][0]]
+
+                    h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,ind],color=color,density=True,bins=bins,**hist_setting)
+                    plt.savefig(self.results_directory+'Grid_Plots/'+key+'.pdf', bbox_inches='tight')
+        """
+                    xlim = [h[1][0],h[1][-1]]
+                    ax.set_xlim(xlim)
+                    ylim = [0,1.1*np.max(h[0])]
+                    ax.set_ylim(ylim)
+                    ax.set_yticks([])
+
+        # Generating the title for the plot
+        if units is None or '':
+            title = title
+        else:
+            title = title+' '+units
+
+        # Plotting the secified quantiles
+        if quantiles1d is not None:
+            q = [np.quantile(data,ind) for ind in quantiles1d]
+            ax.vlines(q,ax.get_ylim()[0],ax.get_ylim()[1],colors='k', ls='--')
+
+            # Round q and print the retrieved value above the histogram plot
+            round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
+            if round>=0.5:
+                ax.set_title(title + ' = ' + str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$')
+            else:
+                ax.set_title(title + ' = ' + str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
+                        str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
+                        str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$')
+
+                    #hist = rp_posteriors.Posterior(local_grid_results[run]['local_equal_weighted_post'][:,ind],'',color=color,truth=local_grid_results[run]['local_truths'][ind],ax = ax[x,y],alpha=1,**hist_setting)
+            plt.savefig(self.results_directory+'Grid_Plots/'+key+'.pdf', bbox_inches='tight')
+            
+
+
+        ## Adust the local copy of the posteriors according to the users desires
+        #local_equal_weighted_post, local_truths, local_titles = self.Scale_Posteriors(local_equal_weighted_post,
+        #                    local_truths, local_titles, log_pressures=log_pressures, log_mass=log_mass,
+        #                    log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+
+
+        """
+
+    def Spectrum_Grid(self,x_category,y_category,subfig_size=[6,4],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best'):
+        # Get Lists wit the categories for the x and the y axis
+        x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
+        y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
+
+        # Initialize a new figure for the plot
+        fig,ax = plt.subplots(len(x_cat),len(y_cat),figsize = (len(y_cat)*subfig_size[0],len(x_cat)*subfig_size[1]),
+                    sharex=sharex,sharey=sharey,squeeze=False)
+        plt.subplots_adjust(hspace=0.1)
+
+        for run in self.grid_results['rp_object'].keys():
+            x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
+            y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+
+            # Choose the correct color and hatches
+            if colors is None:
+                color = 'k'
+            else:
+                color = colors[[i for i in colors.keys() if i in run][0]]
+            if case_identifiers is None:
+                case_identifier = ''
+            else:
+                case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+
+
+            self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[x,y],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
+                                plot_noise = True, plot_true_spectrum = True, legend_loc = legend_loc,color = color,noise_title = 'LIFE Noise',case_identifier=case_identifier)
+        
+        for i in range(len(x_cat)):
+            if plot_residual:
+                ax[i,0].set_ylabel(r'Retrieval Residual $\left[\%\right]$')
+            else:
+                ax[i,0].set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
+        for i in range(len(y_cat)):
+            ax[-1,i].set_xlabel(r'Wavelength [$\mu$m]')
+
+        if plot_residual:
+            plt.savefig(self.results_directory+'Grid_Plots/Spectra_Residual.pdf', bbox_inches='tight')
+        else:
+            plt.savefig(self.results_directory+'Grid_Plots/Spectra.pdf', bbox_inches='tight')
+
+
+
+    def PT_Grid(self,x_category,y_category,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
+        # Get Lists wit the categories for the x and the y axis
+        x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
+        y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
+
+        # Initialize a new figure for the plot
+        fig,ax = plt.subplots(len(x_cat),len(y_cat),figsize = (len(y_cat)*subfig_size[0],len(x_cat)*subfig_size[1]),
+                    sharex=sharex,sharey=sharey,squeeze=False)
+        plt.subplots_adjust(hspace=0.1,wspace=0.1)
+
+        for run in self.grid_results['rp_object'].keys():
+            x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
+            y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+
+            # Choose the correct color and hatches
+            if colors is None:
+                color = 'k'
+            else:
+                color = colors[[i for i in colors.keys() if i in run][0]]
+            if case_identifiers is None:
+                case_identifier = ''
+            else:
+                case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+
+            self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                    inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[x,y], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+
+
+        for i in range(len(x_cat)):
+            ax[i,0].set_ylabel(r'Pressure [bar]')
+        for i in range(len(y_cat)):
+            if plot_residual:
+                ax[-1,i].set_xlabel(r'Temperature Relative to Retrieved Median [K]')
+            else:
+                ax[-1,i].set_xlabel(r'Temperature [K]')
+
+        if plot_residual:
+            plt.savefig(self.results_directory+'Grid_Plots/Spectra_Residual.pdf', bbox_inches='tight')
+        else:
+            plt.savefig(self.results_directory+'Grid_Plots/Spectra.pdf', bbox_inches='tight')
+
+    """
     def PT_grid(self,plot_clouds=False,Hist = False):
         
         # Iterate over models and wavelength ranges
@@ -181,7 +348,7 @@ class grid_plotting():
                     title = fig.text(0.5,0.9,wln+r' $\mu\mathrm{m}$',ha='center',fontsize=20)
                     plt.savefig(self.results_directory+'/'+model+'/ice_surface_exclusion_'+wln+'.png',bbox_extra_artists=[xlabel,title], bbox_inches='tight',dpi=600)
 
-
+    """
 
 
     def Spectrum_grid(self,skip = 1, NoQuant = False):
