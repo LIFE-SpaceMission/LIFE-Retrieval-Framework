@@ -5,6 +5,7 @@ __email__ = "konradb@phys.ethz.ch"
 __status__ = "Development"
 
 # Standard Libraries
+import itertools
 import sys, os
 import matplotlib.colors as col
 import matplotlib.pyplot as plt
@@ -57,12 +58,70 @@ class grid_plotting():
             else:
                 self.grid_results['item_classification'] = object_info
 
+        # genereate lists of the different categories and subcategories of parameters
+        self.categories = list(sorted(set(list(self.grid_results['item_classification'][model_item].keys()))))
+        self.sub_categories = {}
+        for category in self.categories:
+            self.sub_categories[category] = sorted(set([self.grid_results['item_classification'][i][category] for i in self.grid_results['item_classification'].keys()]))
+
+
+
+    # Generates the grid structure for the plots
+    def _grid_generator(self,plot_type,x_category,y_category):
+        # Get lists with the categories for the x and the y axis
+        local_categories = self.categories.copy()
+        if x_category is None:
+            x_cat = ['']
+        else:
+            x_cat = self.sub_categories[x_category]
+            local_categories = [i for i in local_categories if i != x_category]
+        if y_category is None:
+            y_cat = ['']
+        else:
+            y_cat = self.sub_categories[y_category]
+            local_categories = [i for i in local_categories if i != y_category]
+
+        # Get the names of all Categories that are neither the x or y category
+        local_sub_categories = {}
+        for i in local_categories:
+            local_sub_categories[i] = self.sub_categories[i]
+ 
+        # Get all combinations of Categories that are neither the x or y category 
+        keys, values = zip(*local_sub_categories.items())
+        combinations_local_sub_categories = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+        # Get lists of the runnames for each combination of category
+        run_categorization = len(combinations_local_sub_categories)*[[]]
+        for run in self.grid_results['rp_object'].keys():
+            for ind in range(len(combinations_local_sub_categories)):
+                equal = [self.grid_results['item_classification'][run][key]==combinations_local_sub_categories[ind][key] for key in combinations_local_sub_categories[ind].keys()]
+                if all(equal):
+                    run_categorization[ind] = run_categorization[ind] + [run]
+
+        # Generate the directory to save the plots in
+        save_directory = self.results_directory+'Grid_Plots/'+plot_type+'_Fixed_'+'_'.join(local_categories)+'/'
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+        
+        return save_directory, x_cat, y_cat, combinations_local_sub_categories, run_categorization
+
+
+
+
+    """
+    #################################################################################
+    #                                                                               #
+    #   Routine for generating posterior plots.                                     #
+    #                                                                               #
+    #################################################################################
+    """
+
 
 
     def posteriors(self,x_category,y_category,overplot_categories='Model',fix_categories=None,subfig_size=[3,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20):
 
-        # Get Lists wit the categories for the x and the y axis
+        # Get Lists with the categories for the x and the y axis
         x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
         y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
 
@@ -148,89 +207,132 @@ class grid_plotting():
 
         """
 
-    def Spectrum_Grid(self,x_category,y_category,subfig_size=[6,4],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best'):
-        # Get Lists wit the categories for the x and the y axis
-        x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
-        y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
-
-        # Initialize a new figure for the plot
-        fig,ax = plt.subplots(len(x_cat),len(y_cat),figsize = (len(y_cat)*subfig_size[0],len(x_cat)*subfig_size[1]),
-                    sharex=sharex,sharey=sharey,squeeze=False)
-        plt.subplots_adjust(hspace=0.1)
-
-        for run in self.grid_results['rp_object'].keys():
-            x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
-            y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
-
-            # Choose the correct color and hatches
-            if colors is None:
-                color = 'k'
-            else:
-                color = colors[[i for i in colors.keys() if i in run][0]]
-            if case_identifiers is None:
-                case_identifier = ''
-            else:
-                case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
 
 
-            self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[x,y],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
-                                plot_noise = True, plot_true_spectrum = True, legend_loc = legend_loc,color = color,noise_title = 'LIFE Noise',case_identifier=case_identifier)
-        
-        for i in range(len(x_cat)):
+
+
+    """
+    #################################################################################
+    #                                                                               #
+    #   Routine for generating Spectrum plots.                                      #
+    #                                                                               #
+    #################################################################################
+    """
+
+
+
+    def Spectrum_Grid(self,x_category=None,y_category=None,subfig_size=[6,4],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best'):
+        save_directory, x_cat, y_cat, combinations_local_sub_categories, run_categorization = self._grid_generator('Spectra',x_category,y_category)
+
+        for ind in range(len(combinations_local_sub_categories)):
+            case = combinations_local_sub_categories[ind]
+
+            # Initialize a new figure for the plot
+            fig,ax = plt.subplots(len(y_cat),len(x_cat),figsize = (len(x_cat)*subfig_size[0],len(y_cat)*subfig_size[1]),
+                        sharex=sharex,sharey=sharey,squeeze=False)
+            plt.subplots_adjust(hspace=0.1)
+
+            for run in run_categorization[ind]:
+                if x_category is None:
+                    x = 0
+                else:
+                    x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
+                if y_category is None:
+                    y = 0
+                else:
+                    y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+
+                # Choose the correct color and hatches
+                if colors is None:
+                    color = 'k'
+                else:
+                    color = colors[[i for i in colors.keys() if i in run][0]]
+                if case_identifiers is None:
+                    case_identifier = ''
+                else:
+                    case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+
+
+                self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[y,x],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
+                                    plot_noise = True, plot_true_spectrum = True, legend_loc = legend_loc,color = color,noise_title = 'LIFE Noise',case_identifier=case_identifier)
+            
+            for i in range(len(x_cat)):
+                if plot_residual:
+                    ax[0,i].set_ylabel(r'Retrieval Residual $\left[\%\right]$')
+                else:
+                    ax[0,i].set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
+            for i in range(len(y_cat)):
+                ax[i,-1].set_xlabel(r'Wavelength [$\mu$m]')
+
+            title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
             if plot_residual:
-                ax[i,0].set_ylabel(r'Retrieval Residual $\left[\%\right]$')
+                plt.savefig(save_directory+title+'Spectra_Residual.pdf', bbox_inches='tight')
             else:
-                ax[i,0].set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
-        for i in range(len(y_cat)):
-            ax[-1,i].set_xlabel(r'Wavelength [$\mu$m]')
-
-        if plot_residual:
-            plt.savefig(self.results_directory+'Grid_Plots/Spectra_Residual.pdf', bbox_inches='tight')
-        else:
-            plt.savefig(self.results_directory+'Grid_Plots/Spectra.pdf', bbox_inches='tight')
+                plt.savefig(save_directory+title+'Spectra.pdf', bbox_inches='tight')
 
 
 
-    def PT_Grid(self,x_category,y_category,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
-        # Get Lists wit the categories for the x and the y axis
-        x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
-        y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
-
-        # Initialize a new figure for the plot
-        fig,ax = plt.subplots(len(x_cat),len(y_cat),figsize = (len(y_cat)*subfig_size[0],len(x_cat)*subfig_size[1]),
-                    sharex=sharex,sharey=sharey,squeeze=False)
-        plt.subplots_adjust(hspace=0.1,wspace=0.1)
-
-        for run in self.grid_results['rp_object'].keys():
-            x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
-            y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
-
-            # Choose the correct color and hatches
-            if colors is None:
-                color = 'k'
-            else:
-                color = colors[[i for i in colors.keys() if i in run][0]]
-            if case_identifiers is None:
-                case_identifier = ''
-            else:
-                case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
-
-            self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
-                    inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[x,y], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
 
 
-        for i in range(len(x_cat)):
-            ax[i,0].set_ylabel(r'Pressure [bar]')
-        for i in range(len(y_cat)):
+    """
+    #################################################################################
+    #                                                                               #
+    #   Routines for generating PT profile plots.                                   #
+    #                                                                               #
+    #################################################################################
+    """
+
+
+
+    def PT_Grid(self,x_category=None,y_category=None,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
+        save_directory, x_cat, y_cat, combinations_local_sub_categories, run_categorization = self._grid_generator('PT_profiles',x_category,y_category)
+
+        for ind in range(len(combinations_local_sub_categories)):
+            case = combinations_local_sub_categories[ind]
+
+            # Initialize a new figure for the plot
+            fig,ax = plt.subplots(len(y_cat),len(x_cat),figsize = (len(x_cat)*subfig_size[0],len(y_cat)*subfig_size[1]),
+                        sharex=sharex,sharey=sharey,squeeze=False)
+            plt.subplots_adjust(hspace=0.1,wspace=0.1)
+
+            for run in run_categorization[ind]:
+                if x_category is None:
+                    x = 0
+                else:
+                    x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
+                if y_category is None:
+                    y = 0
+                else:
+                    y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+
+                # Choose the correct color and hatches
+                if colors is None:
+                    color = 'k'
+                else:
+                    color = colors[[i for i in colors.keys() if i in run][0]]
+                if case_identifiers is None:
+                    case_identifier = ''
+                else:
+                    case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+
+                self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                        inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+
+            # Labeling the axes
+            for i in range(len(x_cat)):
+                ax[0,i].set_ylabel(r'Pressure [bar]')
+            for i in range(len(y_cat)):
+                if plot_residual:
+                    ax[i,-1].set_xlabel(r'Temperature Relative to Retrieved Median [K]')
+                else:
+                    ax[i,-1].set_xlabel(r'Temperature [K]')
+
+            # Saving the plot grid
+            title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
             if plot_residual:
-                ax[-1,i].set_xlabel(r'Temperature Relative to Retrieved Median [K]')
+                plt.savefig(save_directory+title+'PT_Residual.pdf', bbox_inches='tight')
             else:
-                ax[-1,i].set_xlabel(r'Temperature [K]')
-
-        if plot_residual:
-            plt.savefig(self.results_directory+'Grid_Plots/Spectra_Residual.pdf', bbox_inches='tight')
-        else:
-            plt.savefig(self.results_directory+'Grid_Plots/Spectra.pdf', bbox_inches='tight')
+                plt.savefig(save_directory+title+'PT.pdf', bbox_inches='tight')
 
     """
     def PT_grid(self,plot_clouds=False,Hist = False):
