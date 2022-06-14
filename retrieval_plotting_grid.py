@@ -148,15 +148,13 @@ class grid_plotting():
     def posteriors(self,x_category=None,y_category=None,overplot_category=None,subfig_size=[3,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20):
 
-        self._grid_generator('Posteriors',x_category,y_category,overplot_category)
+        # Generate the grid of runs for plotting
+        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                                    self._grid_generator('Posteriors',x_category,y_category,overplot_category=overplot_category)
 
-        # Get Lists with the categories for the x and the y axis
-        x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
-        y_cat = sorted(set([self.grid_results['item_classification'][i][y_category] for i in self.grid_results['item_classification'].keys()]))
-
-        local_grid_results = {}
         # Get all of the unique keys we want to plot the posteriors of
         posterior_keys = []
+        local_grid_results = {}
         for run in self.grid_results['rp_object'].keys():
             posterior_keys += self.grid_results['rp_object'][run].params.keys()
 
@@ -168,34 +166,56 @@ class grid_plotting():
             local_grid_results[run]['local_posterior_keys'] = list(self.grid_results['rp_object'][run].params.keys())
 
             # Adust the local copy of the posteriors according to the users desires
-            local_grid_results[run]['local_equal_weighted_post'], local_grid_results[run]['local_truths'], local_grid_results[run]['local_titles'] = self.grid_results['rp_object'][run].Scale_Posteriors(local_grid_results[run]['local_equal_weighted_post'],
-                            local_grid_results[run]['local_truths'], local_grid_results[run]['local_titles'], log_pressures=log_pressures, log_mass=log_mass,log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+            local_grid_results[run]['local_equal_weighted_post'], local_grid_results[run]['local_truths'], local_grid_results[run]['local_titles'] = \
+                self.grid_results['rp_object'][run].Scale_Posteriors(local_grid_results[run]['local_equal_weighted_post'],local_grid_results[run]['local_truths'],
+                                                                    local_grid_results[run]['local_titles'], log_pressures=log_pressures, log_mass=log_mass,
+                                                                    log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+
+        # Get the unique posterior keys
         unique_posterior_keys = list(set(posterior_keys)) 
 
         # Loop over all of the unique retieved variables             
         for key in unique_posterior_keys:
-            fig,ax = plt.subplots(len(y_cat),len(x_cat),figsize = (len(x_cat)*subfig_size[0],len(y_cat)*subfig_size[1]),
-                            sharex=sharex,sharey=sharey,squeeze=False)
 
-            for run in self.grid_results['rp_object'].keys():
-                if key in local_grid_results[run]['local_posterior_keys']:
-                    # Identify the indices for the considered case
-                    x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
-                    y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
-                    ind = np.where(np.array(local_grid_results[run]['local_posterior_keys']) == key)[0][0]
+            # Loop over the various plots to do
+            for ind in range(len(combinations_local_sub_categories)):
+                case = combinations_local_sub_categories[ind]
 
-                    # Choose the correct color and hatches
-                    if colors is None:
-                        color = 'k'
-                    else:
-                        color = colors[[i for i in colors.keys() if i in run][0]]
-                    if hist_settings is None:
-                        hist_setting = {'histtype':'stepfilled'}
-                    else:
-                        hist_setting = hist_settings[[i for i in hist_settings.keys() if i in run][0]]
+                # Initialize a new figure for the plot
+                fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
+                                sharex=sharex,sharey=sharey,squeeze=False)
+                plt.subplots_adjust(hspace=0.1,wspace=0.1)
 
-                    h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,ind],color=color,density=True,bins=bins,**hist_setting)
-                    plt.savefig(self.results_directory+'Grid_Plots/'+key+'.pdf', bbox_inches='tight')
+                # Loop over the x and y axis of the plots
+                for x in range(x_dim):
+                    for y in range(y_dim):
+                        for o in range(o_dim):
+                            run = run_categorization[ind,y,x,o]
+
+                            if key in local_grid_results[run]['local_posterior_keys']:
+
+                                # Choose the correct color and hatches
+                                if colors is None:
+                                    color = 'k'
+                                else:
+                                    color = colors[[i for i in colors.keys() if i in run][0]]
+                                if hist_settings is None:
+                                    hist_setting = {'histtype':'stepfilled'}
+                                else:
+                                    hist_setting = hist_settings[[i for i in hist_settings.keys() if i in run][0]]
+
+                                # Plot the posterior histogrram
+                                post = [i for i in range(len(local_grid_results[run]['local_posterior_keys'])) if local_grid_results[run]['local_posterior_keys'][i] == key][0]
+                                h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting)
+                            
+                # Check if directory for saving exists
+                title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
+                if not os.path.exists(save_directory+'/'+title+'/'):
+                    os.makedirs(save_directory+'/'+title+'/')
+
+                # Save the plots
+                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior.pdf', bbox_inches='tight')
+
         """
                     xlim = [h[1][0],h[1][-1]]
                     ax.set_xlim(xlim)
