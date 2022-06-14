@@ -7,6 +7,7 @@ __status__ = "Development"
 # Standard Libraries
 import itertools
 import sys, os
+from xml.etree.ElementInclude import XINCLUDE_INCLUDE
 import matplotlib.colors as col
 import matplotlib.pyplot as plt
 import numpy as np
@@ -67,43 +68,69 @@ class grid_plotting():
 
 
     # Generates the grid structure for the plots
-    def _grid_generator(self,plot_type,x_category,y_category):
+    def _grid_generator(self,plot_type,x_category,y_category,overplot_category=None):
         # Get lists with the categories for the x and the y axis
         local_categories = self.categories.copy()
         if x_category is None:
+            x_ind = 0
             x_cat = ['']
         else:
             x_cat = self.sub_categories[x_category]
             local_categories = [i for i in local_categories if i != x_category]
         if y_category is None:
+            y_ind = 0
             y_cat = ['']
         else:
             y_cat = self.sub_categories[y_category]
             local_categories = [i for i in local_categories if i != y_category]
+        if overplot_category is None:
+            o_ind = 0
+            o_cat = ['']
+        else:
+            o_cat = self.sub_categories[overplot_category]
+            local_categories = [i for i in local_categories if i != overplot_category]
 
-        # Get the names of all Categories that are neither the x or y category
+        # Find the dimensions of the lists
+        x_dim = len(x_cat)
+        y_dim = len(y_cat)
+        o_dim = len(o_cat)
+
+        # Get the names of all Categories that are neither the x, y, or overplot category
         local_sub_categories = {}
         for i in local_categories:
             local_sub_categories[i] = self.sub_categories[i]
  
-        # Get all combinations of Categories that are neither the x or y category 
+        # Get all combinations of Categories that are neither the x, y, or overplot category 
         keys, values = zip(*local_sub_categories.items())
         combinations_local_sub_categories = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
         # Get lists of the runnames for each combination of category
-        run_categorization = len(combinations_local_sub_categories)*[[]]
-        for run in self.grid_results['rp_object'].keys():
-            for ind in range(len(combinations_local_sub_categories)):
+        run_categorization = np.zeros((len(combinations_local_sub_categories),y_dim,x_dim,o_dim), dtype=object)
+        for ind in range(len(combinations_local_sub_categories)):
+            for run in self.grid_results['rp_object'].keys():
                 equal = [self.grid_results['item_classification'][run][key]==combinations_local_sub_categories[ind][key] for key in combinations_local_sub_categories[ind].keys()]
                 if all(equal):
-                    run_categorization[ind] = run_categorization[ind] + [run]
+                    if x_category is not None:
+                        x_ind = [i for i in range(x_dim) if x_cat[i] == self.grid_results['item_classification'][run][x_category]][0]
+                    if y_category is not None:
+                        y_ind = [i for i in range(y_dim) if y_cat[i] == self.grid_results['item_classification'][run][y_category]][0]
+                    if overplot_category is not None:
+                        o_ind = [i for i in range(o_dim) if o_cat[i] == self.grid_results['item_classification'][run][overplot_category]][0]
+
+                    # Save the runname at the correct position in the array
+                    run_categorization[ind,y_ind,x_ind,o_ind] = run
 
         # Generate the directory to save the plots in
-        save_directory = self.results_directory+'Grid_Plots/'+plot_type+'_Fixed_'+'_'.join(local_categories)+'/'
+        if overplot_category is None:
+            save_directory = self.results_directory+'Grid_Plots/'+plot_type+'/Fixed_'+'_'.join(local_categories)+'/'
+        else:
+            save_directory = self.results_directory+'Grid_Plots/'+plot_type+'/Fixed_'+'_'.join(local_categories)+'/Overplot_'+overplot_category+'/'
+
         if not os.path.exists(save_directory):
             os.makedirs(save_directory)
         
-        return save_directory, x_cat, y_cat, combinations_local_sub_categories, run_categorization
+        return save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization
+
 
 
 
@@ -118,8 +145,10 @@ class grid_plotting():
 
 
 
-    def posteriors(self,x_category,y_category,overplot_categories='Model',fix_categories=None,subfig_size=[3,3],sharex=True,sharey=True,
+    def posteriors(self,x_category=None,y_category=None,overplot_category=None,subfig_size=[3,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20):
+
+        self._grid_generator('Posteriors',x_category,y_category,overplot_category)
 
         # Get Lists with the categories for the x and the y axis
         x_cat = sorted(set([self.grid_results['item_classification'][i][x_category] for i in self.grid_results['item_classification'].keys()]))
@@ -221,49 +250,52 @@ class grid_plotting():
 
 
 
-    def Spectrum_Grid(self,x_category=None,y_category=None,subfig_size=[6,4],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best'):
-        save_directory, x_cat, y_cat, combinations_local_sub_categories, run_categorization = self._grid_generator('Spectra',x_category,y_category)
+    def Spectrum_Grid(self,x_category=None,y_category=None,subfig_size=[6,4],sharex=True,sharey=True,
+                            plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                            quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,
+                            case_identifiers=None,legend_loc = 'best'):
+        
+        # Generate the grid of runs for plotting
+        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('Spectra',x_category,y_category)
 
+        # Loop over the various plots to do
         for ind in range(len(combinations_local_sub_categories)):
             case = combinations_local_sub_categories[ind]
 
             # Initialize a new figure for the plot
-            fig,ax = plt.subplots(len(y_cat),len(x_cat),figsize = (len(x_cat)*subfig_size[0],len(y_cat)*subfig_size[1]),
+            fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
                         sharex=sharex,sharey=sharey,squeeze=False)
-            plt.subplots_adjust(hspace=0.1)
+            plt.subplots_adjust(hspace=0.1,wspace=0.1)
 
-            for run in run_categorization[ind]:
-                if x_category is None:
-                    x = 0
-                else:
-                    x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
-                if y_category is None:
-                    y = 0
-                else:
-                    y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+            # Loop over the x and y axis of the plots
+            for x in range(x_dim):
+                for y in range(y_dim):
+                    run = run_categorization[ind,y,x,0]
 
-                # Choose the correct color and hatches
-                if colors is None:
-                    color = 'k'
-                else:
-                    color = colors[[i for i in colors.keys() if i in run][0]]
-                if case_identifiers is None:
-                    case_identifier = ''
-                else:
-                    case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+                    # Choose the correct color and hatches
+                    if colors is None:
+                        color = 'k'
+                    else:
+                        color = colors[[i for i in colors.keys() if i in run][0]]
+                    if case_identifiers is None:
+                        case_identifier = ''
+                    else:
+                        case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
 
-
-                self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[y,x],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
+                    # Plot the spectrum in the corresponding subplot
+                    self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[y,x],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
                                     plot_noise = True, plot_true_spectrum = True, legend_loc = legend_loc,color = color,noise_title = 'LIFE Noise',case_identifier=case_identifier)
             
-            for i in range(len(x_cat)):
+            # Label the axes of the subplots
+            for i in range(y_dim):
                 if plot_residual:
-                    ax[0,i].set_ylabel(r'Retrieval Residual $\left[\%\right]$')
+                    ax[i,0].set_ylabel(r'Retrieval Residual $\left[\%\right]$')
                 else:
-                    ax[0,i].set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
-            for i in range(len(y_cat)):
-                ax[i,-1].set_xlabel(r'Wavelength [$\mu$m]')
+                    ax[i,0].set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
+            for i in range(x_dim):
+                ax[-1,i].set_xlabel(r'Wavelength [$\mu$m]')
 
+            # Save the plots
             title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
             if plot_residual:
                 plt.savefig(save_directory+title+'Spectra_Residual.pdf', bbox_inches='tight')
@@ -284,120 +316,74 @@ class grid_plotting():
 
 
 
-    def PT_Grid(self,x_category=None,y_category=None,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
-        save_directory, x_cat, y_cat, combinations_local_sub_categories, run_categorization = self._grid_generator('PT_profiles',x_category,y_category)
+    def PT_Grid(self,x_category=None,y_category=None,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,plot_clouds=False,
+                    quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
+                    colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
+        
+        # Generate the grid of runs for plotting
+        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('PT_profiles',x_category,y_category)
 
         for ind in range(len(combinations_local_sub_categories)):
             case = combinations_local_sub_categories[ind]
 
             # Initialize a new figure for the plot
-            fig,ax = plt.subplots(len(y_cat),len(x_cat),figsize = (len(x_cat)*subfig_size[0],len(y_cat)*subfig_size[1]),
+            fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
                         sharex=sharex,sharey=sharey,squeeze=False)
             plt.subplots_adjust(hspace=0.1,wspace=0.1)
 
-            for run in run_categorization[ind]:
-                if x_category is None:
-                    x = 0
-                else:
-                    x = np.where(np.array(x_cat) == self.grid_results['item_classification'][run][x_category])[0][0]
-                if y_category is None:
-                    y = 0
-                else:
-                    y = np.where(np.array(y_cat) == self.grid_results['item_classification'][run][y_category])[0][0]
+            # Loop over the x and y axis of the plots
+            for x in range(x_dim):
+                for y in range(y_dim):
+                    run = run_categorization[ind,y,x,0]
 
-                # Choose the correct color and hatches
-                if colors is None:
-                    color = 'k'
-                else:
-                    color = colors[[i for i in colors.keys() if i in run][0]]
-                if case_identifiers is None:
-                    case_identifier = ''
-                else:
-                    case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+                    # Choose the correct color and hatches
+                    if colors is None:
+                        color = 'k'
+                    else:
+                        color = colors[[i for i in colors.keys() if i in run][0]]
+                    if case_identifiers is None:
+                        case_identifier = ''
+                    else:
+                        case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
 
-                self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
-                        inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                    # Plot the PT profile in the corresponding subplot. If requested, try plotting clouds
+                    try:
+                        self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = plot_clouds, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                                inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                    except:
+                        self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                                inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
 
-            # Labeling the axes
-            for i in range(len(x_cat)):
-                ax[0,i].set_ylabel(r'Pressure [bar]')
-            for i in range(len(y_cat)):
+            # Label the axes of the subplots
+            for i in range(y_dim):
+                ax[i,0].set_ylabel(r'Pressure [bar]')
+            for i in range(x_dim):
                 if plot_residual:
-                    ax[i,-1].set_xlabel(r'Temperature Relative to Retrieved Median [K]')
+                    ax[-1,i].set_xlabel(r'Temperature Relative to Retrieved Median [K]')
                 else:
-                    ax[i,-1].set_xlabel(r'Temperature [K]')
+                    ax[-1,i].set_xlabel(r'Temperature [K]')
 
-            # Saving the plot grid
+            # Save the plots
             title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
             if plot_residual:
                 plt.savefig(save_directory+title+'PT_Residual.pdf', bbox_inches='tight')
             else:
                 plt.savefig(save_directory+title+'PT.pdf', bbox_inches='tight')
 
+
+
+
+
+
+
+
+
+
+
+
+
+
     """
-    def PT_grid(self,plot_clouds=False,Hist = False):
-        
-        # Iterate over models and wavelength ranges
-        for model in self.model:
-            for wln in self.wln:
-
-                fig,axs = plt.subplots(len(self.res),len(self.snr),figsize=(15,10))
-                plt.subplots_adjust(hspace=0.03,wspace=0.025)
-                
-                # Iterate over spectral resolutions and wavelength ranges
-                count_res = 0
-                for res in sorted(self.res):
-                    count_snr = 0
-                    for snr in sorted(self.snr):
-                        print()
-                        print('PT-Profile Calculation for:')
-                        print(model,wln,res,snr)
-                        if Hist == True:
-                            handles, labels = self.grid_results[model][wln][res][snr].PT_Histogram(ax = axs[count_res,count_snr], plot_clouds = plot_clouds)
-                        else:
-                            #try:
-                            # Subroutine to plot the subplots
-                            if 'Cloudfree' in model:
-                                handles, labels = self.grid_results[model][wln][res][snr].PT_Envelope(ax = axs[count_res,count_snr], plot_clouds = False)
-                            else:
-                                handles, labels = self.grid_results[model][wln][res][snr].PT_Envelope(ax = axs[count_res,count_snr], plot_clouds = plot_clouds)
-                            #except:
-                            #    pass
-                        
-                        lim = axs[count_res,count_snr].get_ylim()
-                        axs[count_res,count_snr].set_yticks(10**(np.log10(lim[0])+np.array([0.1,0.3,0.5,0.7,0.9])*(np.log10(lim[1])-np.log10(lim[0]))))
-                        if count_snr == 0:
-                            axs[count_res,count_snr].set_ylabel(r'R = '+str(res))
-                        else:
-                            axs[count_res,count_snr].set_yticklabels([])
-
-
-                        lim = axs[count_res,count_snr].get_xlim()
-                        axs[count_res,count_snr].set_xticks(lim[0]+np.array([0.1,0.3,0.5,0.7,0.9])*(lim[1]-lim[0]))
-                        if count_res == len(self.res)-1:
-                            axs[count_res,count_snr].set_xlabel(r'S/N = '+str(snr))
-                        else:
-                            axs[count_res,count_snr].set_xticklabels([])
-                        count_snr += 1
-                    count_res += 1
-                    
-                ylabel = fig.text(0.07,0.5, 'Pressure [bar]', va='center', rotation='vertical')
-                xlabel = fig.text(0.515,0.05, 'Temperature [K]', ha='center')
-
-                try:
-                    legend=fig.legend(handles, labels,handler_map={str:  rp_hndl.Handles()}, ncol=4, bbox_to_anchor=(0.7,0.04),borderaxespad=0.0)
-                    title = fig.text(0.5,0.9,wln+r' $\mu\mathrm{m}$',ha='center',fontsize=20)
-                    if Hist == True:
-                        plt.savefig(self.results_directory+'/Plots/'+model+'/ret_pt_hist_'+wln+'.png',bbox_extra_artists=[legend,xlabel,ylabel,title], bbox_inches='tight',dpi=600)
-                    else:
-                        plt.savefig(self.results_directory+'/Plots/'+model+'/ret_pt_'+wln+'.png',bbox_extra_artists=[legend,xlabel,ylabel,title], bbox_inches='tight',dpi=600)
-                except:
-                    title = fig.text(0.5,0.9,wln+r' $\mu\mathrm{m}$',ha='center',fontsize=20)
-                    if Hist == True:
-                        plt.savefig(self.results_directory+'/Plots/'+model+'/ret_pt_hist_'+wln+'.png',bbox_extra_artists=[xlabel,ylabel,title], bbox_inches='tight',dpi=600)
-                    else:
-                        plt.savefig(self.results_directory+'/Plots/'+model+'/ret_pt_'+wln+'.png',bbox_extra_artists=[xlabel,ylabel,title], bbox_inches='tight',dpi=600)
-
 
 
     def Ice_Surface(self):
@@ -451,65 +437,6 @@ class grid_plotting():
                     plt.savefig(self.results_directory+'/'+model+'/ice_surface_exclusion_'+wln+'.png',bbox_extra_artists=[xlabel,title], bbox_inches='tight',dpi=600)
 
     """
-
-
-    def Spectrum_grid(self,skip = 1, NoQuant = False):
-        
-        # Iterate over models and wavelength ranges
-        for model in self.model:
-            for wln in self.wln:
-                print(len(self.res),len(self.snr))
-                fig,axs = plt.subplots(len(self.res),len(self.snr),figsize=(15,10))
-                plt.subplots_adjust(hspace=0.03,wspace=0.025)
-                
-                
-                # Iterate over spectral resolutions and wavelength ranges
-                count_res = 0
-                for res in sorted(self.res):
-                    count_snr = 0
-                    for snr in sorted(self.snr):
-                        try:
-                            # Subroutine to plot the subplots
-                            if NoQuant:
-                                handles, labels = self.grid_results[model][wln][res][snr].Flux_Error_noQuant(ax = axs[count_res,count_snr],skip=skip)
-                            else:
-                                handles, labels = self.grid_results[model][wln][res][snr].Flux_Error(ax = axs[count_res,count_snr],skip=skip)       
-                        except:
-                            pass
-                        
-                        lim = list(axs[0,0].get_ylim())
-                        print(lim)
-                        lim[0]=0
-                        axs[count_res,count_snr].set_yticks(lim[0]+np.array([0.1,0.3,0.5,0.7,0.9])*(lim[1]-lim[0]))
-                        axs[count_res,count_snr].set_ylim(lim)
-                        if count_snr == 0:
-                            axs[count_res,count_snr].set_ylabel(r'R = '+str(res))
-                        else:
-                            axs[count_res,count_snr].set_yticklabels([])
-
-                        lim = axs[0,0].get_xlim()
-                        axs[count_res,count_snr].set_xticks(lim[0]+np.array([0.1,0.3,0.5,0.7,0.9])*(lim[1]-lim[0]))
-                        axs[count_res,count_snr].set_xlim(lim)
-                        if count_res == len(self.res)-1:
-                            axs[count_res,count_snr].set_xlabel(r'S/N = '+str(snr))
-                        else:
-                            axs[count_res,count_snr].set_xticklabels([])
-                        count_snr += 1
-                    count_res += 1
-                
-                ylabel = fig.text(0.07,0.5, r'$\mathrm{Flux}$', va='center', rotation='vertical')
-                xlabel = fig.text(0.515,0.05, r'Wavelength [$\mu$m]', ha='center')
-
-                try:
-                    legend=fig.legend(handles, labels,handler_map={str:  rp_hndl.Handles()}, ncol=4, bbox_to_anchor=(0.7,0.04),borderaxespad=0.0)
-                    title = fig.text(0.5,0.9,wln+r' $\mu\mathrm{m}$',ha='center',fontsize=20)
-                    if NoQuant:
-                        plt.savefig(self.results_directory+'/'+model+'/ret_spect_noQuant_'+wln+'.png',bbox_extra_artists=[xlabel,ylabel,title,legend], bbox_inches='tight',dpi=600)
-                    else:
-                        plt.savefig(self.results_directory+'/'+model+'/ret_spect_'+wln+'.png',bbox_extra_artists=[xlabel,ylabel,title,legend], bbox_inches='tight',dpi=600)
-                except:
-                    plt.savefig(self.results_directory+'/'+model+'/ret_spect_'+wln+'.png',bbox_extra_artists=[xlabel,ylabel,title], bbox_inches='tight',dpi=600)
-
 
                 
 
