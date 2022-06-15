@@ -63,12 +63,17 @@ class grid_plotting():
         self.categories = list(sorted(set(list(self.grid_results['item_classification'][model_item].keys()))))
         self.sub_categories = {}
         for category in self.categories:
-            self.sub_categories[category] = sorted(set([self.grid_results['item_classification'][i][category] for i in self.grid_results['item_classification'].keys()]))
+            if category in ['R','SN']:
+                self.sub_categories[category] = sorted(set([int(self.grid_results['item_classification'][i][category]) for i in self.grid_results['item_classification'].keys()]))
+                self.sub_categories[category] = [str(i) for i in self.sub_categories[category]]
+            else:
+                self.sub_categories[category] = sorted(set([self.grid_results['item_classification'][i][category] for i in self.grid_results['item_classification'].keys()]))
+        
 
 
 
     # Generates the grid structure for the plots
-    def _grid_generator(self,plot_type,x_category,y_category,overplot_category=None):
+    def _grid_generator(self,plot_type,x_category,y_category,overplot_category=None,return_all=False):
         # Get lists with the categories for the x and the y axis
         local_categories = self.categories.copy()
         if x_category is None:
@@ -128,8 +133,10 @@ class grid_plotting():
 
         if not os.path.exists(save_directory):
             os.makedirs(save_directory)
-        
-        return save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization
+        if return_all:
+            return save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization
+        else:    
+            return save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization
 
 
 
@@ -145,12 +152,12 @@ class grid_plotting():
 
 
 
-    def posteriors(self,x_category=None,y_category=None,overplot_category=None,subfig_size=[3,3],sharex=True,sharey=True,
+    def posteriors(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20):
 
         # Generate the grid of runs for plotting
-        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
-                                    self._grid_generator('Posteriors',x_category,y_category,overplot_category=overplot_category)
+        save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
+                                    self._grid_generator('Posteriors',x_category,y_category,overplot_category=overplot_category,return_all=True)
 
         # Get all of the unique keys we want to plot the posteriors of
         posterior_keys = []
@@ -185,7 +192,8 @@ class grid_plotting():
                 fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
                                 sharex=sharex,sharey=sharey,squeeze=False)
                 plt.subplots_adjust(hspace=0.1,wspace=0.1)
-
+                xlim = [1e100,-1e100]
+                ylim = [0,0]
                 # Loop over the x and y axis of the plots
                 for x in range(x_dim):
                     for y in range(y_dim):
@@ -193,6 +201,8 @@ class grid_plotting():
                             run = run_categorization[ind,y,x,o]
 
                             if key in local_grid_results[run]['local_posterior_keys']:
+                                # Find the position in the equal weighted posterior
+                                post = [i for i in range(len(local_grid_results[run]['local_posterior_keys'])) if local_grid_results[run]['local_posterior_keys'][i] == key][0]
 
                                 # Choose the correct color and hatches
                                 if colors is None:
@@ -203,10 +213,33 @@ class grid_plotting():
                                     hist_setting = {'histtype':'stepfilled'}
                                 else:
                                     hist_setting = hist_settings[[i for i in hist_settings.keys() if i in run][0]]
+                                if overplot_identifiers is None:
+                                    overplot_identifier = o_cat[o]
+                                else:
+                                    overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]
+                                
+                                if posterior_identifiers is None:
+                                    posterior_identifier = key
+                                else:
+                                    posterior_identifier = posterior_identifiers[[i for i in posterior_identifiers.keys() if i in run][0]][post]
 
                                 # Plot the posterior histogrram
-                                post = [i for i in range(len(local_grid_results[run]['local_posterior_keys'])) if local_grid_results[run]['local_posterior_keys'][i] == key][0]
-                                h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting)
+                                h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
+
+                                # Update the limits for the plots
+                                xlim = [min(h[1][0],xlim[0]),max(h[1][-1],xlim[1])]
+                                ylim = [0,max(2*np.max(h[0]),ylim[1])]
+                                ax[x,y].set_xlim(xlim)
+                                ax[x,y].set_ylim(ylim)
+
+                                run_last = run
+
+                        # Plot the truth
+                        ax[x,y].vlines(local_grid_results[run_last]['local_truths'][post],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
+
+                        # Labels and legends
+                        ax[x,y].set_xlabel(posterior_identifier)
+                        ax[x,y].legend(frameon = False,loc='upper left')
                             
                 # Check if directory for saving exists
                 title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
@@ -389,6 +422,259 @@ class grid_plotting():
                 plt.savefig(save_directory+title+'PT_Residual.pdf', bbox_inches='tight')
             else:
                 plt.savefig(save_directory+title+'PT.pdf', bbox_inches='tight')
+
+
+
+
+
+    """
+    #################################################################################
+    #                                                                               #
+    #   Routines for generating Model Comaprison plots.                             #
+    #                                                                               #
+    #################################################################################
+    """
+
+
+
+    def Grid_Model_Comparison(self,x_category=None,y_category=None,model_category='Model',model_compare=None,facecolor='white'):
+        # Generate the grid of runs for plotting
+        save_directory, m_dim, m_cat, x_dim, x_cat, y_dim, y_cat, combinations_local_sub_categories, run_categorization = \
+            self._grid_generator('Model_Compare',x_category=model_category,y_category=x_category,overplot_category=y_category,return_all=True)
+
+        # Default model compar is first model
+        if model_compare is None:
+            model_compare = m_cat[0]
+        
+        # Define a matrix to store the Bayes factors
+        K_Matrix = np.zeros(((y_dim+1)*(m_dim-1)-1,(x_dim+1)*len(combinations_local_sub_categories)-1))-100
+
+        # Iterate over models and wavelength ranges
+        n_cases = len(combinations_local_sub_categories)
+        for ind in range(len(combinations_local_sub_categories)):
+            case = combinations_local_sub_categories[ind]
+
+            m_corr = 0
+            m_compare = [i for i in range(m_dim) if m_cat[i]==model_compare][0]
+            m_combinations = []
+            for m in range(m_dim):
+                if m == m_compare:
+                    m_corr -= 1
+                else:
+                    for x in range(x_dim):
+                        for y in range(y_dim):
+                            # Get the evidences for the runs
+                            evidence = self.grid_results['rp_object'][run_categorization[ind,x,m,y]].evidence
+                            evidence_compare = self.grid_results['rp_object'][run_categorization[ind,x,m_compare,y]].evidence
+
+                            # Calculate the bayes factor and store the result in the matrix
+                            K = 0.4342944819*(float(evidence_compare[0])-float(evidence[0]))
+                            K_Matrix[(y_dim+1)*(m+m_corr)+y,(x_dim+1)*(ind)+x] = K
+                          
+                    # Save the name of the case combination
+                    m_combinations += [model_compare+' vs\n'+m_cat[m]]
+
+            # Define the color map according to jeffrey's scale
+            cmap = col.ListedColormap(['white','#d62728','#d6272880','#d6272860','#d6272840','#2ca02c40','#2ca02c60','#2ca02c80','#2ca02c'])
+            bounds=[-1000,-99,-2,-1,-0.5,0.0,0.5,1,2,99]
+            norm = col.BoundaryNorm(bounds, cmap.N)
+
+
+        # Initial plot configuration
+        lw = 1
+        C_x = 8/np.shape(K_Matrix)[0]
+        fig,ax = plt.subplots(2,gridspec_kw={'height_ratios': [np.shape(K_Matrix)[0]/C_x,3]},figsize = (0.8*np.shape(K_Matrix)[0],0.8*np.shape(K_Matrix)[1]))#,linewidth=2*lw, edgecolor="#007272")
+        plt.subplots_adjust(hspace=0,wspace=0)
+        fig.patch.set_facecolor(facecolor)
+        #ax[0].axis('off')
+        #ax[1].axis('off')
+
+        # Plot the matrix
+        ax[0].matshow(K_Matrix,cmap=cmap, norm=norm)
+        ax[0].vlines([-0.5+i for i in range(np.shape(K_Matrix)[1]+1)],-0.5,np.shape(K_Matrix)[0]-0.5,color=facecolor,lw=lw)
+        ax[0].hlines([-0.5+i for i in range(np.shape(K_Matrix)[0]+1)],-0.5,np.shape(K_Matrix)[1]-0.5,color=facecolor,lw=lw)
+
+        y_ax=[y_dim/2-0.5+i*(y_dim+1)for i in range(m_dim-1)]
+        y_shift = -((y_dim+1)%2)*0.5-(y_dim-1)//2
+        for pos_y in range(m_dim-1):
+            for ind_y in range(y_dim):
+                ax[0].text(-0.6, y_ax[pos_y]+y_shift+ind_y,y_cat[ind_y],rotation = 0,rotation_mode='default',ha='right',va='center',fontsize=6)
+            ax[0].text(-1.75, y_ax[pos_y],y_category,rotation = 90,rotation_mode='default',ha='center',va='center',fontsize=6)
+            ax[0].text(-2.8, y_ax[pos_y],m_combinations[pos_y],rotation = 90,rotation_mode='default',ha='center',va='center',fontsize=6)
+
+        x_ax=[x_dim/2-0.5+i*(x_dim+1)for i in range(n_cases)]
+        x_shift = -((x_dim+1)%2)*0.5-(x_dim-1)//2
+        for pos_x in range(n_cases):
+            for ind_x in range(x_dim):
+                ax[0].text(x_ax[pos_x]+x_shift+ind_x,-0.7,x_cat[ind_x],rotation = 0,rotation_mode='default',ha='center',va='center',fontsize=6)
+            ax[0].text(x_ax[pos_x],-1.4,x_category,rotation = 0,rotation_mode='default',ha='center',va='center',fontsize=6)
+            ax[0].text(x_ax[pos_x],-2.2,'wln',rotation = 0,rotation_mode='default',ha='center',va='center',fontsize=6)
+    
+        for pos_y in range(np.shape(K_Matrix)[0]):
+            for pos_x in range(np.shape(K_Matrix)[1]):
+                    if K_Matrix[pos_y,pos_x]!=-100:
+                        ax[0].annotate(str(np.round(K_Matrix[pos_y,pos_x],1)),[pos_x,pos_y],ha='center',va='center',color='white',fontweight = 'bold',fontsize=5)
+    
+
+        Plot_Matrix = np.zeros((3,8))-100
+
+        bounds = [-2.0,-1.0,-0.5,0.0,0.5,1.0,2.0]
+        Plot_Matrix[-2,:]=[i-0.25 for i in bounds]+[bounds[-1]+0.25]
+
+        ax[1].matshow(Plot_Matrix,cmap=cmap, norm=norm)
+        
+        ax[1].hlines([0.5,1.5],-0.5,7.5,color=facecolor,lw=2*lw)
+        ax[1].vlines([i-0.5 for i in range(0,9)],0,2,color=facecolor,lw=2*lw)
+        ax[1].vlines([i-0.5 for i in range(1,8)],0.47,1.53,color='k',lw=lw)
+        ax[1].vlines(4.5,0.47,2.2,color='k',lw=lw)
+        for ind_bound in range(len(bounds)):
+            ax[1].text(1.5+ind_bound,0.6,str(bounds[ind_bound]),rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5)
+        
+        ax[1].plot([0.72,4.365],[1.85,1.85],color='k',ls='-',lw=lw)
+        ax[1].plot([0.9,0.7,0.9],[1.75,1.85,1.95],color='k',ls='-',lw=lw)
+
+        #ax[1].plot([0.72,4.365],[1.85,1.85],color='k',ls='-',lw=lw)
+        #ax[1].plot([0.9,0.7,0.9],[1.75,1.85,1.95],color='k',ls='-',lw=lw)
+        #    ax.plot([6.63,10.28],[np.shape(Mat)[0]-1.25,np.shape(Mat)[0]-1.25],color='#007272',ls='-',lw=lw)
+        #    ax.plot([10.1,10.3,10.1],[np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.25,np.shape(Mat)[0]-1.35],color='#007272',ls='-',lw=lw)
+        """"
+            for i in range(101):
+                ax.fill([6.45-i/200,6.45-(i+1)/200,6.45-(i+1)/200,6.45-i/200],[np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.35,np.shape(Mat)[0]-1.35],'azure',alpha=1-i/100,lw=0,zorder=100)
+                ax.fill([6.55+i/200,6.55+(i+1)/200,6.55+(i+1)/200,6.55+i/200],[np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.35,np.shape(Mat)[0]-1.35],'azure',alpha=1-i/100,lw=0,zorder=100)
+                
+
+
+
+            ax.text(3.5,np.shape(Mat)[0]-2.6,'-2.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+            ax.text(4.5,np.shape(Mat)[0]-2.6,'-1.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+            ax.text(5.5,np.shape(Mat)[0]-2.6,'-0.5',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+            ax.text(6.5,np.shape(Mat)[0]-2.6,'0.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+            ax.text(7.5,np.shape(Mat)[0]-2.6,'0.5',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+            ax.text(8.5,np.shape(Mat)[0]-2.6,'1.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+            ax.text(9.5,np.shape(Mat)[0]-2.6,'2.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
+
+            ax.text(2.3,np.shape(Mat)[0]-2,'Color Coding\n of '+r'$\mathrm{log_{10}(K)}$',rotation = 0,rotation_mode='default',ha='right',va='center',fontsize=6,color='#007272')
+            ax.text(6,np.shape(Mat)[0]-0.9,r'Opaque $\mathrm{H_2SO_4}$',rotation = 0,rotation_mode='default',ha='right',va='center',fontsize=5,color='#007272')
+            ax.text(7,np.shape(Mat)[0]-0.9,r'Other Models',rotation = 0,rotation_mode='default',ha='left',va='center',fontsize=5,color='#007272')
+            #plt.savefig('Results/Abundances/Summary/'+Wlen_grid[i]+'.png',dpi=450,bbox_inches='tight', facecolor='azure')
+            #title = plt.title('Bayes factor for model '+str(model_compare)+'.', y=1.15)
+        """
+        plt.savefig('Baye_Total.pdf', bbox_inches='tight', facecolor=facecolor)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
