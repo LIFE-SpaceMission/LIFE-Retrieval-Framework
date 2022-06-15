@@ -54,6 +54,7 @@ class retrieval_plotting(r_globals.globals):
         self.truths = []
         self.priors = []
         self.priors_range = []
+        self.params_names = {}
 
         # Read the input data
         self.read_var()
@@ -103,6 +104,7 @@ class retrieval_plotting(r_globals.globals):
                     if section == 'CHEMICAL COMPOSITION PARAMETERS':
                         # Define the titles such that they work well for the chemical abundances
                         self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$')
+                        self.params_names[key]=key.split('_')[0]
                     elif section == 'PHYSICAL PARAMETERS':
                         # Define the titles such that they work well for the chemical abundances
                         s = key.split('_')
@@ -110,9 +112,11 @@ class retrieval_plotting(r_globals.globals):
                             self.titles.append('$\\mathrm{'+s[0]+'_{'+s[1]+'}}$')
                         except:
                             self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$')
+                        self.params_names[key]=key
                     elif section == 'TEMPERATURE PARAMETERS':
                         # Define the titles such that they work well for the pt parameters
                         self.titles.append('$\\mathrm{'+str(key)+'}$')
+                        self.params_names[key]=key
                     elif section == 'CLOUD PARAMETERS':
                         # Define the titles such that they work well for the chemical abundances
                         temp = key.split('_')
@@ -121,8 +125,10 @@ class retrieval_plotting(r_globals.globals):
                         temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
                         temp.pop(1)
                         self.titles.append('\n'.join(temp))
+                        self.params_names[key]=key
                     else:
                         self.titles.append(key)
+                        self.params_names[key]=key
 
                     # Storing the truths if provided
                     if val.split(' ')[-2]== 'T':
@@ -850,7 +856,7 @@ class retrieval_plotting(r_globals.globals):
                                     quantiles1d=quantiles1d,units=none_test(units,[i]),bins=bins,color=color)
                 if save:
                     plt.savefig(self.results_directory+'Plots/Posteriors/'+list(self.params.keys())[i]+'.pdf', bbox_inches='tight')
-                plt.close(fig)
+                plt.close()
 
 
 

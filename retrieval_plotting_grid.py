@@ -57,7 +57,7 @@ class grid_plotting():
                 self.grid_results['item_classification'][model_item]['SN'] = [i[2:] for i in model_item.split('/')[-2].split('_') if 'SN' in i][0]
                 self.grid_results['item_classification'][model_item]['Model'] = model_item.split('/')[-3]
             else:
-                self.grid_results['item_classification'] = object_info
+                self.grid_results['item_classification'] = object_info.copy()
 
         # genereate lists of the different categories and subcategories of parameters
         self.categories = list(sorted(set(list(self.grid_results['item_classification'][model_item].keys()))))
@@ -69,7 +69,6 @@ class grid_plotting():
             else:
                 self.sub_categories[category] = sorted(set([self.grid_results['item_classification'][i][category] for i in self.grid_results['item_classification'].keys()]))
         
-
 
 
     # Generates the grid structure for the plots
@@ -163,7 +162,7 @@ class grid_plotting():
         posterior_keys = []
         local_grid_results = {}
         for run in self.grid_results['rp_object'].keys():
-            posterior_keys += self.grid_results['rp_object'][run].params.keys()
+            posterior_keys += self.grid_results['rp_object'][run].params_names.keys()
 
             # Generate local copies of the posteriors 
             local_grid_results[run]={}
@@ -199,43 +198,43 @@ class grid_plotting():
                     for y in range(y_dim):
                         for o in range(o_dim):
                             run = run_categorization[ind,y,x,o]
+                            for post in range(len(local_grid_results[run]['local_posterior_keys'])):
+                                # If we are at the correct post index
+                                if key == list(self.grid_results['rp_object'][run].params_names.keys())[post]:
 
-                            if key in local_grid_results[run]['local_posterior_keys']:
-                                # Find the position in the equal weighted posterior
-                                post = [i for i in range(len(local_grid_results[run]['local_posterior_keys'])) if local_grid_results[run]['local_posterior_keys'][i] == key][0]
+                                    # Choose the correct color and hatches
+                                    if colors is None:
+                                        color = 'k'
+                                    else:
+                                        color = colors[[i for i in colors.keys() if i in run][0]]
+                                    if hist_settings is None:
+                                        hist_setting = {'histtype':'stepfilled'}
+                                    else:
+                                        hist_setting = hist_settings[[i for i in hist_settings.keys() if i in run][0]]
+                                    if overplot_identifiers is None:
+                                        overplot_identifier = o_cat[o]
+                                    else:
+                                        overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]
+                                    
+                                    if posterior_identifiers is None:
+                                        posterior_identifier = key
+                                    else:
+                                        posterior_identifier = posterior_identifiers[[i for i in posterior_identifiers.keys() if i in run][0]][post]
 
-                                # Choose the correct color and hatches
-                                if colors is None:
-                                    color = 'k'
-                                else:
-                                    color = colors[[i for i in colors.keys() if i in run][0]]
-                                if hist_settings is None:
-                                    hist_setting = {'histtype':'stepfilled'}
-                                else:
-                                    hist_setting = hist_settings[[i for i in hist_settings.keys() if i in run][0]]
-                                if overplot_identifiers is None:
-                                    overplot_identifier = o_cat[o]
-                                else:
-                                    overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]
-                                
-                                if posterior_identifiers is None:
-                                    posterior_identifier = key
-                                else:
-                                    posterior_identifier = posterior_identifiers[[i for i in posterior_identifiers.keys() if i in run][0]][post]
+                                    # Plot the posterior histogram
+                                    h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
 
-                                # Plot the posterior histogrram
-                                h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
+                                    # Update the limits for the plots
+                                    xlim = [min(h[1][0],xlim[0]),max(h[1][-1],xlim[1])]
+                                    ylim = [0,max(2*np.max(h[0]),ylim[1])]
+                                    ax[x,y].set_xlim(xlim)
+                                    ax[x,y].set_ylim(ylim)
 
-                                # Update the limits for the plots
-                                xlim = [min(h[1][0],xlim[0]),max(h[1][-1],xlim[1])]
-                                ylim = [0,max(2*np.max(h[0]),ylim[1])]
-                                ax[x,y].set_xlim(xlim)
-                                ax[x,y].set_ylim(ylim)
-
-                                run_last = run
+                                    post_last = post 
+                                    run_last = run
 
                         # Plot the truth
-                        ax[x,y].vlines(local_grid_results[run_last]['local_truths'][post],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
+                        ax[x,y].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
 
                         # Labels and legends
                         ax[x,y].set_xlabel(posterior_identifier)
