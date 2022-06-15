@@ -201,7 +201,6 @@ class grid_plotting():
                             for post in range(len(local_grid_results[run]['local_posterior_keys'])):
                                 # If we are at the correct post index
                                 if key == list(self.grid_results['rp_object'][run].params_names.keys())[post]:
-
                                     # Choose the correct color and hatches
                                     if colors is None:
                                         color = 'k'
@@ -214,31 +213,30 @@ class grid_plotting():
                                     if overplot_identifiers is None:
                                         overplot_identifier = o_cat[o]
                                     else:
-                                        overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]
-                                    
+                                        overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]                 
                                     if posterior_identifiers is None:
                                         posterior_identifier = key
                                     else:
                                         posterior_identifier = posterior_identifiers[[i for i in posterior_identifiers.keys() if i in run][0]][post]
 
                                     # Plot the posterior histogram
-                                    h = ax[x,y].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
+                                    h = ax[y,x].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
 
                                     # Update the limits for the plots
                                     xlim = [min(h[1][0],xlim[0]),max(h[1][-1],xlim[1])]
                                     ylim = [0,max(2*np.max(h[0]),ylim[1])]
-                                    ax[x,y].set_xlim(xlim)
-                                    ax[x,y].set_ylim(ylim)
+                                    ax[y,x].set_xlim(xlim)
+                                    ax[y,x].set_ylim(ylim)
 
-                                    post_last = post 
                                     run_last = run
+                                    post_last = post
 
                         # Plot the truth
-                        ax[x,y].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
+                        ax[y,x].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
 
                         # Labels and legends
-                        ax[x,y].set_xlabel(posterior_identifier)
-                        ax[x,y].legend(frameon = False,loc='upper left')
+                        ax[y,x].set_xlabel(posterior_identifier)
+                        ax[y,x].legend(frameon = False,loc='upper left')
                             
                 # Check if directory for saving exists
                 title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])

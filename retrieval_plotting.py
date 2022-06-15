@@ -104,7 +104,7 @@ class retrieval_plotting(r_globals.globals):
                     if section == 'CHEMICAL COMPOSITION PARAMETERS':
                         # Define the titles such that they work well for the chemical abundances
                         self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$')
-                        self.params_names[key]=key.split('_')[0]
+                        self.params_names[key.split('_')[0]]=key
                     elif section == 'PHYSICAL PARAMETERS':
                         # Define the titles such that they work well for the chemical abundances
                         s = key.split('_')
@@ -125,7 +125,13 @@ class retrieval_plotting(r_globals.globals):
                         temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
                         temp.pop(1)
                         self.titles.append('\n'.join(temp))
-                        self.params_names[key]=key
+                        
+                        key_name = ('_'.join(key.split('_')[2:]))
+                        if key_name == '':
+                            self.params_names['c_species_abundance']=key
+                        else:
+                            self.params_names['c_'+key_name]=key
+
                     else:
                         self.titles.append(key)
                         self.params_names[key]=key
@@ -873,7 +879,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =[0,1000], y_lim_inlay = [1e-6,1e4], figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -1029,7 +1035,7 @@ class retrieval_plotting(r_globals.globals):
         contour = ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
         # plot the true values that were used to generate the input spectrum
-        ax2.plot(self.input_temperature,self.input_pressure,color ='black')
+        #ax2.plot(self.input_temperature,self.input_pressure,color ='black')
         ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
         try:
             ax2.plot(self.true_temperature_cloud_top,(self.true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
@@ -1043,16 +1049,26 @@ class retrieval_plotting(r_globals.globals):
         t_lim = [np.min([np.min(contour.allsegs[0][i][:,0]) for i in range(len(contour.allsegs[0]))]), np.max([np.max(contour.allsegs[0][i][:,0]) for i in range(len(contour.allsegs[0]))])]
         p_lim = [np.min([np.min(contour.allsegs[0][i][:,1]) for i in range(len(contour.allsegs[0]))]), np.max([np.max(contour.allsegs[0][i][:,1]) for i in range(len(contour.allsegs[0]))])]
 
-        # Find the limits for the inlay plot from the contours (+- 10%)
-        # if the span in pressure exceeds 2 orders of magnitude use log axes 
-        ax2_xlim = [t_lim[0]-0.1*(t_lim[1]-t_lim[0]),t_lim[1]+0.1*(t_lim[1]-t_lim[0])]
-        if np.log10(p_lim[1])-np.log10(p_lim[0]) >= 1.2:
-            log_p = True
-            ax2_ylim = [10**(np.log10(p_lim[0])-0.1*(np.log10(p_lim[1])-np.log10(p_lim[0]))),10**(np.log10(p_lim[1])+0.1*(np.log10(p_lim[1])-np.log10(p_lim[0])))]
-            ax2.set_yscale('log')
+        if x_lim_inlay is None:
+            # Find the limits for the inlay plot from the contours (+- 10%)
+            # if the span in pressure exceeds 2 orders of magnitude use log axes 
+            ax2_xlim = [t_lim[0]-0.1*(t_lim[1]-t_lim[0]),t_lim[1]+0.1*(t_lim[1]-t_lim[0])]
         else:
-            log_p = False
-            ax2_ylim = [max([p_lim[0]-0.1*(p_lim[1]-p_lim[0]),0]),p_lim[1]+0.1*(p_lim[1]-p_lim[0])]
+            ax2_xlim=x_lim_inlay
+
+        if y_lim_inlay is None:
+            if np.log10(p_lim[1])-np.log10(p_lim[0]) >= 1.2:
+                log_p = True
+                ax2_ylim = [10**(np.log10(p_lim[0])-0.1*(np.log10(p_lim[1])-np.log10(p_lim[0]))),10**(np.log10(p_lim[1])+0.1*(np.log10(p_lim[1])-np.log10(p_lim[0])))]
+                ax2.set_yscale('log')
+            else:
+                log_p = False
+                ax2_ylim = [max([p_lim[0]-0.1*(p_lim[1]-p_lim[0]),0]),p_lim[1]+0.1*(p_lim[1]-p_lim[0])]
+        else:
+            ax2_ylim = y_lim_inlay
+            ax2.set_yscale('log')
+
+            log_p = True
 
         # Set the limits and ticks for the axes
         # x axis
