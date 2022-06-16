@@ -879,7 +879,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =[0,1000], y_lim_inlay = [1e-6,1e4], figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -1035,7 +1035,7 @@ class retrieval_plotting(r_globals.globals):
         contour = ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
         # plot the true values that were used to generate the input spectrum
-        #ax2.plot(self.input_temperature,self.input_pressure,color ='black')
+        ax2.plot(self.input_temperature,self.input_pressure,color ='black')
         ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
         try:
             ax2.plot(self.true_temperature_cloud_top,(self.true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')

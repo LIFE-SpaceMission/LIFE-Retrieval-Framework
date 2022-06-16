@@ -152,12 +152,31 @@ class grid_plotting():
 
 
 
-    def _get_posterior_data(self,log_pressures,log_mass,log_abundances,log_particle_radii):
+    def _get_posterior_data(self,log_pressures,log_mass,log_abundances,log_particle_radii,plot_pt,plot_physparam,plot_chemcomp,plot_clouds):
         # Get all of the unique keys we want to plot the posteriors of
-        posterior_keys = []
+        chemcomp_params, cloud_params, phys_params, pt_params = [], [], [], []
         local_grid_results = {}
+
         for run in self.grid_results['rp_object'].keys():
-            posterior_keys += [list(self.grid_results['rp_object'][run].params_names.keys())]
+            
+            chemcomp_params += [[]]
+            cloud_params += [[]]
+            phys_params += [[]]
+            pt_params += [[]]
+
+            # classification of the parameters
+            names = self.grid_results['rp_object'][run].params_names.copy()
+            for i in names:
+                if self.grid_results['rp_object'][run].params[names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                    chemcomp_params[-1] = chemcomp_params[-1]+[i]
+                if self.grid_results['rp_object'][run].params[names[i]]['type'] == 'CLOUD PARAMETERS':
+                    cloud_params[-1] = cloud_params[-1]+[i]
+                if self.grid_results['rp_object'][run].params[names[i]]['type'] == 'PHYSICAL PARAMETERS':
+                    phys_params[-1] = phys_params[-1]+[i]
+                if self.grid_results['rp_object'][run].params[names[i]]['type'] == 'TEMPERATURE PARAMETERS':
+                    pt_params[-1] = pt_params[-1]+[i]
+                else:
+                    pass
 
             # Generate local copies of the posterior data 
             local_grid_results[run]={}
@@ -173,23 +192,32 @@ class grid_plotting():
                                                                     log_abundances=log_abundances, log_particle_radii=log_particle_radii)
 
         # Get the unique posterior keys and return
-        # Todo: add selection of categorits
-        list_length = [len(i) for i in posterior_keys]
-        unique_posterior_keys = posterior_keys[[i for i in range(len(list_length)) if list_length[i] == max(list_length)][0]]#list(set(posterior_keys))
+        # Todo: add a routine if there is no maximal category  
+        unique_posterior_keys = []
+        if plot_pt:
+            unique_posterior_keys += max(pt_params, key=len)
+        if plot_physparam:
+            unique_posterior_keys += max(phys_params, key=len)
+        if plot_chemcomp:
+            unique_posterior_keys += max(chemcomp_params, key=len)
+        if plot_clouds:
+            unique_posterior_keys += max(cloud_params, key=len)
 
         return local_grid_results, unique_posterior_keys
 
         
 
     def posteriors_custom_grid(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],sharex=True,sharey=True,
-                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False):
+                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True):
 
         # Generate the grid of runs for plotting
         save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
                                     self._grid_generator('Posteriors',x_category=x_category,y_category=y_category,overplot_category=overplot_category,return_all=True)
 
         # Get all of the unique keys as well as local copies of the posteriors
-        local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii)
+        local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii,
+                                                                            plot_pt,plot_physparam,plot_chemcomp,plot_clouds)
 
         # Loop over all of the unique retieved variables             
         for key in unique_posterior_keys:
@@ -202,14 +230,27 @@ class grid_plotting():
 
 
     def posteriors_grid(self,x_size = 1,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],
-                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False):
+                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True):
+
+        # Secify what posteriors are in the grid:
+        plotted_posts = ''
+        if plot_pt:
+            plotted_posts += '_pt'
+        if plot_physparam:
+            plotted_posts += '_phsparam'
+        if plot_chemcomp:
+            plotted_posts += '_abund'
+        if plot_clouds:
+            plotted_posts += '_clouds'
 
         # Generate the grid of runs for plotting
         save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
                                     self._grid_generator('Posteriors',overplot_category=overplot_category,return_all=True)
 
         # Get all of the unique keys as well as local copies of the posteriors
-        local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii)
+        local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii,
+                                                                            plot_pt,plot_physparam,plot_chemcomp,plot_clouds)
         x_dim = x_size
         y_dim = len(unique_posterior_keys)//x_size+1
 
@@ -217,14 +258,14 @@ class grid_plotting():
         print('Plotting the posterior grids.')
         self._posterior_plotting(combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile)
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,plotted_posts=plotted_posts)
         print('Done plotting the posterior grids.')
 
 
 
     def _posterior_plotting(self,combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None):
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None,plotted_posts=''):
 
         # Increase the recurion limit
         sys.setrecursionlimit(10**9)
@@ -318,7 +359,7 @@ class grid_plotting():
                     else:
                         ax[y,x].axis('off')
                         if (y*x_dim+x)==len(unique_posterior_keys):
-                            handles,labels = ax[0,0].get_legend_handles_labels()
+                            handles,labels = ax[1,0].get_legend_handles_labels()
                             ax[y,x].legend(handles,labels, frameon = False,loc='center')
 
             # Check if directory for saving exists
@@ -328,10 +369,10 @@ class grid_plotting():
 
             # Save the plots
             if key_in is None:
-                plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+'.pdf', bbox_inches='tight')
+                plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight')
                 plt.clf()
             else:
-                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior'+profiles+'.pdf', bbox_inches='tight')
+                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight')
                 plt.clf()
 
         # Reduce the recusion limit
