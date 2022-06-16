@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pkg_resources import ResolutionError
 from scipy.ndimage.filters import gaussian_filter1d
+import pandas as pd
 
 # Import additional external files
 import retrieval_plotting as rp
@@ -72,7 +73,7 @@ class grid_plotting():
 
 
     # Generates the grid structure for the plots
-    def _grid_generator(self,plot_type,x_category,y_category,overplot_category=None,return_all=False):
+    def _grid_generator(self,plot_type,x_category=None,y_category=None,overplot_category=None,return_all=False):
         # Get lists with the categories for the x and the y axis
         local_categories = self.categories.copy()
         if x_category is None:
@@ -151,20 +152,14 @@ class grid_plotting():
 
 
 
-    def posteriors(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],sharex=True,sharey=True,
-                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20):
-
-        # Generate the grid of runs for plotting
-        save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
-                                    self._grid_generator('Posteriors',x_category,y_category,overplot_category=overplot_category,return_all=True)
-
+    def _get_posterior_data(self,log_pressures,log_mass,log_abundances,log_particle_radii):
         # Get all of the unique keys we want to plot the posteriors of
         posterior_keys = []
         local_grid_results = {}
         for run in self.grid_results['rp_object'].keys():
-            posterior_keys += self.grid_results['rp_object'][run].params_names.keys()
+            posterior_keys += [list(self.grid_results['rp_object'][run].params_names.keys())]
 
-            # Generate local copies of the posteriors 
+            # Generate local copies of the posterior data 
             local_grid_results[run]={}
             local_grid_results[run]['local_equal_weighted_post'] = np.copy(self.grid_results['rp_object'][run].equal_weighted_post)
             local_grid_results[run]['local_truths'] = self.grid_results['rp_object'][run].truths.copy()
@@ -177,30 +172,99 @@ class grid_plotting():
                                                                     local_grid_results[run]['local_titles'], log_pressures=log_pressures, log_mass=log_mass,
                                                                     log_abundances=log_abundances, log_particle_radii=log_particle_radii)
 
-        # Get the unique posterior keys
-        unique_posterior_keys = list(set(posterior_keys)) 
+        # Get the unique posterior keys and return
+        # Todo: add selection of categorits
+        list_length = [len(i) for i in posterior_keys]
+        unique_posterior_keys = posterior_keys[[i for i in range(len(list_length)) if list_length[i] == max(list_length)][0]]#list(set(posterior_keys))
+
+        return local_grid_results, unique_posterior_keys
+
+        
+
+    def posteriors_custom_grid(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],sharex=True,sharey=True,
+                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False):
+
+        # Generate the grid of runs for plotting
+        save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
+                                    self._grid_generator('Posteriors',x_category=x_category,y_category=y_category,overplot_category=overplot_category,return_all=True)
+
+        # Get all of the unique keys as well as local copies of the posteriors
+        local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii)
 
         # Loop over all of the unique retieved variables             
         for key in unique_posterior_keys:
+            print('Plotting the results for: '+ key)
+            self._posterior_plotting(combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
+                                    x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=key)
+            print('Done plotting the posteriors for: '+key)
 
-            # Loop over the various plots to do
-            for ind in range(len(combinations_local_sub_categories)):
-                case = combinations_local_sub_categories[ind]
 
-                # Initialize a new figure for the plot
-                fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
-                                sharex=sharex,sharey=sharey,squeeze=False)
-                plt.subplots_adjust(hspace=0.1,wspace=0.1)
-                xlim = [1e100,-1e100]
-                ylim = [0,0]
-                # Loop over the x and y axis of the plots
+
+    def posteriors_grid(self,x_size = 1,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],
+                    log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False):
+
+        # Generate the grid of runs for plotting
+        save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
+                                    self._grid_generator('Posteriors',overplot_category=overplot_category,return_all=True)
+
+        # Get all of the unique keys as well as local copies of the posteriors
+        local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii)
+        x_dim = x_size
+        y_dim = len(unique_posterior_keys)//x_size+1
+
+        # Create the grid plot
+        print('Plotting the posterior grids.')
+        self._posterior_plotting(combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
+                                    x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile)
+        print('Done plotting the posterior grids.')
+
+
+
+    def _posterior_plotting(self,combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
+                                    x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None):
+
+        # Increase the recurion limit
+        sys.setrecursionlimit(10**9)
+
+        # we use this as marker for which case we are in
+        # posteriors_custom_grid: passes a key
+        # posteriors_grid: does not
+        key = key_in
+
+        # Loop over the various plots to do
+        for ind in range(len(combinations_local_sub_categories)):
+            case = combinations_local_sub_categories[ind]
+
+            # Initialize a new figure for the plot
+            fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
+                            sharex=False,sharey=False,squeeze=False)
+            plt.subplots_adjust(hspace=0.3,wspace=0.1)
+            legend_plotted = False
+
+            xlim = [1e100,-1e100]
+            ylim = [0,0]
+            # Loop over the x and y axis of the plots
+            for y in range(y_dim):
                 for x in range(x_dim):
-                    for y in range(y_dim):
+                    if (key_in is not None) or ((y*x_dim+x)<len(unique_posterior_keys)):
+                        if key_in is None:
+                            # Define the key if none was provided
+                            key = unique_posterior_keys[y*x_dim+x]
+                            xlim = [1e100,-1e100]
+                            ylim = [0,0]
                         for o in range(o_dim):
-                            run = run_categorization[ind,y,x,o]
+                            if key_in is None:
+                                run = run_categorization[ind,0,0,o]
+                            else:
+                                run = run_categorization[ind,y,x,o]
+
                             for post in range(len(local_grid_results[run]['local_posterior_keys'])):
                                 # If we are at the correct post index
                                 if key == list(self.grid_results['rp_object'][run].params_names.keys())[post]:
+
                                     # Choose the correct color and hatches
                                     if colors is None:
                                         color = 'k'
@@ -213,7 +277,7 @@ class grid_plotting():
                                     if overplot_identifiers is None:
                                         overplot_identifier = o_cat[o]
                                     else:
-                                        overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]                 
+                                        overplot_identifier = overplot_identifiers[[i for i in overplot_identifiers.keys() if i in run][0]]
                                     if posterior_identifiers is None:
                                         posterior_identifier = key
                                     else:
@@ -224,67 +288,59 @@ class grid_plotting():
 
                                     # Update the limits for the plots
                                     xlim = [min(h[1][0],xlim[0]),max(h[1][-1],xlim[1])]
-                                    ylim = [0,max(2*np.max(h[0]),ylim[1])]
-                                    ax[y,x].set_xlim(xlim)
-                                    ax[y,x].set_ylim(ylim)
-
+                                    ylim = [0,max(1.3*np.max(h[0]),ylim[1])]
                                     run_last = run
                                     post_last = post
+
+                        # Plot the truth or the profiles for the abundances
+                        profiles=''
+                        if true_profile:
+                            df = pd.read_csv(self.grid_results['rp_object'][run_last].settings['input_profile'])
+                            if key in df.columns:
+                                ax2=ax[x,y].twinx()
+                                ax2.semilogy(np.log10(df[key]),df['P(bar)'],color='k',ls = '--',label = 'Input')
+                                ax2.set_ylim(df['P(bar)'].max(),df['P(bar)'].min())
+                                ax2.set_ylabel('Pressure (bar)')
+                                profiles='_profile'
+                            else:
+                                ax[x,y].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
 
                         # Plot the truth
                         ax[y,x].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
 
-                        # Labels and legends
+                        # Labels, Limits and legends
+                        ax[y,x].set_xlim(xlim)
+                        ax[y,x].set_ylim(ylim)
                         ax[y,x].set_xlabel(posterior_identifier)
-                        ax[y,x].legend(frameon = False,loc='upper left')
-                            
-                # Check if directory for saving exists
-                title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
-                if not os.path.exists(save_directory+'/'+title+'/'):
-                    os.makedirs(save_directory+'/'+title+'/')
+                        ax[y,x].set_yticks([])
+                        if key_in is not None:
+                            ax[y,x].legend(frameon = False,loc='upper left')
+                    else:
+                        ax[y,x].axis('off')
+                        if (y*x_dim+x)==len(unique_posterior_keys):
+                            handles,labels = ax[0,0].get_legend_handles_labels()
+                            ax[y,x].legend(handles,labels, frameon = False,loc='center')
 
-                # Save the plots
-                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior.pdf', bbox_inches='tight')
+            # Check if directory for saving exists
+            title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
+            if not os.path.exists(save_directory+'/'+title+'/'):
+                os.makedirs(save_directory+'/'+title+'/')
 
-        """
-                    xlim = [h[1][0],h[1][-1]]
-                    ax.set_xlim(xlim)
-                    ylim = [0,1.1*np.max(h[0])]
-                    ax.set_ylim(ylim)
-                    ax.set_yticks([])
-
-        # Generating the title for the plot
-        if units is None or '':
-            title = title
-        else:
-            title = title+' '+units
-
-        # Plotting the secified quantiles
-        if quantiles1d is not None:
-            q = [np.quantile(data,ind) for ind in quantiles1d]
-            ax.vlines(q,ax.get_ylim()[0],ax.get_ylim()[1],colors='k', ls='--')
-
-            # Round q and print the retrieved value above the histogram plot
-            round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
-            if round>=0.5:
-                ax.set_title(title + ' = ' + str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$')
+            # Save the plots
+            if key_in is None:
+                plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+'.pdf', bbox_inches='tight')
+                plt.clf()
             else:
-                ax.set_title(title + ' = ' + str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
-                        str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
-                        str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$')
+                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior'+profiles+'.pdf', bbox_inches='tight')
+                plt.clf()
 
-                    #hist = rp_posteriors.Posterior(local_grid_results[run]['local_equal_weighted_post'][:,ind],'',color=color,truth=local_grid_results[run]['local_truths'][ind],ax = ax[x,y],alpha=1,**hist_setting)
-            plt.savefig(self.results_directory+'Grid_Plots/'+key+'.pdf', bbox_inches='tight')
-            
+        # Reduce the recusion limit
+        sys.setrecursionlimit(1000)
 
 
-        ## Adust the local copy of the posteriors according to the users desires
-        #local_equal_weighted_post, local_truths, local_titles = self.Scale_Posteriors(local_equal_weighted_post,
-        #                    local_truths, local_titles, log_pressures=log_pressures, log_mass=log_mass,
-        #                    log_abundances=log_abundances, log_particle_radii=log_particle_radii)
 
 
-        """
+
 
 
 
@@ -306,7 +362,7 @@ class grid_plotting():
                             case_identifiers=None,legend_loc = 'best'):
         
         # Generate the grid of runs for plotting
-        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('Spectra',x_category,y_category)
+        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('Spectra',x_category=x_category,y_category=y_category)
 
         # Loop over the various plots to do
         for ind in range(len(combinations_local_sub_categories)):
@@ -371,7 +427,7 @@ class grid_plotting():
                     colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
         
         # Generate the grid of runs for plotting
-        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('PT_profiles',x_category,y_category)
+        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('PT_profiles',x_category=x_category,y_category=y_category)
 
         for ind in range(len(combinations_local_sub_categories)):
             case = combinations_local_sub_categories[ind]
