@@ -402,8 +402,20 @@ class grid_plotting():
                             quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],colors=None,
                             case_identifiers=None,legend_loc = 'best'):
         
-        # Generate the grid of runs for plotting
-        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('Spectra',x_category=x_category,y_category=y_category)
+        # Generate the grid of runs for plotting        
+        if type(x_category)==int:
+            save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                self._grid_generator('Spectra',y_category=y_category)
+            x_dim = x_category
+            y_dim = ((y_dim-1)//x_dim+1)
+        elif type(y_category)==int:
+            save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                self._grid_generator('Spectra',x_category=x_category)
+            y_dim = y_category
+            x_dim = ((x_dim-1)//y_dim+1)
+        else:
+            save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                self._grid_generator('Spectra',x_category=x_category,y_category=y_category)
 
         # Loop over the various plots to do
         for ind in range(len(combinations_local_sub_categories)):
@@ -417,22 +429,30 @@ class grid_plotting():
             # Loop over the x and y axis of the plots
             for x in range(x_dim):
                 for y in range(y_dim):
-                    run = run_categorization[ind,y,x,0]
+                    try:
+                        if type(x_category)==int:
+                            run = run_categorization[ind,y+x*x_category,0,0]
+                        elif type(y_category)==int:
+                            run = run_categorization[ind,0,x+y*y_category,0]
+                        else:
+                            run = run_categorization[ind,y,x,0]
 
-                    # Choose the correct color and hatches
-                    if colors is None:
-                        color = 'k'
-                    else:
-                        color = colors[[i for i in colors.keys() if i in run][0]]
-                    if case_identifiers is None:
-                        case_identifier = ''
-                    else:
-                        case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+                        # Choose the correct color and hatches
+                        if colors is None:
+                            color = 'k'
+                        else:
+                            color = colors[[i for i in colors.keys() if i in run][0]]
+                        if case_identifiers is None:
+                            case_identifier = ''
+                        else:
+                            case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
 
-                    # Plot the spectrum in the corresponding subplot
-                    self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[y,x],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
-                                    plot_noise = True, plot_true_spectrum = True, legend_loc = legend_loc,color = color,noise_title = 'LIFE Noise',case_identifier=case_identifier)
-            
+                        # Plot the spectrum in the corresponding subplot
+                        self.grid_results['rp_object'][run].Flux_Error(plot_residual=plot_residual,ax=ax[y,x],save =True,quantiles=quantiles,quantiles_title=quantiles_title,
+                                        plot_noise = True, plot_true_spectrum = True, legend_loc = legend_loc,color = color,noise_title = 'LIFE Noise',case_identifier=case_identifier)
+                    except:
+                        ax[y,x].axis('off')
+
             # Label the axes of the subplots
             for i in range(y_dim):
                 if plot_residual:
@@ -466,41 +486,63 @@ class grid_plotting():
     def PT_Grid(self,x_category=None,y_category=None,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,plot_clouds=False,
                     quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
                     colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
-        
-        # Generate the grid of runs for plotting
-        save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = self._grid_generator('PT_profiles',x_category=x_category,y_category=y_category)
 
+        # Generate the grid of runs for plotting        
+        if type(x_category)==int:
+            save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                self._grid_generator('PT_profiles',y_category=y_category)
+            x_dim = x_category
+            y_dim = ((y_dim-1)//x_dim+1)
+        elif type(y_category)==int:
+            save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                self._grid_generator('PT_profiles',x_category=x_category)
+            y_dim = y_category
+            x_dim = ((x_dim-1)//y_dim+1)
+        else:
+            save_directory, x_dim, y_dim, o_dim, combinations_local_sub_categories, run_categorization = \
+                self._grid_generator('PT_profiles',x_category=x_category,y_category=y_category)
+
+        # Generate the plots
         for ind in range(len(combinations_local_sub_categories)):
             case = combinations_local_sub_categories[ind]
 
             # Initialize a new figure for the plot
             fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
                         sharex=sharex,sharey=sharey,squeeze=False)
-            plt.subplots_adjust(hspace=0.1,wspace=0.1)
+            plt.subplots_adjust(hspace=0.06,wspace=0.04)
 
             # Loop over the x and y axis of the plots
-            for x in range(x_dim):
-                for y in range(y_dim):
-                    run = run_categorization[ind,y,x,0]
-
-                    # Choose the correct color and hatches
-                    if colors is None:
-                        color = 'k'
-                    else:
-                        color = colors[[i for i in colors.keys() if i in run][0]]
-                    if case_identifiers is None:
-                        case_identifier = ''
-                    else:
-                        case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
-
-                    # Plot the PT profile in the corresponding subplot. If requested, try plotting clouds
+            for y in range(y_dim):
+                for x in range(x_dim):
                     try:
-                        self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = plot_clouds, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
-                                inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
-                    except:
-                        self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
-                                inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                        if type(x_category)==int:
+                            run = run_categorization[ind,y+x*x_category,0,0]
+                        elif type(y_category)==int:
+                            run = run_categorization[ind,0,x+y*y_category,0]
+                        else:
+                            run = run_categorization[ind,y,x,0]
+                            
 
+                        # Choose the correct color and hatches
+                        if colors is None:
+                            color = 'k'
+                        else:
+                            color = colors[[i for i in colors.keys() if i in run][0]]
+                        if case_identifiers is None:
+                            case_identifier = ''
+                        else:
+                            case_identifier = case_identifiers[[i for i in case_identifiers.keys() if i in run][0]]
+
+                        # Plot the PT profile in the corresponding subplot. If requested, try plotting clouds
+                        try:
+                            self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = plot_clouds, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                                    inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                        except:
+                            self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                                    inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                    except:
+                        ax[y,x].axis('off')
+                        
             # Label the axes of the subplots
             for i in range(y_dim):
                 ax[i,0].set_ylabel(r'Pressure [bar]')
