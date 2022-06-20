@@ -382,11 +382,6 @@ class grid_plotting():
 
 
 
-
-
-
-
-
     """
     #################################################################################
     #                                                                               #
@@ -573,7 +568,7 @@ class grid_plotting():
 
 
 
-    def Grid_Model_Comparison(self,x_category=None,y_category=None,model_category='Model',model_compare=None,facecolor='white'):
+    def Grid_Model_Comparison(self,x_category=None,y_category=None,model_category='Model',model_compare=None,facecolor='white',case_identifiers=None):
         # Generate the grid of runs for plotting
         save_directory, m_dim, m_cat, x_dim, x_cat, y_dim, y_cat, combinations_local_sub_categories, run_categorization = \
             self._grid_generator('Model_Compare',x_category=model_category,y_category=x_category,overplot_category=y_category,return_all=True)
@@ -585,14 +580,14 @@ class grid_plotting():
         # Define a matrix to store the Bayes factors
         K_Matrix = np.zeros(((y_dim+1)*(m_dim-1)-1,(x_dim+1)*len(combinations_local_sub_categories)-1))-100
 
-        # Iterate over models and wavelength ranges
+        # Iterate over models and wavelength ranges and set he matrix elements
         n_cases = len(combinations_local_sub_categories)
         for ind in range(len(combinations_local_sub_categories)):
-            case = combinations_local_sub_categories[ind]
-
             m_corr = 0
             m_compare = [i for i in range(m_dim) if m_cat[i]==model_compare][0]
             m_combinations = []
+
+            #Loop over all elements nor equal to m_corr
             for m in range(m_dim):
                 if m == m_compare:
                     m_corr -= 1
@@ -608,7 +603,11 @@ class grid_plotting():
                             K_Matrix[(y_dim+1)*(m+m_corr)+y,(x_dim+1)*(ind)+x] = K
                           
                     # Save the name of the case combination
-                    m_combinations += [model_compare+' vs\n'+m_cat[m]]
+                    if case_identifiers is None:
+                        m_combinations += [model_compare+' vs.\n'+m_cat[m]]
+                    else:
+                        m_combinations += [case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]+\
+                            ' vs\n'+case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m,0]][0]]]
 
             # Define the color map according to jeffrey's scale
             cmap = col.ListedColormap(['white','#d62728','#d6272880','#d6272860','#d6272840','#2ca02c40','#2ca02c60','#2ca02c80','#2ca02c'])
@@ -617,85 +616,75 @@ class grid_plotting():
 
 
         # Initial plot configuration
-        lw = 1
-        C_x = 8/np.shape(K_Matrix)[0]
-        fig,ax = plt.subplots(2,gridspec_kw={'height_ratios': [np.shape(K_Matrix)[0]/C_x,3]},figsize = (0.8*np.shape(K_Matrix)[0],0.8*np.shape(K_Matrix)[1]))#,linewidth=2*lw, edgecolor="#007272")
+        lw = 2
+        C_y = np.shape(K_Matrix)[0]+5/1.5
+        fig,ax = plt.subplots(2,figsize = (0.6*np.shape(K_Matrix)[1],0.6*np.shape(K_Matrix)[0]),gridspec_kw={'height_ratios': [np.shape(K_Matrix)[0]/C_y,5/1.5/C_y]})#,linewidth=2*lw, edgecolor="#007272")
         plt.subplots_adjust(hspace=0,wspace=0)
         fig.patch.set_facecolor(facecolor)
-        #ax[0].axis('off')
-        #ax[1].axis('off')
+        ax[0].axis('off')
+        ax[1].axis('off')
 
-        # Plot the matrix
+        # Plot the matrix and separate the different elements
         ax[0].matshow(K_Matrix,cmap=cmap, norm=norm)
         ax[0].vlines([-0.5+i for i in range(np.shape(K_Matrix)[1]+1)],-0.5,np.shape(K_Matrix)[0]-0.5,color=facecolor,lw=lw)
         ax[0].hlines([-0.5+i for i in range(np.shape(K_Matrix)[0]+1)],-0.5,np.shape(K_Matrix)[1]-0.5,color=facecolor,lw=lw)
 
+        # Annotate the y-axis
         y_ax=[y_dim/2-0.5+i*(y_dim+1)for i in range(m_dim-1)]
         y_shift = -((y_dim+1)%2)*0.5-(y_dim-1)//2
         for pos_y in range(m_dim-1):
             for ind_y in range(y_dim):
-                ax[0].text(-0.6, y_ax[pos_y]+y_shift+ind_y,y_cat[ind_y],rotation = 0,rotation_mode='default',ha='right',va='center',fontsize=6)
-            ax[0].text(-1.75, y_ax[pos_y],y_category,rotation = 90,rotation_mode='default',ha='center',va='center',fontsize=6)
-            ax[0].text(-2.8, y_ax[pos_y],m_combinations[pos_y],rotation = 90,rotation_mode='default',ha='center',va='center',fontsize=6)
+                ax[0].text(-0.6, y_ax[pos_y]+y_shift+ind_y+0.03,y_cat[ind_y],rotation = 0,rotation_mode='default',ha='right',va='center')
+            ax[0].text(-1.65, y_ax[pos_y],y_category,rotation = 90,rotation_mode='default',ha='center',va='center')
+            ax[0].text(-2.55, y_ax[pos_y],m_combinations[pos_y],rotation = 90,rotation_mode='default',ha='center',va='center')
 
+        # Annotate the x-axis
         x_ax=[x_dim/2-0.5+i*(x_dim+1)for i in range(n_cases)]
         x_shift = -((x_dim+1)%2)*0.5-(x_dim-1)//2
         for pos_x in range(n_cases):
             for ind_x in range(x_dim):
-                ax[0].text(x_ax[pos_x]+x_shift+ind_x,-0.7,x_cat[ind_x],rotation = 0,rotation_mode='default',ha='center',va='center',fontsize=6)
-            ax[0].text(x_ax[pos_x],-1.4,x_category,rotation = 0,rotation_mode='default',ha='center',va='center',fontsize=6)
-            ax[0].text(x_ax[pos_x],-2.2,'wln',rotation = 0,rotation_mode='default',ha='center',va='center',fontsize=6)
+                ax[0].text(x_ax[pos_x]+x_shift+ind_x,-0.7,x_cat[ind_x],rotation = 0,rotation_mode='default',ha='center',va='center')
+            ax[0].text(x_ax[pos_x],-1.35,'S/N',rotation = 0,rotation_mode='default',ha='center',va='center') #ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center')
+            ax[0].text(x_ax[pos_x],-2.15,[list(combinations_local_sub_categories[i].keys())[0]+'\n'+list(combinations_local_sub_categories[i].values())[0]+' $\mu$m'\
+                 for i in range(len(combinations_local_sub_categories))][pos_x],rotation = 0,rotation_mode='default',ha='center',va='center')
+
     
+        # Write the Bayes factor in the fields
         for pos_y in range(np.shape(K_Matrix)[0]):
             for pos_x in range(np.shape(K_Matrix)[1]):
                     if K_Matrix[pos_y,pos_x]!=-100:
-                        ax[0].annotate(str(np.round(K_Matrix[pos_y,pos_x],1)),[pos_x,pos_y],ha='center',va='center',color='white',fontweight = 'bold',fontsize=5)
+                        ax[0].annotate(str(np.round(K_Matrix[pos_y,pos_x],1)),[pos_x,pos_y+0.03],ha='center',va='center',color='white',fontweight = 'bold')
     
-
-        Plot_Matrix = np.zeros((3,8))-100
-
+        # Plot for the color scale of the Bayes' factor
+        Plot_Matrix = np.zeros((5,8))-100
         bounds = [-2.0,-1.0,-0.5,0.0,0.5,1.0,2.0]
         Plot_Matrix[-2,:]=[i-0.25 for i in bounds]+[bounds[-1]+0.25]
 
+        # Cosmetics for the reference scale (nines arrows...)
         ax[1].matshow(Plot_Matrix,cmap=cmap, norm=norm)
-        
-        ax[1].hlines([0.5,1.5],-0.5,7.5,color=facecolor,lw=2*lw)
-        ax[1].vlines([i-0.5 for i in range(0,9)],0,2,color=facecolor,lw=2*lw)
-        ax[1].vlines([i-0.5 for i in range(1,8)],0.47,1.53,color='k',lw=lw)
-        ax[1].vlines(4.5,0.47,2.2,color='k',lw=lw)
+        ax[1].hlines([2.5,3.5],-0.5,7.5,color=facecolor,lw=2*lw)
+        ax[1].vlines([i-0.5 for i in range(0,9)],0,4,color=facecolor,lw=2*lw)
+        ax[1].vlines([i-0.5 for i in range(1,8)],2.47,3.53,color='k',lw=lw/2)
+        ax[1].vlines(3.5,2.47,4.2,color='k',lw=lw/2)
         for ind_bound in range(len(bounds)):
-            ax[1].text(1.5+ind_bound,0.6,str(bounds[ind_bound]),rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5)
+            ax[1].text(0.5+ind_bound,2.3,str(bounds[ind_bound]),rotation = 90,rotation_mode='default',ha='center',va='bottom')
+        ax[1].plot([-0.28,3.365],[3.85,3.85],color='k',ls='-',lw=lw/2)
+        ax[1].plot([3.635,7.5-0.28],[3.85,3.85],color='k',ls='-',lw=lw/2)
+        ax[1].plot([-0.1,-0.35,-0.1],[3.75,3.85,3.95],color='k',ls='-',lw=lw/2)
+        ax[1].plot([7.5-0.4,7.5-0.15,7.5-0.4],[3.75,3.85,3.95],color='k',ls='-',lw=lw/2)
+        for i in range(101):
+            ax[1].fill([3.4-i/100,3.4-(i+1)/100,3.4-(i+1)/100,3.4-i/100],[5-1.05,5-1.05,5-1.25,5-1.25],color=facecolor,alpha=1-i/100,lw=0,zorder=5)
+            ax[1].fill([3.6+i/100,3.6+(i+1)/100,3.6+(i+1)/100,3.6+i/100],[5-1.05,5-1.05,5-1.25,5-1.25],color=facecolor,alpha=1-i/100,lw=0,zorder=5)
         
-        ax[1].plot([0.72,4.365],[1.85,1.85],color='k',ls='-',lw=lw)
-        ax[1].plot([0.9,0.7,0.9],[1.75,1.85,1.95],color='k',ls='-',lw=lw)
+        # Annotation
+        ax[1].text(3.5,0.8,'Color Coding of '+r'$\mathrm{log_{10}(K)}$',rotation = 0,rotation_mode='default',ha='center',va='center',color='k')
+        ax[1].text(3,4.3,case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]\
+                        ,rotation = 0,rotation_mode='default',ha='right',va='center',color='k')
+        ax[1].text(4,4.3,r'Other Models',rotation = 0,rotation_mode='default',ha='left',va='center',color='k')
+        #plt.savefig('Results/Abundances/Summary/'+Wlen_grid[i]+'.png',dpi=450,bbox_inches='tight', facecolor='azure')
+        #title = plt.title('Bayes factor for model '+str(model_compare)+'.', y=1.15)
 
-        #ax[1].plot([0.72,4.365],[1.85,1.85],color='k',ls='-',lw=lw)
-        #ax[1].plot([0.9,0.7,0.9],[1.75,1.85,1.95],color='k',ls='-',lw=lw)
-        #    ax.plot([6.63,10.28],[np.shape(Mat)[0]-1.25,np.shape(Mat)[0]-1.25],color='#007272',ls='-',lw=lw)
-        #    ax.plot([10.1,10.3,10.1],[np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.25,np.shape(Mat)[0]-1.35],color='#007272',ls='-',lw=lw)
-        """"
-            for i in range(101):
-                ax.fill([6.45-i/200,6.45-(i+1)/200,6.45-(i+1)/200,6.45-i/200],[np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.35,np.shape(Mat)[0]-1.35],'azure',alpha=1-i/100,lw=0,zorder=100)
-                ax.fill([6.55+i/200,6.55+(i+1)/200,6.55+(i+1)/200,6.55+i/200],[np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.15,np.shape(Mat)[0]-1.35,np.shape(Mat)[0]-1.35],'azure',alpha=1-i/100,lw=0,zorder=100)
-                
-
-
-
-            ax.text(3.5,np.shape(Mat)[0]-2.6,'-2.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-            ax.text(4.5,np.shape(Mat)[0]-2.6,'-1.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-            ax.text(5.5,np.shape(Mat)[0]-2.6,'-0.5',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-            ax.text(6.5,np.shape(Mat)[0]-2.6,'0.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-            ax.text(7.5,np.shape(Mat)[0]-2.6,'0.5',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-            ax.text(8.5,np.shape(Mat)[0]-2.6,'1.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-            ax.text(9.5,np.shape(Mat)[0]-2.6,'2.0',rotation = 90,rotation_mode='default',ha='center',va='bottom',fontsize=5,color='#007272')
-
-            ax.text(2.3,np.shape(Mat)[0]-2,'Color Coding\n of '+r'$\mathrm{log_{10}(K)}$',rotation = 0,rotation_mode='default',ha='right',va='center',fontsize=6,color='#007272')
-            ax.text(6,np.shape(Mat)[0]-0.9,r'Opaque $\mathrm{H_2SO_4}$',rotation = 0,rotation_mode='default',ha='right',va='center',fontsize=5,color='#007272')
-            ax.text(7,np.shape(Mat)[0]-0.9,r'Other Models',rotation = 0,rotation_mode='default',ha='left',va='center',fontsize=5,color='#007272')
-            #plt.savefig('Results/Abundances/Summary/'+Wlen_grid[i]+'.png',dpi=450,bbox_inches='tight', facecolor='azure')
-            #title = plt.title('Bayes factor for model '+str(model_compare)+'.', y=1.15)
-        """
-        plt.savefig('Baye_Total.pdf', bbox_inches='tight', facecolor=facecolor)
+        plt.savefig(save_directory+'/baye_total.pdf', bbox_inches='tight', facecolor=facecolor)
 
 
 
