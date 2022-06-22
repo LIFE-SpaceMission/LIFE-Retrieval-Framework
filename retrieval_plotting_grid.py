@@ -14,6 +14,7 @@ import numpy as np
 from pkg_resources import ResolutionError
 from scipy.ndimage.filters import gaussian_filter1d
 import pandas as pd
+import matplotlib.patheffects as PathEffects
 
 # Import additional external files
 import retrieval_plotting as rp
@@ -653,7 +654,13 @@ class grid_plotting():
         for pos_y in range(np.shape(K_Matrix)[0]):
             for pos_x in range(np.shape(K_Matrix)[1]):
                     if K_Matrix[pos_y,pos_x]!=-100:
-                        ax[0].annotate(str(np.round(K_Matrix[pos_y,pos_x],1)),[pos_x,pos_y+0.03],ha='center',va='center',color='white',fontweight = 'bold')
+                        txt = ax[0].annotate(str(np.round(K_Matrix[pos_y,pos_x],1)),[pos_x,pos_y+0.03],ha='center',va='center',color='white',fontweight = 'bold')
+                        # Place an edge around the text
+                        if K_Matrix[pos_y,pos_x]<0:
+                            txt.set_path_effects([PathEffects.withStroke(linewidth=0.7, foreground='#d62728')])
+                        else:
+                            txt.set_path_effects([PathEffects.withStroke(linewidth=0.7, foreground='#2ca02c')])
+
     
         # Plot for the color scale of the Bayes' factor
         Plot_Matrix = np.zeros((5,8))-100
@@ -667,7 +674,8 @@ class grid_plotting():
         ax[1].vlines([i-0.5 for i in range(1,8)],2.47,3.53,color='k',lw=lw/2)
         ax[1].vlines(3.5,2.47,4.2,color='k',lw=lw/2)
         for ind_bound in range(len(bounds)):
-            ax[1].text(0.5+ind_bound,2.3,str(bounds[ind_bound]),rotation = 90,rotation_mode='default',ha='center',va='bottom')
+            ax[1].text(0.57+ind_bound,2.3,str(bounds[ind_bound]),rotation = 90,rotation_mode='default',ha='center',va='bottom')
+
         ax[1].plot([-0.28,3.365],[3.85,3.85],color='k',ls='-',lw=lw/2)
         ax[1].plot([3.635,7.5-0.28],[3.85,3.85],color='k',ls='-',lw=lw/2)
         ax[1].plot([-0.1,-0.35,-0.1],[3.75,3.85,3.95],color='k',ls='-',lw=lw/2)

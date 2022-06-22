@@ -1389,6 +1389,200 @@ class retrieval_plotting(r_globals.globals):
 
 
 
+    """
+    #################################################################################
+    #                                                                               #
+    #   Posterior Classification routine                                            #
+    #                                                                               #
+    #################################################################################
+    """
+
+
+
+    def Posterior_Classification(self,parameters=['H2O','CO2','CO','H2SO484(c)','R_pl','M_pl'],relative=None,limits = None,plot_classification=True,p0_SSG=[8,6,0.007,0.5,0.5],p0_SS=None,s_max=2,s_ssg_max=5):
+        self.best_post_model = {}
+        self.best_post_limit = {} 
+
+        count_param = 0
+
+        # Iterate over all parameters of interest
+        for param in parameters:
+            if True: #try:
+                keys = list(self.params.keys())
+                ind = np.where(np.array(keys)==str(param))[0][0]
+                post = self.equal_weighted_post[:,ind]
+                if relative is not None:
+                    ind_rel = np.where(np.array(keys)==str(relative))[0][0]
+                    post_rel = self.equal_weighted_post[:,ind_rel]
+
+                if limits is None:
+                    prior = self.priors[ind]
+                                    
+                    if prior in ['ULU', 'LU']:
+                        if prior == 'LU':
+                            if relative is None:
+                                post = np.log10(post)
+                            else:
+                                post = np.log10(post) - np.log10(post_rel) 
+                            self.best_post_limit[param] = sorted(list(self.priors_range[ind]))
+                        else:
+                            if relative is None:
+                                post = np.log10(1-post)
+                            else:
+                                post = np.log10(post) - np.log10(post_rel) 
+                            self.best_post_limit[param] = [-7,0]
+                    elif prior in ['G','LG']:
+                        mean = self.priors_range[ind][0]
+                        sigma  = self.priors_range[ind][1]
+                        self.best_post_limit[param] = [mean-5*sigma,mean+5*sigma]
+                        if prior == 'LG':
+                            post = np.log10(post)
+                    else:
+                        self.best_post_limit[param] = limits[count_param]
+
+                span = abs(self.best_post_limit[param][1]-self.best_post_limit[param][0])
+                center = span/2 + self.best_post_limit[param][0]
+                p0_Gauss=[span/5,center,1.0]
+                p0_SS=[-span/5,center,1.0]
+                p0_u_SS=[span/5,center,1.0]
+
+
+                x_bins = np.linspace(self.best_post_limit[param][0],self.best_post_limit[param][1],1000)
+                binned_data = np.histogram(post,bins=100,range=self.best_post_limit[param],density=True)
+                                
+                model_likelihood = []
+                                
+                # Try to Fit each model to the retrieved data
+                try:
+                    params_F,cov_F = sco.curve_fit(r_post.Model_Flat,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0])
+                    model_likelihood.append(r_post.log_likelihood(params_F,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Flat))
+                except:
+                    model_likelihood.append(-np.inf)
+                                    
+                try:
+                    params_SS,cov_SS = sco.curve_fit(r_post.Model_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SS)
+                    model_likelihood.append(r_post.log_likelihood(params_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStep))
+                except:
+                    model_likelihood.append(-np.inf)
+                                
+                try:
+                    params_SSG,cov_SSG = sco.curve_fit(r_post.Model_SoftStepG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SSG)
+                    model_likelihood.append(r_post.log_likelihood(params_SSG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStepG))
+                    line_SSG = r_post.Model_SoftStepG(x_bins,*params_SSG)
+                except:
+                    model_likelihood.append(-np.inf)
+                                
+                try:
+                    params_G,cov_G = sco.curve_fit(r_post.Model_Gauss,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_Gauss)
+                    model_likelihood.append(r_post.log_likelihood(params_G,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Gauss))
+                except:
+                    model_likelihood.append(-np.inf)
+
+                #try:
+                #    params_u_SS,cov_u_SS = sco.curve_fit(r_post.Model_upper_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_u_SS)
+                #    model_likelihood.append(r_post.log_likelihood(params_u_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_upper_SoftStep))
+                #except:
+                #    model_likelihood.append(-np.inf)
+
+                # Select the optimal model for the considered data case
+                if model_likelihood[3]!=-np.inf:
+                    if params_G[2]>span/6.0:
+                        model_likelihood[3]=-np.inf
+                if model_likelihood[1]!=-np.inf:
+                    if r_post.Model_SoftStep(self.best_post_limit[param][1],*params_SS)>=params_SS[-1]/10:
+                        model_likelihood[1]=-np.inf
+                if model_likelihood[2]!=-np.inf:
+                    if np.max(line_SSG)<=1.4*params_SSG[2] or np.max(line_SSG)>=15*params_SSG[2]:
+                        model_likelihood[2]=-np.inf
+                    if line_SSG[0]>=1.05*params_SSG[2]:
+                        model_likelihood[2]=-np.inf
+                    if line_SSG[-1]>=params_SSG[2]/20:
+                        model_likelihood[2]=-np.inf
+                    if params_SSG[-2]>=s_ssg_max:
+                        model_likelihood[2]=-np.inf
+                #if model_likelihood[4]!=-np.inf:
+                #    if params_u_SS[0]<0:
+                #        model_likelihood[4]=-np.inf
+                
+                # Storing the best fit model for the parameters of interest
+                best_fit = np.argmax(model_likelihood)
+                if best_fit == 0:
+                    self.best_post_model[param] = ['F',params_F]
+                elif best_fit == 1:
+                    self.best_post_model[param] = ['SS',params_SS]
+                elif best_fit == 2:
+                    self.best_post_model[param] = ['SSG',params_SSG]
+                elif best_fit == 3:
+                    self.best_post_model[param] = ['G',params_G]
+                #elif best_fit == 4:
+                #    self.best_post_model[param] = ['USS',params_u_SS]
+                else:
+                    print(str(best_fit) + ' is not a valid model!')
+        
+                if plot_classification:
+                    plt.figure(figsize=(10,10))
+                    h = plt.hist(post,bins=100,range=self.best_post_limit[param],alpha=0.2,density=True)
+
+
+                    if best_fit == 0:
+                        plt.plot(x_bins,r_post.Model_Flat(x_bins,*params_F),'g-',lw=5)
+                    if best_fit == 1:
+                        plt.plot(x_bins,r_post.Model_SoftStep(x_bins,*params_SS),'r-',lw=5)
+                    if best_fit == 2:
+                        plt.plot(x_bins,r_post.Model_SoftStepG(x_bins,*params_SSG),'b-',lw=5)
+                    if best_fit == 3:
+                        plt.plot(x_bins,r_post.Model_Gauss(x_bins,*params_G),'m-',lw=5)               
+                    #if best_fit == 4:
+                    #    plt.plot(x_bins,r_post.Model_upper_SoftStep(x_bins,*params_u_SS),'y-',lw=5)   
+                    plt.plot([-15,0],[0,0],'k-',alpha=1)
+                    plt.ylim([-max(h[0])/4,1.1*max(h[0])])
+                    plt.yticks([])
+                    plt.xticks([])
+                    plt.xlim(self.best_post_limit[param])
+                    plt.show()
+            #except:
+            #    print(str(param) + ' was not a retrieved parameter in this retrieval run')
+
+            count_param += 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1483,150 +1677,4 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Posterior_Classification(self,parameters=['H2O','CO2','CO','H2SO484(c)','R_pl','M_pl'],relative=None,limits = None,plot_classification=True,p0_SSG=[8,6,0.007,0.5,0.5],p0_SS=None,s_max=2,s_ssg_max=5):
-        self.best_post_model = {}
-        self.best_post_limit = {} 
 
-        count_param = 0
-
-        # Iterate over all parameters of interest
-        for param in parameters:
-            try:
-                keys = list(self.params.keys())
-                ind = np.where(np.array(keys)==str(param))[0][0]
-                post = self.equal_weighted_post[:,ind]
-                if relative is not None:
-                    ind_rel = np.where(np.array(keys)==str(relative))[0][0]
-                    post_rel = self.equal_weighted_post[:,ind_rel]
-
-                if limits is None:
-                    prior = self.priors[ind]
-                                    
-                    if prior in ['ULU', 'LU']:
-                        if prior == 'LU':
-                            if relative is None:
-                                post = np.log10(post)
-                            else:
-                                post = np.log10(post) - np.log10(post_rel) 
-                            self.best_post_limit[param] = sorted(list(self.priors_range[ind]))
-                        else:
-                            if relative is None:
-                                post = np.log10(1-post)
-                            else:
-                                post = np.log10(post) - np.log10(post_rel) 
-                            self.best_post_limit[param] = [-7,0]
-                    elif prior in ['G','LG']:
-                        mean = self.priors_range[ind][0]
-                        sigma  = self.priors_range[ind][1]
-                        self.best_post_limit[param] = [mean-5*sigma,mean+5*sigma]
-                        if prior == 'LG':
-                            post = np.log10(post)
-                    else:
-                        self.best_post_limit[param] = limits[count_param]
-
-                span = abs(self.best_post_limit[param][1]-self.best_post_limit[param][0])
-                center = span/2 + self.best_post_limit[param][0]
-                p0_Gauss=[span/5,center,1.0]
-                p0_SS=[-span/5,center,1.0]
-                p0_u_SS=[span/5,center,1.0]
-
-
-                x_bins = np.linspace(self.best_post_limit[param][0],self.best_post_limit[param][1],1000)
-                binned_data = np.histogram(post,bins=100,range=self.best_post_limit[param],density=True)
-                                
-                model_likelihood = []
-                                
-                # Try to Fit each model to the retrieved data
-                try:
-                    params_F,cov_F = sco.curve_fit(r_post.Model_Flat,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0])
-                    model_likelihood.append(r_post.log_likelihood(params_F,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Flat))
-                except:
-                    model_likelihood.append(-np.inf)
-                                    
-                try:
-                    params_SS,cov_SS = sco.curve_fit(r_post.Model_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SS)
-                    model_likelihood.append(r_post.log_likelihood(params_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStep))
-                except:
-                    model_likelihood.append(-np.inf)
-                                
-                try:
-                    params_SSG,cov_SSG = sco.curve_fit(r_post.Model_SoftStepG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SSG)
-                    model_likelihood.append(r_post.log_likelihood(params_SSG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStepG))
-                    line_SSG = r_post.Model_SoftStepG(x_bins,*params_SSG)
-                except:
-                    model_likelihood.append(-np.inf)
-                                
-                try:
-                    params_G,cov_G = sco.curve_fit(r_post.Model_Gauss,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_Gauss)
-                    model_likelihood.append(r_post.log_likelihood(params_G,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Gauss))
-                except:
-                    model_likelihood.append(-np.inf)
-
-                try:
-                    params_u_SS,cov_u_SS = sco.curve_fit(r_post.Model_upper_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_u_SS)
-                    model_likelihood.append(r_post.log_likelihood(params_u_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_upper_SoftStep))
-                except:
-                    model_likelihood.append(-np.inf)
-
-                # Select the optimal model for the considered data case
-                if model_likelihood[3]!=-np.inf:
-                    if params_G[2]>span/6.0:
-                        model_likelihood[3]=-np.inf
-                if model_likelihood[1]!=-np.inf:
-                    if r_post.Model_SoftStep(self.best_post_limit[param][1],*params_SS)>=params_SS[-1]/10:
-                        model_likelihood[1]=-np.inf
-                if model_likelihood[2]!=-np.inf:
-                    if np.max(line_SSG)<=1.4*params_SSG[2] or np.max(line_SSG)>=15*params_SSG[2]:
-                        model_likelihood[2]=-np.inf
-                    if line_SSG[0]>=1.05*params_SSG[2]:
-                        model_likelihood[2]=-np.inf
-                    if line_SSG[-1]>=params_SSG[2]/20:
-                        model_likelihood[2]=-np.inf
-                    if params_SSG[-2]>=s_ssg_max:
-                        model_likelihood[2]=-np.inf
-                if model_likelihood[4]!=-np.inf:
-                    if params_u_SS[0]<0:
-                        model_likelihood[4]=-np.inf
-
-                print(best_fit)
-                
-                # Storing the best fit model for the parameters of interest
-                best_fit = np.argmax(model_likelihood)
-                if best_fit == 0:
-                    self.best_post_model[param] = ['F',params_F]
-                elif best_fit == 1:
-                    self.best_post_model[param] = ['SS',params_SS]
-                elif best_fit == 2:
-                    self.best_post_model[param] = ['SSG',params_SSG]
-                elif best_fit == 3:
-                    self.best_post_model[param] = ['G',params_G]
-                elif best_fit == 4:
-                    self.best_post_model[param] = ['USS',params_u_SS]
-                else:
-                    print(str(best_fit) + ' is not a valid model!')
-        
-                if plot_classification:
-                    plt.figure(figsize=(10,10))
-                    h = plt.hist(post,bins=100,range=self.best_post_limit[param],alpha=0.2,density=True)
-
-
-                    if best_fit == 0:
-                        plt.plot(x_bins,r_post.Model_Flat(x_bins,*params_F),'g-',lw=5)
-                    if best_fit == 1:
-                        plt.plot(x_bins,r_post.Model_SoftStep(x_bins,*params_SS),'r-',lw=5)
-                    if best_fit == 2:
-                        plt.plot(x_bins,r_post.Model_SoftStepG(x_bins,*params_SSG),'b-',lw=5)
-                    if best_fit == 3:
-                        plt.plot(x_bins,r_post.Model_Gauss(x_bins,*params_G),'m-',lw=5)               
-                    if best_fit == 4:
-                        plt.plot(x_bins,r_post.Model_upper_SoftStep(x_bins,*params_u_SS),'y-',lw=5)   
-                    plt.plot([-15,0],[0,0],'k-',alpha=1)
-                    plt.ylim([-max(h[0])/4,1.1*max(h[0])])
-                    plt.yticks([])
-                    plt.xticks([])
-                    plt.xlim(self.best_post_limit[param])
-                    plt.show()
-            except:
-                print(str(param) + ' was not a retrieved parameter in this retrieval run')
-
-            count_param += 1
