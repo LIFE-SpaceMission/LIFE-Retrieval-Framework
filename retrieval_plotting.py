@@ -773,7 +773,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_bond=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k'):
+                    plot_clouds=True,plot_chemcomp=True,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k'):
         '''
         This function generates a corner plot for the retrieved parameters.
         '''
@@ -835,11 +835,10 @@ class retrieval_plotting(r_globals.globals):
 
         # If wanted add the bond albedo and the equilibrium temperature to the plot
         if plot_bond is not None:
-            if not hasattr(self, 'A_Bond_ret'):
-                self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20)
+            fig, axs, A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20,fit_BB=BB_fit_range)
             local_equal_weighted_post = np.append(local_equal_weighted_post, self.ret_opaque_T,axis=1)
             local_equal_weighted_post = np.append(local_equal_weighted_post, self.A_Bond_ret,axis=1)
-            local_truths += plot_bond[-2:]
+            local_truths += [T_equ_true,A_Bond_true]
             inds += [-2,-1]
             local_titles += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
 
@@ -858,6 +857,8 @@ class retrieval_plotting(r_globals.globals):
             if not os.path.exists(self.results_directory + 'Plots/Posteriors/'):
                 os.makedirs(self.results_directory + 'Plots/Posteriors/')
             for i in inds:
+                #print(local_titles[i])
+                #print(list(self.params.keys())[i]+'.pdf')
                 fig, axs = rp_posteriors.Posterior(local_equal_weighted_post[:,i],local_titles[i],truth=none_test(local_truths,[i]),
                                     quantiles1d=quantiles1d,units=none_test(units,[i]),bins=bins,color=color)
                 if save:
@@ -1343,17 +1344,43 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Plot_Ret_Bond_Albedo(self, L_star, sigma_L_star, sep_planet, sigma_sep_planet, A_Bond_true = None, T_equ_true= None,
-                            skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,
+                            skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,fit_BB=None,
                             titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$'],
                             units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$','']):
         
         self.get_pt(skip=skip,n_processes=n_processes)
 
         # Find the temperature at which the atmosphere becomes opaque
-        if self.settings['clouds'] == 'opaque':
-            self.ret_opaque_T = self.temperature_cloud_top
+        # Either By fitting a BB Spectrum
+        if fit_BB is not None:
+            sys.path.append(self.path_prt)
+            from petitRADTRANS import Radtrans
+            from petitRADTRANS import nat_cst as nc
+            self.get_spectra(skip=skip,n_processes=n_processes)
+
+            def blackbody_lam(lam, T):
+                from scipy.constants import h,k,c
+                lam = 1e-6 * lam # convert the wavelenth to meters
+                flux = 2*np.pi*h*c**2 / (lam**5 * (np.exp(h*c / (lam*k*T)) - 1)) # calculate the BB flux
+                return flux
+
+            ind_r = [i for i in range(len(list(self.params.keys()))) if list(self.params.keys())[i]=='R_pl'][0]
+            self.ret_opaque_T = np.zeros((np.size(self.retrieved_fluxes[:,0]),1))
+            inds = np.where((self.wavelength>=fit_BB[0]) & (self.wavelength<=fit_BB[1]))
+
+            factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.truths[ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
+            T_equ_true,cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], self.input_flux[inds]/factor[inds],p0=[200]) 
+
+            for i in range(np.size(self.retrieved_fluxes[:,0])):
+                factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2          
+                self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], np.ndarray.flatten(self.retrieved_fluxes[i,inds])/factor[inds],p0=[300]) 
+        
+        # Or by sampling a specific layer in the atmosphere
         else:
-            self.ret_opaque_T = np.array([self.temperature[:,-1]]).T
+            if self.settings['clouds'] == 'opaque':
+                self.ret_opaque_T = self.temperature_cloud_top
+            else:
+                self.ret_opaque_T = np.array([self.temperature[:,-1]]).T
 
         # Generating random data for the stellar luminosity and the panet separation
         L_star_data = L_star + sigma_L_star*np.random.randn(*self.ret_opaque_T.shape)
@@ -1370,11 +1397,11 @@ class retrieval_plotting(r_globals.globals):
 
         # Calculate the bond albedo
         self.A_Bond_ret = 1 - 16*np.pi*sep_planet_data_SI**2*sigma_SBoltzmann*self.ret_opaque_T**4/L_star_data_SI
+        A_Bond_true = 1 - 16*np.pi*(sep_planet * AU)**2*sigma_SBoltzmann*T_equ_true**4/(L_star*L_sun)
 
         if plot:
             # Combine the different parameters into one array
             data = np.hstack([L_star_data,sep_planet_data,self.ret_opaque_T,self.A_Bond_ret])
-            
 
             # Generate the corner plot
             fig, axs = rp_posteriors.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
@@ -1383,7 +1410,8 @@ class retrieval_plotting(r_globals.globals):
             # Save the figure or retrun the figure object
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_bond_albedo.pdf', bbox_inches='tight')
-            return fig, axs
+            return fig, axs, A_Bond_true[0], T_equ_true[0]
+        return A_Bond_true[0], T_equ_true[0]
 
 
 

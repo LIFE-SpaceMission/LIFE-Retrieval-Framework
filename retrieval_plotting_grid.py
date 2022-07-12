@@ -153,7 +153,7 @@ class grid_plotting():
 
 
 
-    def _get_posterior_data(self,log_pressures,log_mass,log_abundances,log_particle_radii,plot_pt,plot_physparam,plot_chemcomp,plot_clouds):
+    def _get_posterior_data(self,log_pressures,log_mass,log_abundances,log_particle_radii,plot_pt,plot_physparam,plot_chemcomp,plot_clouds,plot_bond=None,BB_fit_range=None):
         # Get all of the unique keys we want to plot the posteriors of
         chemcomp_params, cloud_params, phys_params, pt_params = [], [], [], []
         local_grid_results = {}
@@ -181,7 +181,7 @@ class grid_plotting():
 
             # Generate local copies of the posterior data 
             local_grid_results[run]={}
-            local_grid_results[run]['local_equal_weighted_post'] = np.copy(self.grid_results['rp_object'][run].equal_weighted_post)
+            local_grid_results[run]['local_equal_weighted_post'] = np.copy(self.grid_results['rp_object'][run].equal_weighted_post[:,:-1])
             local_grid_results[run]['local_truths'] = self.grid_results['rp_object'][run].truths.copy()
             local_grid_results[run]['local_titles'] = self.grid_results['rp_object'][run].titles.copy()
             local_grid_results[run]['local_posterior_keys'] = list(self.grid_results['rp_object'][run].params.keys())
@@ -191,6 +191,15 @@ class grid_plotting():
                 self.grid_results['rp_object'][run].Scale_Posteriors(local_grid_results[run]['local_equal_weighted_post'],local_grid_results[run]['local_truths'],
                                                                     local_grid_results[run]['local_titles'], log_pressures=log_pressures, log_mass=log_mass,
                                                                     log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+
+            # If wanted add the bond albedo and the equilibrium temperature to the plot
+            if plot_bond is not None:
+                A_Bond_true, T_equ_true = self.grid_results['rp_object'][run].Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true=plot_bond[-1],T_equ_true=plot_bond[-2],plot = False,fit_BB=BB_fit_range)
+                local_grid_results[run]['local_equal_weighted_post'] = np.append(local_grid_results[run]['local_equal_weighted_post'], self.grid_results['rp_object'][run].ret_opaque_T,axis=1)
+                local_grid_results[run]['local_equal_weighted_post'] = np.append(local_grid_results[run]['local_equal_weighted_post'], self.grid_results['rp_object'][run].A_Bond_ret,axis=1)
+                local_grid_results[run]['local_truths'] += [T_equ_true,A_Bond_true]
+                local_grid_results[run]['local_titles'] += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
+                local_grid_results[run]['local_posterior_keys'] += ['T_eq', 'A_B']
 
         # Get the unique posterior keys and return
         # Todo: add a routine if there is no maximal category  
@@ -203,14 +212,16 @@ class grid_plotting():
             unique_posterior_keys += max(chemcomp_params, key=len)
         if plot_clouds:
             unique_posterior_keys += max(cloud_params, key=len)
+        if plot_bond is not None:
+            unique_posterior_keys += ['T_eq', 'A_B']
 
         return local_grid_results, unique_posterior_keys
 
         
 
-    def posteriors_custom_grid(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],sharex=True,sharey=True,
+    def posteriors_custom_grid(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[2.5,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
-                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True):
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None):
 
         # Generate the grid of runs for plotting
         save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
@@ -218,7 +229,7 @@ class grid_plotting():
 
         # Get all of the unique keys as well as local copies of the posteriors
         local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii,
-                                                                            plot_pt,plot_physparam,plot_chemcomp,plot_clouds)
+                                                                            plot_pt,plot_physparam,plot_chemcomp,plot_clouds,plot_bond=plot_bond,BB_fit_range=BB_fit_range)
 
         # Loop over all of the unique retieved variables             
         for key in unique_posterior_keys:
@@ -230,9 +241,9 @@ class grid_plotting():
 
 
 
-    def posteriors_grid(self,x_size = 1,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[3,3],
+    def posteriors_grid(self,x_size = 1,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[2.5,3],
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
-                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True):
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None):
 
         # Secify what posteriors are in the grid:
         plotted_posts = ''
@@ -244,6 +255,8 @@ class grid_plotting():
             plotted_posts += '_abund'
         if plot_clouds:
             plotted_posts += '_clouds'
+        if plot_bond is not None:
+            plotted_posts += '_albedo'
 
         # Generate the grid of runs for plotting
         save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
@@ -251,7 +264,7 @@ class grid_plotting():
 
         # Get all of the unique keys as well as local copies of the posteriors
         local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii,
-                                                                            plot_pt,plot_physparam,plot_chemcomp,plot_clouds)
+                                                                            plot_pt,plot_physparam,plot_chemcomp,plot_clouds,plot_bond=plot_bond,BB_fit_range=BB_fit_range)
         x_dim = x_size
         y_dim = len(unique_posterior_keys)//x_size+1
 
@@ -283,7 +296,7 @@ class grid_plotting():
             # Initialize a new figure for the plot
             fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
                             sharex=False,sharey=False,squeeze=False)
-            plt.subplots_adjust(hspace=0.3,wspace=0.1)
+            plt.subplots_adjust(hspace=0.3,wspace=0.075)
             legend_plotted = False
 
             xlim = [1e100,-1e100]
@@ -305,7 +318,7 @@ class grid_plotting():
 
                             for post in range(len(local_grid_results[run]['local_posterior_keys'])):
                                 # If we are at the correct post index
-                                if key == list(self.grid_results['rp_object'][run].params_names.keys())[post]:
+                                if key == (list(self.grid_results['rp_object'][run].params_names.keys())+['T_eq', 'A_B'])[post]:
 
                                     # Choose the correct color and hatches
                                     if colors is None:
