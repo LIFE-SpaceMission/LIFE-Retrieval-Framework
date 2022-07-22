@@ -221,11 +221,21 @@ class grid_plotting():
 
     def posteriors_custom_grid(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[2.5,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
-                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None):
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None,collapse = True):
 
         # Generate the grid of runs for plotting
         save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
                                     self._grid_generator('Posteriors',x_category=x_category,y_category=y_category,overplot_category=overplot_category,return_all=True)
+        
+        if collapse:
+            run_categorization_collapsed = np.zeros((len(combinations_local_sub_categories),y_dim+x_dim,1,o_dim), dtype=object)
+            for p in range(len(combinations_local_sub_categories)):
+                for i in range(x_dim):
+                    run_categorization_collapsed[p,i*y_dim:(i+1)*y_dim,0,:] = run_categorization[p,:,i,:]
+            y_dim = x_dim+y_dim
+            x_dim = 1
+            run_categorization = run_categorization_collapsed.copy()
+
 
         # Get all of the unique keys as well as local copies of the posteriors
         local_grid_results,unique_posterior_keys = self._get_posterior_data(log_pressures,log_mass,log_abundances,log_particle_radii,
@@ -236,7 +246,7 @@ class grid_plotting():
             print('Plotting the results for: '+ key)
             self._posterior_plotting(combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=key)
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=key,sharex=sharex,sharey=sharey)
             print('Done plotting the posteriors for: '+key)
 
 
@@ -279,7 +289,7 @@ class grid_plotting():
 
     def _posterior_plotting(self,combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None,plotted_posts=''):
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None,plotted_posts='',sharex=False,sharey=False):
 
         # Increase the recurion limit
         sys.setrecursionlimit(10**9)
@@ -295,8 +305,11 @@ class grid_plotting():
 
             # Initialize a new figure for the plot
             fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
-                            sharex=False,sharey=False,squeeze=False)
-            plt.subplots_adjust(hspace=0.3,wspace=0.075)
+                            sharex=sharex,sharey=sharey,squeeze=False)
+            if sharex:
+                plt.subplots_adjust(hspace=0,wspace=0)
+            else:
+                plt.subplots_adjust(hspace=0.3,wspace=0.1)
             legend_plotted = False
 
             xlim = [1e100,-1e100]
@@ -339,7 +352,10 @@ class grid_plotting():
                                         posterior_identifier = posterior_identifiers[[i for i in posterior_identifiers.keys() if i in run][0]][post]
 
                                     # Plot the posterior histogram
-                                    h = ax[y,x].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
+                                    if xlim[0] != 1e100:
+                                        h = ax[y,x].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],range=xlim,color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
+                                    else:
+                                        h = ax[y,x].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
 
                                     # Update the limits for the plots
                                     xlim = [min(h[1][0],xlim[0]),max(h[1][-1],xlim[1])]
@@ -353,7 +369,7 @@ class grid_plotting():
                             df = pd.read_csv(self.grid_results['rp_object'][run_last].settings['input_profile'])
                             if key in df.columns:
                                 ax2=ax[x,y].twinx()
-                                ax2.semilogy(np.log10(df[key]),df['P(bar)'],color='k',ls = '--',label = 'Input')
+                                ax2.semilogy(np.log10(df[key]),df['P(bar)'],color='k',ls = '--',label = 'Truth')
                                 ax2.set_ylim(df['P(bar)'].max(),df['P(bar)'].min())
                                 ax2.set_ylabel('Pressure (bar)')
                                 profiles='_profile'
@@ -361,20 +377,30 @@ class grid_plotting():
                                 ax[x,y].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
 
                         # Plot the truth
-                        ax[y,x].vlines(local_grid_results[run_last]['local_truths'][post_last],ylim[0],ylim[1],color='k',ls = '--',label = 'Input')
+                        ax[y,x].vlines(local_grid_results[run_last]['local_truths'][post_last],-10000,10000,color='k',ls = '--',label = 'Truth',zorder = 4)
 
                         # Labels, Limits and legends
                         ax[y,x].set_xlim(xlim)
                         ax[y,x].set_ylim(ylim)
-                        ax[y,x].set_xlabel(posterior_identifier)
                         ax[y,x].set_yticks([])
-                        if key_in is not None:
-                            ax[y,x].legend(frameon = False,loc='upper left')
+
+                        if (not sharex) or (y == y_dim-1):
+                            ax[y,x].set_xlabel(posterior_identifier)
+                        else:
+                            ax[y,x].set_yticks([])
+
+
+                        #if key_in is not None:
+                        #    ax[y,x].legend(frameon = False,loc='upper left')
                     else:
                         ax[y,x].axis('off')
                         if (y*x_dim+x)==len(unique_posterior_keys):
                             handles,labels = ax[1,0].get_legend_handles_labels()
                             ax[y,x].legend(handles,labels, frameon = False,loc='center')
+                            legend_plotted=True
+
+            if not legend_plotted:
+                handles,labels = ax[0,0].get_legend_handles_labels()
 
             # Check if directory for saving exists
             title = '_'.join([list(case.keys())[i]+list(case.values())[i]for i in range(len(case))])
@@ -383,11 +409,40 @@ class grid_plotting():
 
             # Save the plots
             if key_in is None:
+
                 plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight')
                 plt.clf()
             else:
-                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight')
+                plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
+                xlim = ax[3,0].get_xlim()
+                ylim = ax[3,0].get_ylim()
+                
+                ax[0,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
+                ax[1,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                ax[2,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
+                ax[3,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                
+                ax[0,0].set_xlim(xlim)
+                ax[0,0].set_ylim(ylim)
+                ax[1,0].set_xlim(xlim)
+                ax[1,0].set_ylim(ylim)
+                ax[2,0].set_xlim(xlim)
+                ax[2,0].set_ylim(ylim)
+                ax[3,0].set_xlim(xlim)
+                ax[3,0].set_ylim(ylim)
+                
+                plt.margins(0,0)
+
+                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior'+profiles+plotted_posts+'.pdf')#, bbox_inches='tight')
                 plt.clf()
+
+            # Save the legend as separate pdf if it was not plotted
+            if not legend_plotted:
+                fig = plt.figure()
+                fig.legend(handles,labels, frameon = False,loc='center',ncol = len(handles))
+                plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior_Legend.pdf', bbox_inches='tight')
+                plt.clf()
+            
 
         # Reduce the recusion limit
         sys.setrecursionlimit(1000)
@@ -582,7 +637,7 @@ class grid_plotting():
 
 
 
-    def Grid_Model_Comparison(self,x_category=None,y_category=None,model_category='Model',model_compare=None,facecolor='white',case_identifiers=None):
+    def Grid_Model_Comparison(self,x_category=None,y_category=None,x_cat_label=None,y_cat_label=None,model_category='Model',model_compare=None,facecolor='white',case_identifiers=None):
         # Generate the grid of runs for plotting
         save_directory, m_dim, m_cat, x_dim, x_cat, y_dim, y_cat, combinations_local_sub_categories, run_categorization = \
             self._grid_generator('Model_Compare',x_category=model_category,y_category=x_category,overplot_category=y_category,return_all=True)
@@ -621,7 +676,7 @@ class grid_plotting():
                         m_combinations += [model_compare+' vs.\n'+m_cat[m]]
                     else:
                         m_combinations += [case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]+\
-                            ' vs\n'+case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m,0]][0]]]
+                            ' vs.\n'+case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m,0]][0]]]
 
             # Define the color map according to jeffrey's scale
             cmap = col.ListedColormap(['white','#d62728','#d6272880','#d6272860','#d6272840','#2ca02c40','#2ca02c60','#2ca02c80','#2ca02c'])
@@ -649,7 +704,10 @@ class grid_plotting():
         for pos_y in range(m_dim-1):
             for ind_y in range(y_dim):
                 ax[0].text(-0.6, y_ax[pos_y]+y_shift+ind_y+0.03,y_cat[ind_y],rotation = 0,rotation_mode='default',ha='right',va='center')
-            ax[0].text(-1.65, y_ax[pos_y],y_category,rotation = 90,rotation_mode='default',ha='center',va='center')
+            if y_cat_label is None:
+                ax[0].text(-1.65, y_ax[pos_y],y_category,rotation = 90,rotation_mode='default',ha='center',va='center')
+            else:
+                ax[0].text(-1.65, y_ax[pos_y],y_cat_label,rotation = 90,rotation_mode='default',ha='center',va='center')
             ax[0].text(-2.55, y_ax[pos_y],m_combinations[pos_y],rotation = 90,rotation_mode='default',ha='center',va='center')
 
         # Annotate the x-axis
@@ -658,7 +716,10 @@ class grid_plotting():
         for pos_x in range(n_cases):
             for ind_x in range(x_dim):
                 ax[0].text(x_ax[pos_x]+x_shift+ind_x,-0.7,x_cat[ind_x],rotation = 0,rotation_mode='default',ha='center',va='center')
-            ax[0].text(x_ax[pos_x],-1.35,'S/N',rotation = 0,rotation_mode='default',ha='center',va='center') #ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center')
+            if x_cat_label is None:
+                ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center') #ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center')
+            else:
+                ax[0].text(x_ax[pos_x],-1.35,x_cat_label,rotation = 0,rotation_mode='default',ha='center',va='center') #ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center')
             ax[0].text(x_ax[pos_x],-2.15,[list(combinations_local_sub_categories[i].keys())[0]+'\n'+list(combinations_local_sub_categories[i].values())[0]+' $\mu$m'\
                  for i in range(len(combinations_local_sub_categories))][pos_x],rotation = 0,rotation_mode='default',ha='center',va='center')
 
@@ -699,13 +760,13 @@ class grid_plotting():
         
         # Annotation
         ax[1].text(3.5,0.8,'Color Coding of '+r'$\mathrm{log_{10}(K)}$',rotation = 0,rotation_mode='default',ha='center',va='center',color='k')
-        ax[1].text(3,4.3,case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]\
-                        ,rotation = 0,rotation_mode='default',ha='right',va='center',color='k')
-        ax[1].text(4,4.3,r'Other Models',rotation = 0,rotation_mode='default',ha='left',va='center',color='k')
+        ax[1].text(3,4.3,r'Other Models',rotation = 0,rotation_mode='default',ha='right',va='center',color='k')
+        ax[1].text(4,4.3,case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]\
+            ,rotation = 0,rotation_mode='default',ha='left',va='center',color='k')
         #plt.savefig('Results/Abundances/Summary/'+Wlen_grid[i]+'.png',dpi=450,bbox_inches='tight', facecolor='azure')
         #title = plt.title('Bayes factor for model '+str(model_compare)+'.', y=1.15)
 
-        plt.savefig(save_directory+'/baye_total.pdf', bbox_inches='tight', facecolor=facecolor)
+        plt.savefig(save_directory+'/'+model_compare+'baye_total.pdf', bbox_inches='tight', facecolor=facecolor)
 
 
 
@@ -1815,6 +1876,183 @@ class grid_plotting():
             plt.plot([s,s],[2*(N-n)+eb+SNR_O,2*(N-n)-eb+SNR_O],ls='-',color=c,linewidth=lw)
             plt.plot(-HM,2*(N-n)+SNR_O ,color=c,marker = m,markersize = ms,markeredgecolor='black',markeredgewidth=lw/4)
             
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def Grid_Model_ComparisonT(self,x_category=None,y_category=None,x_cat_label=None,y_cat_label=None,model_category='Model',model_compare=None,facecolor='white',case_identifiers=None):
+        # Generate the grid of runs for plotting
+        save_directory, m_dim, m_cat, x_dim, x_cat, y_dim, y_cat, combinations_local_sub_categories, run_categorization = \
+            self._grid_generator('Model_Compare',x_category=model_category,y_category=x_category,overplot_category=y_category,return_all=True)
+
+        # Default model compar is first model
+        if model_compare is None:
+            model_compare = m_cat[0]
+        
+        # Define a matrix to store the Bayes factors
+        K_Matrix = np.zeros(((y_dim+1)*len(combinations_local_sub_categories)-1,(x_dim+1)*(m_dim-1)-1))-100
+
+        # Iterate over models and wavelength ranges and set he matrix elements
+        n_cases = len(combinations_local_sub_categories)
+        for ind in range(len(combinations_local_sub_categories)):
+            m_corr = 0
+            m_compare = [i for i in range(m_dim) if m_cat[i]==model_compare][0]
+            m_combinations = []
+
+            #Loop over all elements nor equal to m_corr
+            for m in range(m_dim):
+                if m == m_compare:
+                    m_corr -= 1
+                else:
+                    for x in range(x_dim):
+                        for y in range(y_dim):
+                            # Get the evidences for the runs
+                            evidence = self.grid_results['rp_object'][run_categorization[ind,x,m,y]].evidence
+                            evidence_compare = self.grid_results['rp_object'][run_categorization[ind,x,m_compare,y]].evidence
+
+                            # Calculate the bayes factor and store the result in the matrix
+                            K = 0.4342944819*(float(evidence_compare[0])-float(evidence[0]))
+                            K_Matrix[(y_dim+1)*(ind)+y,(x_dim+1)*(m+m_corr)+x] = K
+                          
+                    # Save the name of the case combination
+                    if case_identifiers is None:
+                        m_combinations += [model_compare+' vs.\n'+m_cat[m]]
+                    else:
+                        m_combinations += [case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]+\
+                            ' vs.\n'+case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m,0]][0]]]
+
+            # Define the color map according to jeffrey's scale
+            cmap = col.ListedColormap(['white','#d62728','#d6272880','#d6272860','#d6272840','#2ca02c40','#2ca02c60','#2ca02c80','#2ca02c'])
+            bounds=[-1000,-99,-2,-1,-0.5,0.0,0.5,1,2,99]
+            norm = col.BoundaryNorm(bounds, cmap.N)
+
+        #K_Matrix = K_Matrix.T
+
+        # Initial plot configuration
+        lw = 2
+        C_y = np.shape(K_Matrix)[1]+6/1.5
+        fig,ax = plt.subplots(1,2,figsize = (0.65*np.shape(K_Matrix)[1],0.65*np.shape(K_Matrix)[0]),gridspec_kw={'width_ratios': [np.shape(K_Matrix)[1]/C_y,6/1.5/C_y]})#,linewidth=2*lw, edgecolor="#007272")
+        plt.subplots_adjust(hspace=0,wspace=0)
+        fig.patch.set_facecolor(facecolor)
+        ax[0].axis('off')
+        ax[1].axis('off')
+
+        # Plot the matrix and separate the different elements
+        ax[0].matshow(K_Matrix,cmap=cmap, norm=norm)
+        ax[0].vlines([-0.5+i for i in range(np.shape(K_Matrix)[1]+1)],-0.5,np.shape(K_Matrix)[0]-0.5,color=facecolor,lw=lw)
+        ax[0].hlines([-0.5+i for i in range(np.shape(K_Matrix)[0]+1)],-0.5,np.shape(K_Matrix)[1]-0.5,color=facecolor,lw=lw)
+
+        # Annotate the y-axis
+        y_ax=[y_dim/2-0.5+i*(y_dim+1)for i in range(n_cases)]
+        y_shift = -((y_dim+1)%2)*0.5-(y_dim-1)//2
+        for pos_y in range(n_cases):
+            for ind_y in range(y_dim):
+                ax[0].text(-0.6, y_ax[pos_y]+y_shift+ind_y+0.03,y_cat[ind_y],rotation = 0,rotation_mode='default',ha='right',va='center')
+            if y_cat_label is None:
+                ax[0].text(-1.65, y_ax[pos_y],y_category,rotation = 90,rotation_mode='default',ha='center',va='center')
+            else:
+                ax[0].text(-1.65, y_ax[pos_y],y_cat_label,rotation = 90,rotation_mode='default',ha='center',va='center')
+            ax[0].text(-2.55, y_ax[pos_y],[list(combinations_local_sub_categories[i].keys())[0]+'\n'+list(combinations_local_sub_categories[i].values())[0]+' $\mu$m'\
+                 for i in range(len(combinations_local_sub_categories))][pos_y],rotation = 90,rotation_mode='default',ha='center',va='center')
+
+        # Annotate the x-axis
+        x_ax=[x_dim/2-0.5+i*(x_dim+1)for i in range(m_dim-1)]
+        x_shift = -((x_dim+1)%2)*0.5-(x_dim-1)//2
+        for pos_x in range(m_dim-1):
+            for ind_x in range(x_dim):
+                ax[0].text(x_ax[pos_x]+x_shift+ind_x,-0.7,x_cat[ind_x],rotation = 0,rotation_mode='default',ha='center',va='center')
+            if x_cat_label is None:
+                ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center') #ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center')
+            else:
+                ax[0].text(x_ax[pos_x],-1.35,x_cat_label,rotation = 0,rotation_mode='default',ha='center',va='center') #ax[0].text(x_ax[pos_x],-1.35,x_category,rotation = 0,rotation_mode='default',ha='center',va='center')
+            ax[0].text(x_ax[pos_x],-2.15,m_combinations[pos_x],rotation = 0,rotation_mode='default',ha='center',va='center')
+
+    
+        # Write the Bayes factor in the fields
+        for pos_y in range(np.shape(K_Matrix)[0]):
+            for pos_x in range(np.shape(K_Matrix)[1]):
+                    if K_Matrix[pos_y,pos_x]!=-100:
+                        txt = ax[0].annotate(str(np.round(K_Matrix[pos_y,pos_x],1)),[pos_x,pos_y+0.03],ha='center',va='center',color='white',fontweight = 'bold')
+                        # Place an edge around the text
+                        if K_Matrix[pos_y,pos_x]<0:
+                            txt.set_path_effects([PathEffects.withStroke(linewidth=0.7, foreground='#d62728')])
+                        else:
+                            txt.set_path_effects([PathEffects.withStroke(linewidth=0.7, foreground='#2ca02c')])
+
+    
+        # Plot for the color scale of the Bayes' factor
+        Plot_Matrix = np.zeros((6,8))-100
+        bounds = [-2.0,-1.0,-0.5,0.0,0.5,1.0,2.0]
+        Plot_Matrix[-2,:]=[i-0.25 for i in bounds]+[bounds[-1]+0.25]
+        Plot_Matrix = Plot_Matrix.T
+
+        # Cosmetics for the reference scale (nines arrows...)
+        ax[1].matshow(Plot_Matrix,cmap=cmap, norm=norm)
+        ax[1].vlines([3.5,4.5],-0.5,7.5,color=facecolor,lw=2*lw)
+        ax[1].hlines([i-0.5 for i in range(0,9)],0,5,color=facecolor,lw=2*lw)
+        ax[1].hlines([i-0.5 for i in range(1,8)],3.47,4.53,color='k',lw=lw/2)
+        ax[1].hlines(3.5,3.47,5.2,color='k',lw=lw/2)
+        for ind_bound in range(len(bounds)):
+            ax[1].text(3.3,0.57+ind_bound,str(bounds[ind_bound]),rotation = 0,ha='right',va='center')
+
+        ax[1].plot([4.85,4.85],[-0.28,3.365],color='k',ls='-',lw=lw/2)
+        ax[1].plot([4.85,4.85],[3.635,7.5-0.28],color='k',ls='-',lw=lw/2)
+        ax[1].plot([4.75,4.85,4.95],[-0.1,-0.35,-0.1],color='k',ls='-',lw=lw/2)
+        ax[1].plot([4.75,4.85,4.95],[7.5-0.4,7.5-0.15,7.5-0.4],color='k',ls='-',lw=lw/2)
+        for i in range(101):
+            ax[1].fill([6-1.05,6-1.05,6-1.25,6-1.25],[3.4-i/100,3.4-(i+1)/100,3.4-(i+1)/100,3.4-i/100],color=facecolor,alpha=1-i/100,lw=0,zorder=5)
+            ax[1].fill([6-1.05,6-1.05,6-1.25,6-1.25],[3.6+i/100,3.6+(i+1)/100,3.6+(i+1)/100,3.6+i/100],color=facecolor,alpha=1-i/100,lw=0,zorder=5)
+        
+        # Annotation
+        ax[1].text(1.8,3.5,'Color Coding of '+r'$\mathrm{log_{10}(K)}$',rotation = 90,rotation_mode='default',ha='center',va='center',color='k')
+        ax[1].text(5.3,3,r'Other Models',rotation = 90,ha='center',va='bottom',color='k')
+        ax[1].text(5.33,4,case_identifiers[[i for i in case_identifiers.keys() if i in run_categorization[ind,0,m_compare,0]][0]]\
+            ,rotation = 90,ha='center',va='top',color='k')
+        #plt.savefig('Results/Abundances/Summary/'+Wlen_grid[i]+'.png',dpi=450,bbox_inches='tight', facecolor='azure')
+        #title = plt.title('Bayes factor for model '+str(model_compare)+'.', y=1.15)
+
+        plt.savefig(save_directory+'/'+model_compare+'baye_total.pdf', bbox_inches='tight', facecolor=facecolor)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

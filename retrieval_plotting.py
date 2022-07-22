@@ -5,6 +5,7 @@ __email__ = "konradb@phys.ethz.ch"
 __status__ = "Development"
 
 # Standard Libraries
+from ssl import PROTOCOL_TLS_CLIENT
 import sys, os, re
 import math as m
 import matplotlib.pyplot as plt
@@ -773,7 +774,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k'):
+                    plot_clouds=True,plot_chemcomp=True,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k',add_table=False):
         '''
         This function generates a corner plot for the retrieved parameters.
         '''
@@ -848,7 +849,7 @@ class retrieval_plotting(r_globals.globals):
 
         if plot_corner:
             fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],[local_titles[ind] for ind in inds],dimension = np.size(inds),truths=none_test(local_truths,inds),
-                                quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color)
+                                quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color,add_table=add_table)
             # Save the figure or retrun the figure object
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
@@ -1077,7 +1078,8 @@ class retrieval_plotting(r_globals.globals):
         roundx = np.log10(np.abs(xticks[1]-xticks[0]))
         ax2.set_xticks(xticks)
         if roundx>=0.5:
-            ax2.set_xticklabels(((xticks*10**(-roundx)).astype(int)*10**(roundx)).astype(int),rotation=90)
+            #ax2.set_xticklabels(((xticks*10**(-roundx)).astype(int)*10**(roundx)).astype(int),rotation=90)
+            ax2.set_xticklabels(xticks.astype(int),rotation=90)
         else:
             ax2.set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),rotation=90)
         ax2.set_xlim(ax2_xlim)
@@ -1092,7 +1094,8 @@ class retrieval_plotting(r_globals.globals):
             roundy = np.log10(np.abs(yticks[1]-yticks[0]))
             ax2.set_yticks(yticks)
             if roundy>=0.5:
-                ax2.set_yticklabels(((yticks*10**(-roundy)).astype(int)*10**(roundy)).astype(int))
+                #ax2.set_yticklabels(((yticks*10**(-roundy)).astype(int)*10**(roundy)).astype(int))
+                ax2.set_yticklabels(yticks.astype(int))
             else:
                 ax2.set_yticklabels(np.round(yticks,int(-np.floor(roundy-0.5))))
         ax2.set_ylim(ax2_ylim[::-1])

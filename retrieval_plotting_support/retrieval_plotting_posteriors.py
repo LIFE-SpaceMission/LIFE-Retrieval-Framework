@@ -17,7 +17,7 @@ from retrieval_plotting_support import retrieval_plotting_colors as rp_col
 
 # Routine for generating corner plots
 def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
-            quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color='k',color_truth='C3',bins=50):
+            quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color='k',color_truth='C3',bins=50,add_table = False):
     
     # Find the dimension of the corner plot.
     if dimension is None:
@@ -25,6 +25,12 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
 
     # Generate colorlevels for the different quantiles
     color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles2d)
+
+    if add_table:
+        table = []
+        columns = ('True Values', 'Retrieved Values')
+        rows = titles
+        colours = ['white',color]
 
     # Start of plotting routine
     fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
@@ -50,9 +56,18 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
             # Round q and print the retrieved value above the histogram plot
             round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
             if round>=0.5:
-                axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
+                if add_table:
+                    table.append([str(int(truths[i])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$'])
+                else:
+                    axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
             else:
-                axs[i,i].set_title(str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
+                if add_table:
+                    table.append([str(np.round(truths[i],int(-np.floor(round-0.5)))),
+                            str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
+                            str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
+                            str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$'])
+                else:
+                    axs[i,i].set_title(str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                             str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                             str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
 
@@ -82,7 +97,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                     axs[i,j].plot(truths[j],truths[i],color=color_truth,marker='o',markersize=8)
                 
                 # Plot the 2d histograms between different parameters to show correlations between the parameters
-                Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=15,range = [list(xlim),list(ylim)])
+                Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=20,range = [list(xlim),list(ylim)])
                 map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
                 axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
@@ -137,6 +152,20 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                         axs[i,j].set_xlabel(titles[j]+' '+units[j],fontsize=fs)
             else:
                 axs[i,j].set_xticks([])
+
+    # If wanted plot the true values in a table
+    if add_table:
+        ax_table = fig.add_subplot(111, frameon =False)
+        ax_table.axes.get_xaxis().set_visible(False)
+        ax_table.axes.get_yaxis().set_visible(False)
+            
+        # Add a table at the bottom of the axes
+        the_table = ax_table.table(cellText=table,rowLabels=rows,cellLoc='center',colColours=colours,colLabels=columns,bbox=(0.6, 1-dimension*0.4/17, 0.4, dimension*0.4/17))
+        the_table.set_fontsize(2*(dimension/17)*fs)
+        the_table.scale(1, 3)
+
+
+    
 
     # Set all titles at a uniform distance from the subplots
     fig.align_ylabels(axs[:, 0])
