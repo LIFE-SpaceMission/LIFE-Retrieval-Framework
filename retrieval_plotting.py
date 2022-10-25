@@ -14,6 +14,7 @@ import pickle
 from scipy.ndimage.filters import gaussian_filter1d
 import scipy.interpolate as scp
 import scipy.optimize as sco
+import scipy as sp
 import time as t
 
 # Import additional external files
@@ -708,10 +709,14 @@ class retrieval_plotting(r_globals.globals):
                 if self.params[param_names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
                     #Plotting for the special upper limit prior case
                     if self.priors[i] == 'ULU':
-                        local_equal_weighted_post[:,i] = np.log10(1-local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}(1-$ ' + local_titles[i] + '$)$'
+                        #local_equal_weighted_post[:,i] = np.log10(1-local_equal_weighted_post[:,i])
+                        #local_titles[i] = 'log$_{10}(1-$ ' + local_titles[i] + '$)$'
+                        #if not local_truths[i] is None:
+                        #    local_truths[i] = np.log10(1-local_truths[i])
+                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
+                        local_titles[i] = 'log$_{10}($ ' + local_titles[i] + '$)$'
                         if not local_truths[i] is None:
-                            local_truths[i] = np.log10(1-local_truths[i])
+                            local_truths[i] = np.log10(local_truths[i])
                     else:
                         local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
                         local_titles[i] = 'log$_{10}$ ' + local_titles[i]
@@ -774,7 +779,8 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k',add_table=False):
+                    plot_clouds=True,plot_chemcomp=True,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k',
+                    add_table=False,color_truth='C3',ULU=[],ULU_lim=-1):
         '''
         This function generates a corner plot for the retrieved parameters.
         '''
@@ -836,7 +842,7 @@ class retrieval_plotting(r_globals.globals):
 
         # If wanted add the bond albedo and the equilibrium temperature to the plot
         if plot_bond is not None:
-            fig, axs, A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20,fit_BB=BB_fit_range)
+            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20,fit_BB=BB_fit_range, plot=False)
             local_equal_weighted_post = np.append(local_equal_weighted_post, self.ret_opaque_T,axis=1)
             local_equal_weighted_post = np.append(local_equal_weighted_post, self.A_Bond_ret,axis=1)
             local_truths += [T_equ_true,A_Bond_true]
@@ -849,7 +855,7 @@ class retrieval_plotting(r_globals.globals):
 
         if plot_corner:
             fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],[local_titles[ind] for ind in inds],dimension = np.size(inds),truths=none_test(local_truths,inds),
-                                quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color,add_table=add_table)
+                                quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color,add_table=add_table,color_truth=color_truth,ULU=ULU,ULU_lim=ULU_lim)
             # Save the figure or retrun the figure object
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
@@ -858,10 +864,8 @@ class retrieval_plotting(r_globals.globals):
             if not os.path.exists(self.results_directory + 'Plots/Posteriors/'):
                 os.makedirs(self.results_directory + 'Plots/Posteriors/')
             for i in inds:
-                #print(local_titles[i])
-                #print(list(self.params.keys())[i]+'.pdf')
                 fig, axs = rp_posteriors.Posterior(local_equal_weighted_post[:,i],local_titles[i],truth=none_test(local_truths,[i]),
-                                    quantiles1d=quantiles1d,units=none_test(units,[i]),bins=bins,color=color)
+                                    quantiles1d=quantiles1d,units=none_test(units,[i]),bins=bins,color=color,ULU=(i in ULU),ULU_lim=ULU_lim)
                 if save:
                     plt.savefig(self.results_directory+'Plots/Posteriors/'+list(self.params.keys())[i]+'.pdf', bbox_inches='tight')
                 plt.close()
@@ -881,7 +885,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None):
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None,figsize=(6.4, 4.8)):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -919,7 +923,7 @@ class retrieval_plotting(r_globals.globals):
         # Start of the plotting
         ax_arg = ax
         if ax is None:
-            figure = plt.figure()
+            figure = plt.figure(figsize=figsize)
             ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
         else:
             pass
@@ -1031,13 +1035,15 @@ class retrieval_plotting(r_globals.globals):
             p_range = p_lim[1]-p_lim[0]
             Z,X,Y=np.histogram2d(self.temperature[:,-1],np.log10(self.pressure[:,-1]),bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
+        
+        Z = sp.ndimage.filters.gaussian_filter(Z, [0.75,0.75], mode='reflect')
 
         # Generate the colormap and plot the contours of the 2d histogram
         map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
         contour = ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
         # plot the true values that were used to generate the input spectrum
-        ax2.plot(self.input_temperature,self.input_pressure,color ='black')
+        #ax2.plot(self.input_temperature,self.input_pressure,color ='black')
         ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
         try:
             ax2.plot(self.true_temperature_cloud_top,(self.true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
@@ -1132,6 +1138,207 @@ class retrieval_plotting(r_globals.globals):
             return figure, ax
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def PT_Envelope_V2(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '', legend_loc = 'best',n_processes=50,true_cloud_top=None,figsize=(6.4, 4.8)):
+        '''
+        This Function creates a plot that visualizes the absolute uncertainty on the
+        retrieval results in comparison with the input PT profile for the retrieval.
+        '''
+
+        self.get_pt(skip=skip,n_processes=n_processes)
+
+        # find the quantiles for the different pressures and temperatures
+        p_layers_quantiles = [np.nanquantile(self.pressure_full,q,axis=0) for q in quantiles]
+        if plot_residual:
+            T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0)-np.nanquantile(self.temperature_full,0.5,axis=0) for q in quantiles]
+        else:
+            T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0) for q in quantiles]
+        not_nan = np.count_nonzero(~np.isnan(self.pressure_full),axis = 0)/np.shape(self.pressure_full)[0]
+
+        for q in range(len(quantiles)):
+            T_layers_quantiles[q][np.where(not_nan<min(2*(1-quantiles[q]),2*(quantiles[q])))] = np.nan
+        
+            notnan = ~np.isnan(T_layers_quantiles[q])
+            T_layers_quantiles[q] = T_layers_quantiles[q][notnan]
+            p_layers_quantiles[q] = p_layers_quantiles[q][notnan]
+
+            X_Y_Spline = scp.make_interp_spline(np.array(p_layers_quantiles[q]),np.array(T_layers_quantiles[q]))
+            p_layers_quantiles[q] = np.logspace(np.log10(p_layers_quantiles[q].min()),np.log10(p_layers_quantiles[q].max()),80)
+            T_layers_quantiles[q] = X_Y_Spline(p_layers_quantiles[q])
+            
+        # If wanted find the quantiles for cloud top and bottom pressures
+        if plot_clouds:
+            median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top), np.median(self.pressure_cloud_top)
+            cloud_top_quantiles = [np.quantile(self.pressure_cloud_top,q) for q in quantiles]
+
+        # Generate colorlevels for the different quantiles
+        color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
+
+        # Start of the plotting
+        ax_arg = ax
+        if ax is None:
+            figure = plt.figure(figsize=figsize)
+            ax = figure.add_axes([0.1, 0.1, 0.7, 0.8])
+            ax_ct = figure.add_axes([0.8, 0.1, 0.1, 0.8])
+            ax_ct.set_xticks([])
+        else:
+            pass
+
+        # Main plot
+        # Plotting the retrieved PT profile
+        for i in range(N_levels):
+            ax.fill(np.append(T_layers_quantiles[i],np.flip(T_layers_quantiles[-i-1])),
+                    np.append(p_layers_quantiles[i],np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True)
+        if plot_residual:
+            ax.semilogy([0,0], [0,1000],color ='black', linestyle=':')
+            ax.annotate('Retrieved PT Median',[0-0.025*x_lim[1],10**(0.975*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(y_lim[0]))],color = 'black',rotation=90,ha='right')
+
+        # If wanted: plotting the retrieved cloud top
+        if plot_clouds:
+            for i in range(int(len(quantiles)/2)):
+                alpha = 0.1+i*0.15
+                if i == len(quantiles)-i-2:
+                    ax_ct.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[i+1],cloud_top_quantiles[i+1]],color = 'black',alpha=alpha,lw = 0)
+                else:
+                    ax_ct.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[i+1],cloud_top_quantiles[i+1]],color = 'black',alpha=alpha,lw = 0)
+                    ax_ct.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[-i-2],cloud_top_quantiles[-i-2],cloud_top_quantiles[-i-1],cloud_top_quantiles[-i-1]],color = 'black',alpha=alpha,lw = 0)
+            ax_ct.plot([-10000,10000],[median_pressure_cloud_top,median_pressure_cloud_top],'k--')
+            ax.plot([-10000,10000],[median_pressure_cloud_top,median_pressure_cloud_top],'k--',label = 'Cloud Top\nMedian')
+            
+
+        # Plotting the true/input profile (interpolation for smoothing)
+        if plot_residual:
+            y = np.nanquantile(self.temperature_full,0.5,axis=0)
+            x = np.nanquantile(self.pressure_full,0.5,axis=0)
+            yinterp = np.interp(self.input_pressure, x, y)
+            smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 5)
+
+            # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
+            if np.isnan(smooth_T_true[-10]):
+                num_nan = np.count_nonzero(np.isnan(smooth_T_true))
+                ax.semilogy(smooth_T_true[:-num_nan-10],self.input_pressure[:-num_nan-10],color ='black', label = 'P-T Profile')
+                ax.semilogy(smooth_T_true[-num_nan-10:],self.input_pressure[-num_nan-10:],color ='black', ls = ':')
+            else:
+                ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'Input Profile')
+
+                # Plotting the true/input surface temperature/pressure
+                ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+
+            # If wanted: plotting the true/input cloud top temperature/pressure
+            try:
+                if true_cloud_top is not None:
+                    self.true_temperature_cloud_top,self.true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
+                ind_ct = (np.argmin(np.abs(np.log10(self.true_pressure_cloud_top)-np.log10(self.input_pressure))))
+                ax.plot(smooth_T_true[ind_ct],self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud Top')
+            except:
+                pass
+        else:
+            ax.semilogy(self.input_temperature,self.input_pressure,color ='black', label = 'Input Profile')
+
+            # Plotting the true/input surface temperature/pressure
+            ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Input Surface')
+
+            # If wanted: plotting the true/input cloud top temperature/pressure
+            try:
+                if true_cloud_top is not None:
+                    self.true_temperature_cloud_top,self.true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
+                ax.plot(self.true_temperature_cloud_top,self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Input Cloud Top')
+                ax_ct.plot(self.true_temperature_cloud_top,self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Input Cloud Top')
+                ax_ct.set_xlim([self.true_temperature_cloud_top[0]-1,self.true_temperature_cloud_top[0]+1])
+                ax_ct.annotate('Retrieved Cloud Top',[self.true_temperature_cloud_top[0],10**(-0.025*(np.log10(y_lim[1])-np.log10(y_lim[0])))],color = 'black',ha='left',rotation=90)
+            except:
+                pass
+
+        # Print the case identifier
+        ax.annotate(case_identifier,[x_lim[1]-0.05*(x_lim[1]-x_lim[0]),10**(np.log10(y_lim[1])-0.95*(np.log10(y_lim[1])-np.log10(y_lim[0])))],ha='right',va='top')
+        
+
+        # If it is a single plot show the axes titles
+        if ax_arg is None:
+            if plot_residual:
+                ax.set_xlabel('Temperature Relative to Retrieved Median [K]')
+            else:
+                ax.set_xlabel('Temperature [K]')
+            ax.set_ylabel('Pressure [bar]')
+        
+        # Set the limits for the plot axes
+        ax.set_xlim(x_lim)
+        ax.set_ylim(y_lim)
+        ax.invert_yaxis()
+        ax_ct.set_yscale('log')
+        ax_ct.set_ylim(y_lim)
+        ax_ct.set_yticks([],minor=False)
+        ax_ct.set_yticks([],minor=True)
+        ax_ct.invert_yaxis()
+
+        # Legend cosmetics
+        handles, labels = ax.get_legend_handles_labels()
+
+        # Add the patches to the legend
+        if plot_clouds:
+            patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :]),tuple(3*[0.9-i*0.15])],[1,1]) for i in range(N_levels)]
+        else:
+            patch_handles = [rp_hndl.MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
+
+        # Define the titles for the patches
+        if quantiles_title is None:
+            patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
+        else:
+            patch_labels = quantiles_title
+            
+        # Add the legend
+        lgd = figure.legend(['Input:']+handles[1:]+[' ']+['Retrieved:']+patch_handles+[' ']+[handles[0]]+[' ',' '],[' ']+labels[1:]+[' ',' ']+patch_labels+[' ']+[labels[0]]+[' ',' '],\
+                        handler_map={str:rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=3,loc='center',frameon=False,bbox_to_anchor=(0.5, -0.3, 0, 0))
+
+        # Save or pass back the figure
+        if ax_arg is not None:
+            pass
+        elif save:
+            if plot_residual:
+                plt.savefig(self.results_directory+'Plots/plot_pt_structure_residual_V2.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
+            else:
+                plt.savefig(self.results_directory+'Plots/plot_pt_structure_V2.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
+            return figure, ax
+        else:
+            return figure, ax
+
+
+
+
+
+
+
+
+
+
     def PT_Histogram(self, ax=None, save=False, plot_clouds=False, x_lim=[0,1000], y_lim=[1e-6,1e4], color_map=None, skip=1, bins=200, legend_color='white', truth_color='white',
                     legend_loc = 'best',n_processes=50):
         '''
@@ -1207,7 +1414,7 @@ class retrieval_plotting(r_globals.globals):
 
     def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
-                    noise_title = 'Observation Noise', plot_best_fit = False, legend_loc = 'best', n_processes=50):
+                    noise_title = 'Observation Noise', plot_best_fit = False, legend_loc = 'best', n_processes=50,figsize=(12,2)):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
@@ -1230,7 +1437,7 @@ class retrieval_plotting(r_globals.globals):
             if plot_residual:
                 figure = plt.figure(figsize=(12,2))
             else:
-                figure = plt.figure()
+                figure = plt.figure(figsize=figsize)
             ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
         else:
             pass
@@ -1327,9 +1534,9 @@ class retrieval_plotting(r_globals.globals):
             pass
         elif save:
             if plot_residual:
-                plt.savefig(self.results_directory+'Plots/plot_spectrum_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
+                plt.savefig(self.results_directory+'Plots/plot_spectrum_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
             else:
-                plt.savefig(self.results_directory+'Plots/plot_spectrum.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,))
+                plt.savefig(self.results_directory+'Plots/plot_spectrum.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
             return figure, ax
 
 

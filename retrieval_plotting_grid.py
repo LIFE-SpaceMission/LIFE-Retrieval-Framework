@@ -21,6 +21,8 @@ import retrieval_plotting as rp
 from retrieval_support import retrieval_posteriors as r_post
 from retrieval_plotting_support import retrieval_plotting_handlerbase as rp_hndl
 from retrieval_plotting_support import retrieval_plotting_posteriors as rp_posteriors
+import numpy as np
+import scipy as sp
 
 
 
@@ -185,6 +187,7 @@ class grid_plotting():
             local_grid_results[run]['local_truths'] = self.grid_results['rp_object'][run].truths.copy()
             local_grid_results[run]['local_titles'] = self.grid_results['rp_object'][run].titles.copy()
             local_grid_results[run]['local_posterior_keys'] = list(self.grid_results['rp_object'][run].params.keys())
+            local_grid_results[run]['local_priors'] = list(self.grid_results['rp_object'][run].priors)
 
             # Adust the local copy of the posteriors according to the users desires
             local_grid_results[run]['local_equal_weighted_post'], local_grid_results[run]['local_truths'], local_grid_results[run]['local_titles'] = \
@@ -200,6 +203,7 @@ class grid_plotting():
                 local_grid_results[run]['local_truths'] += [T_equ_true,A_Bond_true]
                 local_grid_results[run]['local_titles'] += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
                 local_grid_results[run]['local_posterior_keys'] += ['T_eq', 'A_B']
+                local_grid_results[run]['local_priors'] += ['U', 'U']
 
         # Get the unique posterior keys and return
         # Todo: add a routine if there is no maximal category  
@@ -221,18 +225,20 @@ class grid_plotting():
 
     def posteriors_custom_grid(self,x_category=None,y_category=None,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[2.5,3],sharex=True,sharey=True,
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
-                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None,collapse = True):
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None,collapse = True,ULU_lim=[-1.8,1.2]):
 
         # Generate the grid of runs for plotting
         save_directory, x_dim, x_cat, y_dim, y_cat, o_dim, o_cat, combinations_local_sub_categories, run_categorization = \
                                     self._grid_generator('Posteriors',x_category=x_category,y_category=y_category,overplot_category=overplot_category,return_all=True)
         
         if collapse:
-            run_categorization_collapsed = np.zeros((len(combinations_local_sub_categories),y_dim+x_dim,1,o_dim), dtype=object)
+            print(x_dim,y_dim)
+            run_categorization_collapsed = np.zeros((len(combinations_local_sub_categories),y_dim*x_dim,1,o_dim), dtype=object)
+            print(np.shape(run_categorization_collapsed))
             for p in range(len(combinations_local_sub_categories)):
                 for i in range(x_dim):
                     run_categorization_collapsed[p,i*y_dim:(i+1)*y_dim,0,:] = run_categorization[p,:,i,:]
-            y_dim = x_dim+y_dim
+            y_dim = x_dim*y_dim
             x_dim = 1
             run_categorization = run_categorization_collapsed.copy()
 
@@ -246,14 +252,14 @@ class grid_plotting():
             print('Plotting the results for: '+ key)
             self._posterior_plotting(combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=key,sharex=sharex,sharey=sharey)
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=key,sharex=sharex,sharey=sharey,ULU_lim=ULU_lim)
             print('Done plotting the posteriors for: '+key)
 
 
 
     def posteriors_grid(self,x_size = 1,overplot_category=None,overplot_identifiers=None,posterior_identifiers=None,subfig_size=[2.5,3],
                     log_pressures=True, log_mass=True,log_abundances=True, log_particle_radii=True,colors=None,hist_settings=None,bins=20,true_profile=False,
-                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None):
+                    plot_pt=True,plot_physparam=True,plot_chemcomp=True,plot_clouds=True,plot_bond=None,BB_fit_range=None,ULU_lim=[-1.8,1.2]):
 
         # Secify what posteriors are in the grid:
         plotted_posts = ''
@@ -282,14 +288,14 @@ class grid_plotting():
         print('Plotting the posterior grids.')
         self._posterior_plotting(combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,plotted_posts=plotted_posts)
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,plotted_posts=plotted_posts,ULU_lim=ULU_lim)
         print('Done plotting the posterior grids.')
 
 
 
     def _posterior_plotting(self,combinations_local_sub_categories,run_categorization,local_grid_results,save_directory,
                                     x_dim,x_cat,y_dim,y_cat,o_dim,o_cat,unique_posterior_keys,colors,hist_settings,
-                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None,plotted_posts='',sharex=False,sharey=False):
+                                    overplot_identifiers,posterior_identifiers,bins,subfig_size,true_profile,key_in=None,plotted_posts='',sharex=False,sharey=False,ULU_lim=[-1.8,1.2]):
 
         # Increase the recurion limit
         sys.setrecursionlimit(10**9)
@@ -352,7 +358,12 @@ class grid_plotting():
                                         posterior_identifier = posterior_identifiers[[i for i in posterior_identifiers.keys() if i in run][0]][post]
 
                                     # Plot the posterior histogram
-                                    if xlim[0] != 1e100:
+                                    if local_grid_results[run]['local_priors'][post] == 'ULU':
+                                        h = np.histogram(local_grid_results[run]['local_equal_weighted_post'][:,post],density=True,bins=bins,range = (ULU_lim[0],0))
+                                        h2 = np.histogram(np.log10(1-10**(np.arange(-7,0,0.000001))),density=True,bins=h[1])
+                                        h = (h[0]/h2[0],h[1])
+                                        h = ax[y,x].hist(h[1][: -1],h[1], weights = sp.ndimage.filters.gaussian_filter(h[0], [ULU_lim[1]], mode='constant'),color=color,density=True,**hist_setting,label=overplot_identifier)
+                                    elif xlim[0] != 1e100:
                                         h = ax[y,x].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],range=xlim,color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
                                     else:
                                         h = ax[y,x].hist(local_grid_results[run]['local_equal_weighted_post'][:,post],color=color,density=True,bins=bins,**hist_setting,label=overplot_identifier)
@@ -409,18 +420,21 @@ class grid_plotting():
 
             # Save the plots
             if key_in is None:
-
-                plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight')
+                text_ex = fig.text(0.095,0.4925,'Posterior Density',rotation = 90,va='center')
+                plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight', bbox_extra_artists=[text_ex])
                 plt.clf()
             else:
                 plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
                 xlim = ax[3,0].get_xlim()
-                ylim = ax[3,0].get_ylim()
+                ylim = ax[5,0].get_ylim()
+                ylim = (ylim[0],1.1*ylim[1])
                 
-                ax[0,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
-                ax[1,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
-                ax[2,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
-                ax[3,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.975*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                ax[0,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
+                ax[1,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
+                ax[2,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=15$',ha = 'right',va='top')
+                ax[3,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=15$',ha = 'right',va='top')
+                ax[4,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                ax[5,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
                 
                 ax[0,0].set_xlim(xlim)
                 ax[0,0].set_ylim(ylim)
@@ -430,6 +444,10 @@ class grid_plotting():
                 ax[2,0].set_ylim(ylim)
                 ax[3,0].set_xlim(xlim)
                 ax[3,0].set_ylim(ylim)
+                ax[4,0].set_xlim(xlim)
+                ax[4,0].set_ylim(ylim)
+                ax[5,0].set_xlim(xlim)
+                ax[5,0].set_ylim(ylim)
                 
                 plt.margins(0,0)
 
@@ -441,6 +459,14 @@ class grid_plotting():
                 fig = plt.figure()
                 fig.legend(handles,labels, frameon = False,loc='center',ncol = len(handles))
                 plt.savefig(save_directory+'/'+title+'/'+key+'_Posterior_Legend.pdf', bbox_inches='tight')
+                plt.clf()
+
+                fig,ax = plt.subplots(1,1,figsize = (0.2,y_dim*subfig_size[1]),
+                            sharex=sharex,sharey=sharey,squeeze=False)
+                ax[0,0].axis('off')
+                text_ex = fig.text(0.5,0.518,'Posterior Density',rotation = 90,va='center',ha='center')
+                plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
+                plt.savefig(save_directory+'/'+title+'/Posterior_ylabel.pdf', bbox_extra_artists=[text_ex])
                 plt.clf()
             
 

@@ -48,7 +48,7 @@ def color_map(Z,color_levels,level_thresholds):
 
     # Boundary case where the maximum is reached before the last level
     while len(levels) <= np.shape(color_levels)[0]:
-        levels += [levels[-1]+1]
+        levels += [levels[-1]*10]
 
     # Generate the colormap 
     map, norm  = col.from_levels_and_colors(levels,color_levels)

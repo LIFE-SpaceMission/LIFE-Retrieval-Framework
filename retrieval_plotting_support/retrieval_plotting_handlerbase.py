@@ -144,6 +144,12 @@ class Handles(HandlerBase):
             l1 = plt.Line2D([width/2], [0.5*height],marker = 'o',ms=10,color='w',markeredgecolor='k',alpha=0.2)
             l2 = plt.Line2D([x0,x0+width], [0.5*height,0.5*height],lw=2,color='Black',ls='-')
             return [l1,l2]
+        elif orig_handle == 'Multiline':
+            l1 = plt.Line2D([x0,x0+0.95*width], [0.0*height,0.0*height],lw=1,color='gray',ls=':')
+            l2 = plt.Line2D([x0,x0+0.95*width], [1./3*height,1./3*height],lw=1,color='gray',ls='-.')
+            l3 = plt.Line2D([x0,x0+0.95*width], [2./3*height,2./3*height],lw=1,color='gray',ls='--')
+            l4 = plt.Line2D([x0+0.04*width,x0+0.91*width], [1*height,1*height],lw=1,color='gray',ls='-')
+            return [l1,l2,l3,l4]
         else:
-            title = mtext.Text(x0, y0, orig_handle + '',weight='bold', usetex=False, **self.text_props,fontsize=18)
+            title = mtext.Text(x0, y0, orig_handle + '',weight='bold', usetex=False, **self.text_props)
             return [title]
