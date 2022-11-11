@@ -16,7 +16,7 @@ from retrieval_plotting_support import retrieval_plotting_colors as rp_col
 
 
 # Routine for generating corner plots
-def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
+def Corner(data,titles,fig,axs,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
             quantiles2d=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],color='k',color_truth='C3',bins=50):
     
     # Find the dimension of the corner plot.
@@ -27,7 +27,8 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
     color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles2d)
 
     # Start of plotting routine
-    fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
+    #fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))  
+    # Note NL: previous line now needs to be defined outside of function -> moved to posteriors fnc in retrieval_plotting.py
     fig.subplots_adjust(hspace=0.0,wspace=0.0)
     fs = 18
     
@@ -84,7 +85,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                 # Plot the 2d histograms between different parameters to show correlations between the parameters
                 Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=15,range = [list(xlim),list(ylim)])
                 map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
-                axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels))
+                axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels),alpha=0.8)
 
                 # Setting the limit of the x,y-axis
                 axs[i,j].set_ylim(ylim)

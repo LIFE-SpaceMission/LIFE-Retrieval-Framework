@@ -131,6 +131,8 @@ class retrieval_plotting(r_globals.globals):
                             self.params_names['c_species_abundance']=key
                         else:
                             self.params_names['c_'+key_name]=key
+                    elif section == 'MOON PARAMETERS':
+                        self.titles.append('$\\mathrm{'+str(key)+'}$')
 
                     else:
                         self.titles.append(key)
@@ -150,6 +152,8 @@ class retrieval_plotting(r_globals.globals):
                     known = {'value': float(val),
                                  'type': section}
                     self.knowns[key] = known
+                
+        #print(self.truths)
         
         self.input_wavelength, self.input_flux, self.input_error = np.loadtxt(self.results_directory + 'input_spectrum.txt').T
         try:
@@ -170,7 +174,9 @@ class retrieval_plotting(r_globals.globals):
         phys_vars_known = {}
         chem_vars_known = {}
         cloud_vars_known = {}
+        moon_vars_known = {} ##############
 
+        #print(self.knowns.keys())
         # Read in all known spectral parameters
         for par in self.knowns.keys():
             #key = list(self.knowns.keys()).index(par)
@@ -188,12 +194,22 @@ class retrieval_plotting(r_globals.globals):
                 except:
                     cloud_vars_known['_'.join(par.split('_',2)[:2])]['abundance'] = self.knowns[par]['value']
                     chem_vars_known[par.split('_',1)[0]] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'MOON PARAMETERS': ######################
+                #print('hello there')
+                if not par in moon_vars_known.keys():
+                    moon_vars_known[par] = {}
+                try:
+                    moon_vars_known[par] = self.knowns[par]['value']
+                    #print('moon_vars_known = ',moon_vars_known)
+                except:
+                    print('read in of knowns not working')
+            #print(moon_vars_known)
         
-        return temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known
+        return temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, moon_vars_known
 
 
 
-    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=False):
+    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=False):
         '''
         This function creates libraries for the retrieved
         parameters in a retrieval for a given index of the
@@ -205,6 +221,7 @@ class retrieval_plotting(r_globals.globals):
         self.chem_vars = chem_vars_known.copy()
         self.phys_vars = phys_vars_known.copy()
         self.cloud_vars = cloud_vars_known.copy()
+        self.moon_vars = moon_vars_known.copy() ###############
             
         # Read in the values from the equal weighted posteriors
         retrieved_params = list(self.params.keys())
@@ -230,6 +247,15 @@ class retrieval_plotting(r_globals.globals):
                 except:
                     self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])]['abundance'] = temp_equal_weighted_post[ind,par]
                     self.chem_vars[retrieved_params[par].split('_',1)[0]] = temp_equal_weighted_post[ind,par]
+            elif self.params[retrieved_params[par]]['type'] == 'MOON PARAMETERS': ###############
+                # if not par in self.moon_vars.keys():
+                #     self.moon_vars[retrieved_params[par]] = {}
+                #     print('hello there')
+                # else:
+                self.moon_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
+                #print(self.moon_vars[retrieved_params[par]])
+        #print(self.phys_vars)
+        #print(self.moon_vars)
 
 
 
@@ -314,7 +340,7 @@ class retrieval_plotting(r_globals.globals):
         temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
 
         # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
+        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, moon_vars_known = self.__get_knowns() ###############
 
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
@@ -359,8 +385,8 @@ class retrieval_plotting(r_globals.globals):
         for i in range(ind_start,ind_end):
             ind = min(2,i)+skip*max(0,i-2)
 
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
+            # Fetch the retrieved parameters for a given ind ####################
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
         
             # Test the values of P0 and g and change to required values if necessary
             self.__g_test()
@@ -462,7 +488,7 @@ class retrieval_plotting(r_globals.globals):
         temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
 
         # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known = self.__get_knowns()
+        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, moon_vars_known = self.__get_knowns() ################
 
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
@@ -507,8 +533,8 @@ class retrieval_plotting(r_globals.globals):
         for i in range(ind_start,ind_end):
             ind = min(2,i)+skip*max(0,i-2)
 
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind)
+            # Fetch the retrieved parameters for a given ind ###############
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,moon_vars_known,temp_equal_weighted_post,ind)
 
             # Scaling physical variables of the system to correct units
             try:
@@ -521,10 +547,21 @@ class retrieval_plotting(r_globals.globals):
             except:
                 print("ERROR! Planetary radius is missing!")
                 sys.exit()
+            try:
+                if self.settings['moon'] == 'True': ################
+                    try:
+                        self.moon_vars['R_m'] = self.moon_vars['R_m'] * nc.r_earth
+                    except:
+                        print("ERROR! Moon radius is missing!")
+                        sys.exit()
+            except:
+                pass
 
             # Test the values of P0 and g and change to required values if necessary
             self.__g_test()
             self.__P0_test()
+
+            #print('testing')
 
             # Calculate the pressure temperature profile corresponding to the set of parameters
             self.make_press_temp_terr()
@@ -546,6 +583,12 @@ class retrieval_plotting(r_globals.globals):
             if self.phys_vars['d_syst'] is not None:
                 self.rt_object.flux *= self.phys_vars['R_pl']**2/self.phys_vars['d_syst']**2
 
+                try:
+                    if self.settings['moon'] == 'True': ################
+                        self.moon_flux *= self.moon_vars['R_m']**2/self.phys_vars['d_syst']**2
+                except:
+                    pass
+
             for instrument in self.dwlen.keys():  # CURRENTLY USELESS
                 # Rebin the spectrum according to the input spectrum
                 if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
@@ -556,10 +599,29 @@ class retrieval_plotting(r_globals.globals):
                 #Store the calculated flux according to the considered case
                 if i == 0:
                     results['wavelength'] = nc.c/self.rt_object.freq/1e-4 #self.dwlen[instrument]
-                    results['true_flux'] = np.array(self.rt_object.flux)
+                    ############################
+                    try:
+                        if self.settings['moon'] == 'True': ################
+                            results['true_flux'] = np.array(self.rt_object.flux+self.moon_flux)
+                            #print('moon in retrieval model')
+                        else:
+                            results['true_flux'] = np.array(self.rt_object.flux)
+                            #print('no moon in model')
+                    except:
+                        results['true_flux'] = np.array(self.rt_object.flux)
+                        #print('no moon in config file')
 
                 elif i == 1:
-                    results['best_flux'] = np.array(self.rt_object.flux)
+                    try:
+                        if self.settings['moon'] == 'True': ################
+                            results['best_flux'] = np.array(self.rt_object.flux+self.moon_flux)
+                            #print('moon in retrieval model')
+                        else:
+                            results['best_flux'] = np.array(self.rt_object.flux)
+                            #print('no moon in model')
+                    except:
+                        results['best_flux'] = np.array(self.rt_object.flux)
+                        #print('no moon in config file')
 
                 else:
                     if (i == 2) or (i==ind_start):
@@ -577,7 +639,16 @@ class retrieval_plotting(r_globals.globals):
                         save = i-ind_start
                 
                     # Save the results
-                    results['retrieved_fluxes'][save,:] = self.rt_object.flux
+                    try:
+                        if self.settings['moon'] == 'True': ################
+                            results['retrieved_fluxes'][save,:] = self.rt_object.flux + self.moon_flux
+                            #print('moon in retrieval model')
+                        else:
+                            results['retrieved_fluxes'][save,:] = self.rt_object.flux
+                            #print('no moon in model')
+                    except:
+                        results['retrieved_fluxes'][save,:] = self.rt_object.flux
+                        #print('no moon in config file')
             
             # Print status of calculation
             if process == 0:
@@ -585,6 +656,8 @@ class retrieval_plotting(r_globals.globals):
                 remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
                 print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of spectra calculated. Estimated time remaining: '+str(remain_time//3600)+
                         ' h, '+str((remain_time%3600)//60)+' min.            ', end = "\r")
+
+        #print('hello there') # debugging
 
         # Print status of calculation
         if process == 0:
@@ -661,6 +734,7 @@ class retrieval_plotting(r_globals.globals):
             # Combine the data from the different processes
             print('Combining all data.')
             result_combined = {}
+            #print(result_process) # debugging
             for key in result_process[0].keys():
                 combined = result_process[0][key].copy()
                 for process in range(1,function_args['n_processes']):
@@ -773,9 +847,10 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_bond=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k'):
+                    plot_clouds=True,plot_chemcomp=True,plot_moon=False,plot_bond=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],color='k',ssDIR=None,sscolor='dimgray',sslegend=None):
         '''
         This function generates a corner plot for the retrieved parameters.
+        Note NL: ssDIR = directory of second sample for comparison corner plots, set to None if no second sample, sscolor = color for second sample, sslegend=[sslabel,label]
         '''
 
         # Define the dimension of the corner plot, which is equal to the number of retrieved parameters 
@@ -790,6 +865,7 @@ class retrieval_plotting(r_globals.globals):
         inds_physparam = []
         inds_chemcomp = []
         inds_clouds = []
+        inds_moon = [] ############
 
         param_names = list(self.params.keys())
         for i in range(len(param_names)):
@@ -797,6 +873,8 @@ class retrieval_plotting(r_globals.globals):
                 inds_chemcomp += [i]
             if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
                 inds_clouds += [i]
+            if self.params[param_names[i]]['type'] == 'MOON PARAMETERS': ##############
+                inds_moon += [i]
             if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
                 inds_physparam += [i]
             # Adjust retrieved abundances for the line absorbers
@@ -826,6 +904,8 @@ class retrieval_plotting(r_globals.globals):
             inds += [i for i in range(len(param_names)) if i in inds_chemcomp]
         if plot_clouds:
             inds += [i for i in range(len(param_names)) if i in inds_clouds]
+        if plot_moon: ##############
+            inds += [i for i in range(len(param_names)) if i in inds_moon]
 
         def none_test(input,inds):
             try:
@@ -847,8 +927,94 @@ class retrieval_plotting(r_globals.globals):
         if not titles is None:
             local_titles=titles
 
+
+        # do same as above for second sample if directory provided
+        if ssDIR is not None:  
+            ss = retrieval_plotting(ssDIR)
+            ss_dimension = ss.n_params
+        
+            ss_equal_weighted_post = np.copy(ss.equal_weighted_post)
+            ss_truths = ss.truths.copy()
+            ss_titles = ss.titles.copy()
+
+            ss_inds_pt = []
+            ss_inds_physparam = []
+            ss_inds_chemcomp = []
+            ss_inds_clouds = []
+            ss_inds_moon = [] ##############
+
+            ss_param_names = list(ss.params.keys())
+            for i in range(len(ss_param_names)):
+                if ss.params[ss_param_names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                    ss_inds_chemcomp += [i]
+                if ss.params[ss_param_names[i]]['type'] == 'CLOUD PARAMETERS':
+                    ss_inds_clouds += [i]
+                if ss.params[ss_param_names[i]]['type'] == 'MOON PARAMETERS': ############
+                    ss_inds_moon += [i]
+                if ss.params[ss_param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
+                    ss_inds_physparam += [i]
+                # Adjust retrieved abundances for the line absorbers
+                if ss.params[ss_param_names[i]]['type'] == 'TEMPERATURE PARAMETERS':
+                    ss_inds_pt += [i]
+                    #Plotting for the special upper limit prior case
+                    if ss.priors[i] == 'THU':
+                        ss_equal_weighted_post[:,i] = ss_equal_weighted_post[:,i]**3
+                        ss_titles[i] = r'sqrt$_3(' + ss_titles[i] + '$)$'
+                        if not ss_truths[i] is None:
+                            ss_truths[i] = ss_truths[i]**3
+                    else:
+                        pass
+            
+            # Adust the local copy of the posteriors according to the users desires
+            ss_equal_weighted_post, ss_truths, ss_titles = ss.Scale_Posteriors(ss_equal_weighted_post,
+                                ss_truths, ss_titles, log_pressures=log_pressures, log_mass=log_mass,
+                                log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+            
+            # add all wanted parameters to the corner plot
+            ss_inds = []
+            if plot_pt:
+                ss_inds += [i for i in range(len(ss_param_names)) if i in ss_inds_pt]
+            if plot_physparam:
+                ss_inds += [i for i in range(len(ss_param_names)) if i in ss_inds_physparam]
+            if plot_chemcomp:
+                ss_inds += [i for i in range(len(ss_param_names)) if i in ss_inds_chemcomp]
+            if plot_clouds:
+                ss_inds += [i for i in range(len(ss_param_names)) if i in ss_inds_clouds]
+            if plot_moon: ############
+                ss_inds += [i for i in range(len(ss_param_names)) if i in ss_inds_moon]
+
+            def none_test(input,ss_inds):
+                try:
+                    return [input[i] for i in ss_inds]
+                except:
+                    return None
+
+            # If wanted add the bond albedo and the equilibrium temperature to the plot
+            if plot_bond is not None:
+                if not hasattr(ss, 'A_Bond_ret'):
+                    ss.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20)
+                ss_equal_weighted_post = np.append(ss_equal_weighted_post, ss.ret_opaque_T,axis=1)
+                ss_equal_weighted_post = np.append(ss_equal_weighted_post, ss.A_Bond_ret,axis=1)
+                ss_truths += plot_bond[-2:]
+                ss_inds += [-2,-1]
+                ss_titles += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
+            
+            if not titles is None:
+                ss_titles=titles
+
+
         if plot_corner:
-            fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],[local_titles[ind] for ind in inds],dimension = np.size(inds),truths=none_test(local_truths,inds),
+            dim = np.size(inds)
+            fig, axs = plt.subplots(dim, dim,figsize=(dim*2.5,dim*2.5))
+            #fig, axs = 
+            if ssDIR is not None: # plot corner of second sample if directory is provided
+                from matplotlib.patches import Patch
+                rp_posteriors.Corner(ss_equal_weighted_post[:,ss_inds],[ss_titles[ind] for ind in ss_inds],fig,axs,dimension = dim,truths=none_test(ss_truths,ss_inds),
+                                    quantiles1d=quantiles1d,units=none_test(units,ss_inds),bins=bins,color=sscolor)
+                plt.legend(handles=[Patch(facecolor=sscolor,label=sslegend[0],alpha=0.8), \
+                    Patch(facecolor=color,label=sslegend[1],alpha=0.8)],loc='upper center',bbox_to_anchor=(-dim/2, -0.6),fancybox=True,ncol=2,fontsize=24)
+
+            rp_posteriors.Corner(local_equal_weighted_post[:,inds],[local_titles[ind] for ind in inds],fig,axs,dimension = dim,truths=none_test(local_truths,inds),
                                 quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color)
             # Save the figure or retrun the figure object
             if save:
@@ -1076,7 +1242,8 @@ class retrieval_plotting(r_globals.globals):
         roundx = np.log10(np.abs(xticks[1]-xticks[0]))
         ax2.set_xticks(xticks)
         if roundx>=0.5:
-            ax2.set_xticklabels(((xticks*10**(-roundx)).astype(int)*10**(roundx)).astype(int),rotation=90)
+            #ax2.set_xticklabels(((xticks*10**(-roundx)).astype(int)*10**(roundx)).astype(int),rotation=90)
+            ax2.set_xticklabels(xticks.astype(int),rotation=90)
         else:
             ax2.set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),rotation=90)
         ax2.set_xlim(ax2_xlim)
@@ -1091,7 +1258,8 @@ class retrieval_plotting(r_globals.globals):
             roundy = np.log10(np.abs(yticks[1]-yticks[0]))
             ax2.set_yticks(yticks)
             if roundy>=0.5:
-                ax2.set_yticklabels(((yticks*10**(-roundy)).astype(int)*10**(roundy)).astype(int))
+                #ax2.set_yticklabels(((yticks*10**(-roundy)).astype(int)*10**(roundy)).astype(int))
+                ax2.set_yticklabels(yticks.astype(int))
             else:
                 ax2.set_yticklabels(np.round(yticks,int(-np.floor(roundy-0.5))))
         ax2.set_ylim(ax2_ylim[::-1])
@@ -1329,6 +1497,99 @@ class retrieval_plotting(r_globals.globals):
             return figure, ax
 
 
+
+    def Moon_flux(self,MoonDIR): ############ NL
+        # plots retrieved moon fluxes for retrievals with moon in model 
+
+        import sys
+        sys.path.append('/net/ipa-gate/export/ipa/quanz/user_accounts/leemanni/') # find better way to import pRT
+        from petitRADTRANS import nat_cst as nc
+        DIR = self.results_directory
+        #plt.close() # make sure previous plot is closed
+
+        def B_nu(wl,T):
+            # calculate black body radiation in erg/cm^2/s/Hz/sr
+            nu = nc.c/(wl*1e-4)
+            exponent = nc.h*nu/(nc.kB*T)
+            intensity = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)
+            return intensity
+
+        def model_moon_flux(wl,T_m,R_m):
+            # returns modelled moon flux in erg/m^2/s/Hz
+            BB_flux = B_nu(wl,T_m)
+            dist_scale_moon = (R_m)**2/(10*nc.pc/100)**2
+            moon_flux = np.pi * BB_flux*dist_scale_moon
+            return moon_flux
+
+        # get wl range
+        Earth_Spec= np.loadtxt('{}input_spectrum.txt'.format(DIR), delimiter=' ')
+        L=Earth_Spec[:,0]
+        f = nc.c/(L*1e-4)
+
+        # get retrieved moon params
+        local_equal_weighted_post = np.copy(self.equal_weighted_post)
+        Tm = local_equal_weighted_post[:,-3] # in K
+        Rm = local_equal_weighted_post[:,-2]* nc.r_earth # in cm
+
+        model_flux = np.zeros((len(local_equal_weighted_post),len(L)))
+        for k in range(len(local_equal_weighted_post)):
+            model_flux[k] = model_moon_flux(L,Tm[k],Rm[k])
+
+        # calculate quantiles and plot
+        mf_q5 = np.quantile(model_flux,0.05,axis=0)
+        mf_q15 = np.quantile(model_flux,0.15,axis=0)
+        mf_q25 = np.quantile(model_flux,0.25,axis=0)
+        mf_q35 = np.quantile(model_flux,0.35,axis=0)
+        #mf_q50 = np.quantile(model_flux,0.50,axis=0)
+        mf_q65 = np.quantile(model_flux,0.65,axis=0)
+        mf_q75 = np.quantile(model_flux,0.75,axis=0)
+        mf_q85 = np.quantile(model_flux,0.85,axis=0)
+        mf_q95 = np.quantile(model_flux,0.95,axis=0)
+
+        plt.fill_between(L, mf_q5, mf_q95, facecolor='C2', alpha= 0.1,label='0.05-0.95')
+        plt.fill_between(L, mf_q15, mf_q85, facecolor='C2', alpha= 0.3,label='0.15-0.85')
+        plt.fill_between(L, mf_q25, mf_q75, facecolor='C2', alpha= 0.5,label='0.25-0.75')
+        plt.fill_between(L, mf_q35, mf_q65, facecolor='C2', alpha= 0.7,label='0.35-0.65')
+        #plt.plot(L,mf_q50,'-',color='green',label='0.50')
+
+        # get quantile moon fluxes & plot
+        mflux = np.loadtxt(MoonDIR) # in W/m^2/mum
+        i_s = DIR.find("Earth") # index of 'Earth' in path string
+        moon_flux = np.zeros_like(mflux)
+        for i in range(moon_flux.shape[1]):
+            moon_flux[:,i] = mflux[:,i]*1e3*L/f*1e4 # in erg/m^2/s/Hz
+        flux_q16 = np.quantile(moon_flux,0.16,axis=1)
+        flux_q84 = np.quantile(moon_flux,0.84,axis=1)
+        flux_q2 = np.quantile(moon_flux,0.02,axis=1)
+        flux_q98 = np.quantile(moon_flux,0.98,axis=1)
+        flux_q50 = np.quantile(moon_flux,0.5,axis=1)
+
+        plt.plot(L,flux_q2,'-.',color='k',label='q2 flux',alpha=0.5)
+        plt.plot(L,flux_q16,'--',color='k',label='q16 flux',alpha=0.5)
+        if(DIR[i_s+6:i_s+9]=='q50'):
+            plt.plot(L,flux_q50,'-',color='k',label='q50 flux')
+        else:
+            plt.plot(L,flux_q50,'-',color='k',label='q50 flux',alpha=0.5)
+        plt.plot(L,flux_q84,'--',color='k',label='q84 flux',alpha=0.5)
+        if(DIR[i_s+6:i_s+9]=='q98'):
+            plt.plot(L,flux_q98,'-.',color='k',label='q98 flux')
+        else:
+            plt.plot(L,flux_q98,'-.',color='k',label='q98 flux',alpha=0.5)
+
+        if(DIR[i_s+6]!='q'):
+            noflux = np.zeros_like(L)
+            plt.plot(L,noflux,ls='-',color='k')
+        
+
+        plt.legend(loc='best',fontsize=10) #,facecolor='silver',edgecolor='black')
+        plt.xlim([3, 20])
+        plt.ylim([0, 1.0*1e-26])
+        plt.xlabel('Wavelength (microns)',fontsize=12)
+        plt.ylabel(r'Moon flux $F_\nu$ (erg m$^{-2}$ s$^{-1}$ Hz$^{-1}$)',fontsize=12)
+        plt.tick_params(axis='both', which='minor', labelsize=12)
+
+        plt.savefig(self.results_directory+'Plots/plot_moon_flux.pdf')
+        plt.clf()
 
 
 

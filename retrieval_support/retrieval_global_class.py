@@ -315,6 +315,7 @@ class globals:
         self.phys_vars = {}
         self.cloud_vars = {}
         self.scat_vars = {}
+        self.moon_vars = {} #############
 
         for par in self.params.keys():
             key = list(self.params.keys()).index(par)
@@ -334,6 +335,9 @@ class globals:
                 except:
                     self.cloud_vars['_'.join(par.split('_',2)[:2])]['abundance'] = cube[key]
                     self.chem_vars[par.split('_',1)[0]] = cube[key]
+            elif self.params[par]['type'] == 'MOON PARAMETERS': ###############
+                self.moon_vars[par] = cube[key]
+                #print('moon params read in')
         
         for par in self.knowns.keys():
             key = list(self.knowns.keys()).index(par)
@@ -356,6 +360,8 @@ class globals:
             elif self.knowns[par]['type'] == 'SCATTERING PARAMETERS':
                  # WARNING THEY ARE NO LONGER LOGARITHMS
                  self.scat_vars[par] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'MOON PARAMETERS': ####################
+                self.moon_vars[par] = self.knowns[par]['value']
 
         """
         # for the vae_pt we currently cannot retrieve the surface pressure
@@ -405,6 +411,30 @@ class globals:
         except:
             print("ERROR! Planetary radius is missing!")
             sys.exit()
+
+        try:
+            if self.settings['moon'] == 'True': ###############
+                #print('settings_moon == True')
+                try:
+                    self.moon_vars['R_m'] = self.moon_vars['R_m'] * nc.r_earth
+                except:
+                    print("ERROR! Moon radius is missing!")
+                    sys.exit()
+        except:
+            pass # ignore if settings_moon not in config file
+
+            ############################ moved to retrieval_model_plain
+            # def B_nu(wl,T):
+            #     # calculate black body radiation in erg/cm^2/s/Hz/sr
+            #     nu = nc.c/(wl*1e-4)
+            #     exponent = nc.h*nu/(nc.kB*T)
+            #     intensity = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)
+            #     return intensity
+            # nu = self.rt_object.freq #nc.c/(self.rt_object.freq)*1e-4
+            # exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
+            # B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
+            # moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
+
 
         # CALCULATE G given M_Pl/R_pl or log_g. If in knowns already, skip
         if 'g' not in self.phys_vars.keys():
@@ -457,7 +487,7 @@ class globals:
         # Calculate the forward model; this returns the wavelengths in cm
         # and the flux F_nu in erg/cm^2/s/Hz.
 
-        self.retrieval_model_plain()
+        self.retrieval_model_plain()  # get rt_object.flux (and moon_flux)
         
         # Check: Return -inf if forward model returns NaN values.
         if np.sum(np.isnan(self.rt_object.flux)) > 0:
@@ -467,6 +497,14 @@ class globals:
         if self.phys_vars['d_syst'] is not None:
             self.rt_object.flux *= self.phys_vars['R_pl']**2 / \
                 self.phys_vars['d_syst']**2
+            
+            try:
+                if self.settings['moon'] == 'True': ################ 
+                    self.moon_flux *= self.moon_vars['R_m']**2 / \
+                        self.phys_vars['d_syst']**2
+                    # flux now in erg/m^2/s/Hz 
+            except:
+                pass
                      
         # Calculate log-likelihood
         for instrument in self.dwlen.keys():  # CURRENTLY USELESS
@@ -477,9 +515,20 @@ class globals:
             #                                            self.rt_object.flux)
             
             # Calculate log-likelihood
-            log_likelihood += -0.5 * np.sum(((self.rt_object.flux -
-                                              self.dflux[instrument]) /
-                                             self.dferr[instrument])**2.)
+            try:
+                if self.settings['moon'] == 'True': ################
+                    model_flux = self.rt_object.flux + self.moon_flux
+                    log_likelihood += -0.5 * np.sum(((model_flux -
+                                                    self.dflux[instrument]) /
+                                                    self.dferr[instrument])**2.)
+                else:
+                    log_likelihood += -0.5 * np.sum(((self.rt_object.flux -
+                                                    self.dflux[instrument]) /
+                                                    self.dferr[instrument])**2.)
+            except:
+                log_likelihood += -0.5 * np.sum(((self.rt_object.flux -
+                                                    self.dflux[instrument]) /
+                                                    self.dferr[instrument])**2.)
 
         # with open('retrieval.txt', 'w') as f:
         #        writer = csv.writer(f, delimiter='\t')
@@ -516,10 +565,18 @@ class globals:
                     self.press) * self.chem_vars[name]
         self.calc_MMW()
 
-
         self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                         self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
                         add_cloud_scat_as_abs = add_cloud_scat_as_abs)
+
+        try:
+            if self.settings['moon'] == 'True': ################
+                nu = self.rt_object.freq
+                exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
+                B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
+                self.moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
+        except:
+            pass
 
     def make_press_temp_terr(self,log_top_pressure=-6,log_ground_pressure=None,layers=100):
         """
@@ -536,6 +593,7 @@ class globals:
                 self.press = np.logspace(log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             else:
                 self.press = np.logspace(log_top_pressure,log_ground_pressure, layers, base=10)
+            #print(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)] for i in range(len(self.temp_vars))])) # debugging
             self.temp = np.polyval(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)] 
                                             for i in range(len(self.temp_vars))]), np.log10(self.press))
 

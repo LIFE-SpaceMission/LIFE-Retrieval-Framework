@@ -72,7 +72,7 @@ g.print_params()
 # Run MultiNest
 result = solve(LogLikelihood=g.LogLike, Prior=g.Priors,
                 n_dims=len(g.params), outputfiles_basename=g.prefix,
-                n_live_points=600, verbose=True) #600
+                n_live_points=1000, verbose=True) #600
 
 # # Print final results
 print('\n evidence: %(logZ).1f +- %(logZerr).1f\n' % result)
