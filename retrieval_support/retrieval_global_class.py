@@ -322,7 +322,7 @@ class globals:
         self.phys_vars = {}
         self.cloud_vars = {}
         self.scat_vars = {}
-        self.moon_vars = {} #############
+        self.moon_vars = {}
 
         for par in self.params.keys():
             key = list(self.params.keys()).index(par)
@@ -342,9 +342,8 @@ class globals:
                 except:
                     self.cloud_vars['_'.join(par.split('_',2)[:2])]['abundance'] = cube[key]
                     self.chem_vars[par.split('_',1)[0]] = cube[key]
-            elif self.params[par]['type'] == 'MOON PARAMETERS': ###############
+            elif self.params[par]['type'] == 'MOON PARAMETERS':
                 self.moon_vars[par] = cube[key]
-                #print('moon params read in')
         
         for par in self.knowns.keys():
             key = list(self.knowns.keys()).index(par)
@@ -367,7 +366,7 @@ class globals:
             elif self.knowns[par]['type'] == 'SCATTERING PARAMETERS':
                  # WARNING THEY ARE NO LONGER LOGARITHMS
                  self.scat_vars[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'MOON PARAMETERS': ####################
+            elif self.knowns[par]['type'] == 'MOON PARAMETERS':
                 self.moon_vars[par] = self.knowns[par]['value']
 
         """
@@ -419,29 +418,12 @@ class globals:
             print("ERROR! Planetary radius is missing!")
             sys.exit()
 
-        try:
-            if self.settings['moon'] == 'True': ###############
-                #print('settings_moon == True')
-                try:
-                    self.moon_vars['R_m'] = self.moon_vars['R_m'] * nc.r_earth
-                except:
-                    print("ERROR! Moon radius is missing!")
-                    sys.exit()
-        except:
-            pass # ignore if settings_moon not in config file
-
-            ############################ moved to retrieval_model_plain
-            # def B_nu(wl,T):
-            #     # calculate black body radiation in erg/cm^2/s/Hz/sr
-            #     nu = nc.c/(wl*1e-4)
-            #     exponent = nc.h*nu/(nc.kB*T)
-            #     intensity = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)
-            #     return intensity
-            # nu = self.rt_object.freq #nc.c/(self.rt_object.freq)*1e-4
-            # exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
-            # B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
-            # moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
-
+        if self.settings['moon'] == 'True':
+            try:
+                self.moon_vars['R_m'] = self.moon_vars['R_m'] * nc.r_earth
+            except:
+                print("ERROR! Moon radius is missing!")
+                sys.exit()
 
         # CALCULATE G given M_Pl/R_pl or log_g. If in knowns already, skip
         if 'g' not in self.phys_vars.keys():
@@ -559,7 +541,7 @@ class globals:
                     self.press) * self.chem_vars[name]
         self.calc_MMW()
 
-        if self.settings['moon'] == 'True': ################
+        if self.settings['moon'] == 'True':
             nu = self.rt_object.freq
             exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
             B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
@@ -576,7 +558,6 @@ class globals:
                                    Rstar=self.scat_vars['stellar_radius']*nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*nc.AU,
                             add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
 
-                            
     def make_press_temp_terr(self,log_top_pressure=-6,log_ground_pressure=None,layers=100):
         """
         Creates the pressure-temperature profile from the temperature

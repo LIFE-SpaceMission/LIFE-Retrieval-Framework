@@ -34,8 +34,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
         colours = ['white','white']
 
     # Start of plotting routine
-    #fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))  
-    # Note NL: previous line now needs to be defined outside of function -> moved to posteriors fnc in retrieval_plotting.py
+    fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
     fig.subplots_adjust(hspace=0.0,wspace=0.0)
     fs = 18
     
@@ -128,7 +127,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
 
 
                 map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
-                axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels),alpha=0.8)
+                axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
                 # Setting the limit of the x,y-axis
                 axs[i,j].set_ylim(ylim)
