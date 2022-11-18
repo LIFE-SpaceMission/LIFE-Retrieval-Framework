@@ -514,7 +514,7 @@ class grid_plotting():
             # Initialize a new figure for the plot
             fig,ax = plt.subplots(y_dim,x_dim,figsize = (x_dim*subfig_size[0],y_dim*subfig_size[1]),
                         sharex=sharex,sharey=sharey,squeeze=False)
-            plt.subplots_adjust(hspace=0.1,wspace=0.1)
+            plt.subplots_adjust(hspace=0.05,wspace=0.05)
 
             # Loop over the x and y axis of the plots
             for x in range(x_dim):
@@ -546,7 +546,7 @@ class grid_plotting():
             # Label the axes of the subplots
             for i in range(y_dim):
                 if plot_residual:
-                    ax[i,0].set_ylabel(r'Retrieval Residual $\left[\%\right]$')
+                    ax[i,0].set_ylabel(r'Flux Residual $\left[\%\right]$')
                 else:
                     ax[i,0].set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
             for i in range(x_dim):
@@ -575,7 +575,7 @@ class grid_plotting():
 
     def PT_Grid(self,x_category=None,y_category=None,subfig_size=[8,6],sharex=True,sharey=True,plot_residual=False,plot_clouds=False,
                     quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
-                    colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None):
+                    colors=None,case_identifiers=None,legend_loc = 'best', x_lim =[0,1000], y_lim = [1e-6,1e4],true_cloud_top=None,legend_n_col=1,h_cover=0.4):
 
         # Generate the grid of runs for plotting        
         if type(x_category)==int:
@@ -625,11 +625,15 @@ class grid_plotting():
 
                         # Plot the PT profile in the corresponding subplot. If requested, try plotting clouds
                         try:
-                            self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = plot_clouds, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
-                                    inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                            #self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = plot_clouds, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                            #        inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                            self.grid_results['rp_object'][run].PT_Envelope_V3(plot_residual=plot_residual, plot_clouds =plot_clouds,x_lim=x_lim,y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                                    inlay_loc='upper right', bins_inlay = 25,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,legend_n_col=legend_n_col,h_cover=h_cover)
                         except:
-                            self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
-                                    inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                            #self.grid_results['rp_object'][run].PT_Envelope(plot_residual=plot_residual, plot_clouds = False, x_lim=x_lim, y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                            #        inlay_loc='upper right', bins_inlay = 20,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,true_cloud_top=true_cloud_top)
+                            self.grid_results['rp_object'][run].PT_Envelope_V3(plot_residual=plot_residual, plot_clouds =False,x_lim=x_lim,y_lim=y_lim, quantiles=quantiles, quantiles_title=quantiles_title,
+                                    inlay_loc='upper right', bins_inlay = 25,figure = fig, ax = ax[y,x], color=color, case_identifier=case_identifier, legend_loc=legend_loc,legend_n_col=legend_n_col,h_cover=h_cover,true_cloud_top=true_cloud_top)
                     except:
                         ax[y,x].axis('off')
                         
@@ -638,7 +642,7 @@ class grid_plotting():
                 ax[i,0].set_ylabel(r'Pressure [bar]')
             for i in range(x_dim):
                 if plot_residual:
-                    ax[-1,i].set_xlabel(r'Temperature Relative to Retrieved Median [K]')
+                    ax[-1,i].set_xlabel(r'Difference to Retrieved Median [K]')
                 else:
                     ax[-1,i].set_xlabel(r'Temperature [K]')
 
