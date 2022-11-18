@@ -24,6 +24,10 @@ requests==2.27.1
 scipy==1.5.4
 six==1.16.0
 spectres==2.1.1
+torch==1.10.2+cpu
+torchaudio==0.10.2+cpu
+torchvision==0.11.3+cpu
 typing_extensions==4.1.1
+ultranest==3.3.0
 urllib3==1.26.9
 yarg==0.1.9

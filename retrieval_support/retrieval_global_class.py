@@ -521,14 +521,13 @@ class globals:
         if not self.settings['directlight']:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
-
-                            add_cloud_scat_as_abs = add_cloud_scat_as_abs)
+                            add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
         else:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
                             geometry='planetary_ave',Tstar= self.scat_vars['stellar_temp'],
                                    Rstar=self.scat_vars['stellar_radius']*nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*nc.AU,
-                            add_cloud_scat_as_abs = add_cloud_scat_as_abs)
+                            add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
     def make_press_temp_terr(self,log_top_pressure=-6,log_ground_pressure=None,layers=100):
         """
         Creates the pressure-temperature profile from the temperature
