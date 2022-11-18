@@ -14,27 +14,21 @@ import sys
 
 
 
-def position_inlay(loc_surface,figure,ax_arg,ax):
-    if ax_arg is None:
-        if loc_surface == 'lower left':
-            ax2 = ax.inset_axes([0.03*3/4, 0.03, 0.212/0.8, 0.2833/0.8])
-        elif loc_surface == 'lower right':
-            ax2 = ax.inset_axes([1-0.03*3/4-0.212/0.8, 0.03, 0.212/0.8, 0.2833/0.8])
-        elif loc_surface == 'upper left':
-            ax2 = ax.inset_axes([0.03*3/4, 1-0.03-0.2833/0.8, 0.212/0.8, 0.2833/0.8])
-        elif loc_surface == 'upper right':
-            ax2 = ax.inset_axes([1-0.03*3/4-0.212/0.8, 1-0.03-0.2833/0.8, 0.212/0.8, 0.2833/0.8])
-        else:
-            sys.exit('ERROR: "'+str(loc_surface)+'" is invalid for the inlay position. Must be: [lower left, lower right, upper left, upper right]')
+def position_inlay(loc_surface,figure,ax_arg,ax,h_cover=0.45,Off_h=0.02):
+    bbox = ax.get_window_extent()
+    width, height = bbox.width, bbox.height
+    w_cover = h_cover*height/width
+    Off_w = Off_h*height/width
+    if loc_surface == 'lower left':
+        ax2 = ax.inset_axes([Off_w, Off_h, w_cover, h_cover])
+    elif loc_surface == 'lower right':
+        ax2 = ax.inset_axes([1-Off_w-w_cover, Off_h,w_cover, h_cover])
+    elif loc_surface == 'upper left':
+        ax2 = ax.inset_axes([Off_w,1-Off_h-h_cover,w_cover, h_cover])
+    elif loc_surface == 'upper right':
+        ax2 = ax.inset_axes([1-Off_w-w_cover,1-Off_h-h_cover,w_cover, h_cover])
     else:
-        if loc_surface == 'lower left':
-            ax2 = ax.inset_axes([0.02*2/3, 0.02, 0.5*2/3, 0.5])
-        elif loc_surface == 'lower right':
-            ax2 = ax.inset_axes([1-0.5*2/3, 0.02, 1-0.02*2/3, 0.5])
-        elif loc_surface == 'upper left':
-            ax2 = ax.inset_axes([0.5*2/3+0.02*2/3, 1-0.5-0.02, 0.5*2/3, 0.5])
-        elif loc_surface == 'upper right':
-            ax2 = ax.inset_axes([1-0.5*2/3-0.02*2/3, 1-0.5-0.02, 0.5*2/3, 0.5])
+        sys.exit('ERROR: "'+str(loc_surface)+'" is invalid for the inlay position. Must be: [lower left, lower right, upper left, upper right]')
     return ax2
 
 

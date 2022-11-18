@@ -29,7 +29,7 @@ class globals:
         the variables. It also ensures that the run is not rewritten
         unintentionally.
         '''
-        
+
         config = configparser.ConfigParser(inline_comment_prefixes=('#',))
         config.optionxform = str
         config.read(input_file, encoding=None)
@@ -69,7 +69,7 @@ class globals:
         self.params = OrderedDict()
         self.knowns = OrderedDict()
         self.settings = {}
-
+        self.settings['directlight']=False
 
 
     def read_var(self):
@@ -82,7 +82,7 @@ class globals:
             for (key, val) in self.config_file.items(section):
                 if 'settings' in key:
                     self.settings[key[9:]] = val
-                # check if the first element is a letter (the priors)           
+                # check if the first element is a letter (the priors)
                 elif val[:1].upper().isupper():
                     param = {'prior': val,
                              'type': section}
@@ -104,7 +104,7 @@ class globals:
         if self.settings['parametrization'] == 'polynomial':
             pt_params = ['a_'+str(i) for i in range(len(input_pt)-1)]
         elif self.settings['parametrization'] == 'vae_pt':
-            pt_params = ['z_'+str(i+1) for i in range(len(input_pt)-2)]
+            pt_params = ['z_'+str(i+1) for i in range(len([input_pt[i] for i in range(len(input_pt)) if not 'settings' in input_pt[i]])-2)]
         elif self.settings['parametrization'] == 'guillot':
             pt_params = ['log_delta', 'log_gamma',
                          't_int', 't_equ', 'log_p_trans', 'alpha']
@@ -142,6 +142,8 @@ class globals:
             self.dwlen[name] = dat_obs[:, 0] * 1e-4  # MICRON TO CM
             self.dflux[name] = dat_obs[:, 1]  # *10000000 ### SI TO CGS
             self.dferr[name] = dat_obs[:, 2]  # *10000000
+            self.instrument =[]
+            self.instrument.append(name)
             self.dwlbins[name] = np.zeros_like(self.dwlen[name])
             self.dwlbins[name][:-1] = np.diff(self.dwlen[name])
             self.dwlbins[name][-1] = self.dwlbins[name][-2]
@@ -156,10 +158,12 @@ class globals:
         """
         Initializes the rt_object given the wavelength range.
         """
-        import sys
+        import sys,os
         sys.path.append(self.path_prt)
+        os.environ['pRT_input_data_path'] = self.path_opacity
         from petitRADTRANS import Radtrans
         from petitRADTRANS import nat_cst as nc
+
         string = ''
         if self.settings['resolution'] != '1000':
             string = '_R_' + str(self.settings['resolution'])
@@ -199,8 +203,7 @@ class globals:
                     if species.count(cia_components[0]) + species.count(cia_components[1]) == 2:
                         used_cia_species.append(cia)
                         tot_mols.append(cia_components[0])
-                    tot_mols.append(cia_components[1])
-
+                        tot_mols.append(cia_components[1])
 
         # Cloud species: Check if the opacity files are present and store them
         cloud_dict = {'a' : '/amorphous','c' : '/crystalline','m' : '/mie', 'd' : '/DHS'}
@@ -225,8 +228,11 @@ class globals:
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
-            self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'])
-
+            #try:
+            self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'],
+                                                flow_file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['flow_net'])
+            #except:
+            #    self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'])                
 
         # PROTECTION FROM BAD INPUTS
         self.tot_mols = list(set(tot_mols))
@@ -247,7 +253,7 @@ class globals:
             self.MMW_Storage[reader[i,0]]=float(reader[i,1])
 
         # sorted(used_cia_species)
-        
+
         ls = sorted(used_line_species)[::-1]
         #print(ls)
         #ls[2]=ls[0]
@@ -256,11 +262,11 @@ class globals:
         self.rt_object = Radtrans(line_species=ls, #sorted(used_line_species),
                                   rayleigh_species=sorted(used_rayleigh_species),
                                   continuum_opacities=sorted(used_cia_species),
-                                  cloud_species=sorted(used_cloud_species), 
+                                  cloud_species=sorted(used_cloud_species),
                                   wlen_bords_micron=WLEN,
                                   mode='c-k',
                                   do_scat_emis=self.settings['scattering'])
-        
+
         self.rt_object.setup_opa_structure(np.logspace(-6, 0, 100, base=10))
 
         #try:
@@ -308,6 +314,7 @@ class globals:
         """
         import sys
         sys.path.append(self.path_prt)
+        os.environ['pRT_input_data_path'] = self.path_opacity
         from petitRADTRANS import Radtrans
         from petitRADTRANS import nat_cst as nc
         self.temp_vars = {}
@@ -370,8 +377,8 @@ class globals:
                 print("ERROR! For the VAE-PT profile model the surface pressure cannot be retrieved. It is fixed at a value of")
                 sys.exit()
             else:
-                self.phys_vars['log_P0'] = np.log10(self.vae_pt.max_t) 
-                self.phys_vars['log_Ptop'] = np.log10(self.vae_pt.min_t) 
+                self.phys_vars['log_P0'] = np.log10(self.vae_pt.max_t)
+                self.phys_vars['log_Ptop'] = np.log10(self.vae_pt.min_t)
         """
 
         if self.settings['clouds'] == 'opaque':
@@ -446,10 +453,9 @@ class globals:
                 except:
                     print("ERROR! Planetary mass is missing!")
                     sys.exit()
-        
+
                 self.phys_vars['g'] = nc.G * \
                     self.phys_vars['M_pl'] / (self.phys_vars['R_pl'])**2
-
 
         self.make_press_temp_terr()  # pressures from low to high
         self.rt_object.setup_opa_structure(self.press)
@@ -462,7 +468,7 @@ class globals:
         for key in self.cloud_vars.keys():
             self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
 
-        
+
         # Initializes log_prior value
         log_prior = 0
         # Initialize the log-likelihood
@@ -473,22 +479,21 @@ class globals:
                 return -1e32
         except:
             pass
-        
+
         metal_sum = sum(self.chem_vars.values())
         if metal_sum > 1:
             return -1e32
         else:
             self.inert = (1-metal_sum) *np.ones_like(self.press)
-        
+
         log_prior = cube.sum()
         if (log_prior == -np.inf):
             return -1e32
-        
+
         # Calculate the forward model; this returns the wavelengths in cm
         # and the flux F_nu in erg/cm^2/s/Hz.
+        self.retrieval_model_plain()
 
-        self.retrieval_model_plain()  # get rt_object.flux (and moon_flux)
-        
         # Check: Return -inf if forward model returns NaN values.
         if np.sum(np.isnan(self.rt_object.flux)) > 0:
             print("NaN spectrum encountered")
@@ -497,38 +502,27 @@ class globals:
         if self.phys_vars['d_syst'] is not None:
             self.rt_object.flux *= self.phys_vars['R_pl']**2 / \
                 self.phys_vars['d_syst']**2
-            
-            try:
-                if self.settings['moon'] == 'True': ################ 
-                    self.moon_flux *= self.moon_vars['R_m']**2 / \
-                        self.phys_vars['d_syst']**2
-                    # flux now in erg/m^2/s/Hz 
-            except:
-                pass
+            if self.settings['moon'] == 'True':
+                self.moon_flux *= self.moon_vars['R_m']**2/self.phys_vars['d_syst']**2
                      
         # Calculate log-likelihood
-        for instrument in self.dwlen.keys():  # CURRENTLY USELESS
+        for inst in self.instrument:
             # Rebin the spectrum according to the input spectrum
-            #if not (nc.c/self.rt_object.freq/1e-4 == self.dwlen[instrument]):
-            #    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
-            #                                            nc.c / self.rt_object.freq,
-            #                                            self.rt_object.flux)
-            
+            #if (np.array(nc.c/self.rt_object.freq/1e-4) == np.array(self.dwlen[inst])).any():
+            self.rt_object.flux = spectres.spectres(self.dwlen[inst],
+                                                       nc.c / self.rt_object.freq,
+                                                       self.rt_object.flux)
             # Calculate log-likelihood
-            try:
-                if self.settings['moon'] == 'True': ################
-                    model_flux = self.rt_object.flux + self.moon_flux
-                    log_likelihood += -0.5 * np.sum(((model_flux -
-                                                    self.dflux[instrument]) /
-                                                    self.dferr[instrument])**2.)
-                else:
-                    log_likelihood += -0.5 * np.sum(((self.rt_object.flux -
-                                                    self.dflux[instrument]) /
-                                                    self.dferr[instrument])**2.)
-            except:
+            if self.settings['moon'] == 'True':
+                model_flux = self.rt_object.flux + self.moon_flux
+                log_likelihood += -0.5 * np.sum(((model_flux -
+                                                self.dflux[inst]) /
+                                                self.dferr[inst])**2.)
+            else:
                 log_likelihood += -0.5 * np.sum(((self.rt_object.flux -
-                                                    self.dflux[instrument]) /
-                                                    self.dferr[instrument])**2.)
+                                                self.dflux[inst]) /
+                                                self.dferr[inst])**2.)
+
 
         # with open('retrieval.txt', 'w') as f:
         #        writer = csv.writer(f, delimiter='\t')
@@ -536,7 +530,7 @@ class globals:
 
         return log_likelihood
 
-    def retrieval_model_plain(self):
+    def retrieval_model_plain(self,em_contr=True):
         """
         Creates the pressure-temperature profile for the current atmosphere
         and calculates the corresponding emitted flux.
@@ -565,19 +559,24 @@ class globals:
                     self.press) * self.chem_vars[name]
         self.calc_MMW()
 
-        self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
-                        self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
-                        add_cloud_scat_as_abs = add_cloud_scat_as_abs)
+        if self.settings['moon'] == 'True': ################
+            nu = self.rt_object.freq
+            exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
+            B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
+            self.moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
 
-        try:
-            if self.settings['moon'] == 'True': ################
-                nu = self.rt_object.freq
-                exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
-                B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
-                self.moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
-        except:
-            pass
+        if not self.settings['directlight']:
+            self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
+                            self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
+                            add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
+        else:
+            self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
+                            self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
+                            geometry='planetary_ave',Tstar= self.scat_vars['stellar_temp'],
+                                   Rstar=self.scat_vars['stellar_radius']*nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*nc.AU,
+                            add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
 
+                            
     def make_press_temp_terr(self,log_top_pressure=-6,log_ground_pressure=None,layers=100):
         """
         Creates the pressure-temperature profile from the temperature
@@ -593,8 +592,7 @@ class globals:
                 self.press = np.logspace(log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             else:
                 self.press = np.logspace(log_top_pressure,log_ground_pressure, layers, base=10)
-            #print(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)] for i in range(len(self.temp_vars))])) # debugging
-            self.temp = np.polyval(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)] 
+            self.temp = np.polyval(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)]
                                             for i in range(len(self.temp_vars))]), np.log10(self.press))
 
         elif self.settings['parametrization'] == 'vae_pt':
@@ -602,7 +600,7 @@ class globals:
                 self.press = np.logspace(log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             else:
                 self.press = np.logspace(log_top_pressure,log_ground_pressure, layers, base=10)
-            self.temp = self.vae_pt.get_temperatures(z=np.array([self.temp_vars['z_'+str(i+1)] 
+            self.temp = self.vae_pt.get_temperatures(z=np.array([self.temp_vars['z_'+str(i+1)]
                                             for i in range(len(self.temp_vars))]), log_p=np.log10(self.press))
 
         elif self.settings['parametrization'] == 'guillot':
