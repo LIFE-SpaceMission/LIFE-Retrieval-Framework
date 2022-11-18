@@ -104,7 +104,7 @@ class globals:
         if self.settings['parametrization'] == 'polynomial':
             pt_params = ['a_'+str(i) for i in range(len(input_pt)-1)]
         elif self.settings['parametrization'] == 'vae_pt':
-            pt_params = ['z_'+str(i+1) for i in range(len(input_pt)-2)]
+            pt_params = ['z_'+str(i+1) for i in range(len([input_pt[i] for i in range(len(input_pt)) if not 'settings' in input_pt[i]])-2)]
         elif self.settings['parametrization'] == 'guillot':
             pt_params = ['log_delta', 'log_gamma',
                          't_int', 't_equ', 'log_p_trans', 'alpha']
@@ -228,7 +228,11 @@ class globals:
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
-            self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'])
+            #try:
+            self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'],
+                                                flow_file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['flow_net'])
+            #except:
+            #    self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'])                
 
         # PROTECTION FROM BAD INPUTS
         self.tot_mols = list(set(tot_mols))
@@ -485,7 +489,7 @@ class globals:
 
         return log_likelihood
 
-    def retrieval_model_plain(self):
+    def retrieval_model_plain(self,em_contr=True):
         """
         Creates the pressure-temperature profile for the current atmosphere
         and calculates the corresponding emitted flux.

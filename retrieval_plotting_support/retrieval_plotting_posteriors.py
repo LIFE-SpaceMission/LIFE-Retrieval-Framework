@@ -17,7 +17,7 @@ from retrieval_plotting_support import retrieval_plotting_colors as rp_col
 
 
 # Routine for generating corner plots
-def Corner_old(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
+def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
             quantiles2d=[0.02,0.15,0.25,0.35,0.65,0.75,0.85,0.98],color='k',color_truth='C3',bins=50,add_table = False,ULU=[],ULU_lim=[-0.15,0.75]):
     
     # Find the dimension of the corner plot.
@@ -189,7 +189,7 @@ def Corner_old(data,titles,units=None,truths=None,dimension=None,quantiles1d = [
             
         # Add a table at the bottom of the axes
         the_table = ax_table.table(cellText=table,rowLabels=rows,cellLoc='center',colColours=colours,colLabels=columns,bbox=(0.8, 1-dimension*0.4/17, 0.2, dimension*0.4/17))
-        the_table.set_fontsize(2*(dimension/17)*fs)
+        the_table.set_fontsize(1.4*(dimension/17)*fs)
         the_table.scale(1, 3)
 
 
@@ -314,7 +314,7 @@ def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84],
 
 
 # Routine for generating corner plots
-def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
+def Corner_new(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
             quantiles2d=[0.02,0.15,0.25,0.35,0.65,0.75,0.85,0.98],color='k',color_truth='C3',bins=50,add_table = False,ULU=[],ULU_lim=[-0.15,0.75]):
     
     # Find the dimension of the corner plot.
@@ -574,7 +574,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
             
         # Add a table at the bottom of the axes
         the_table = ax_table.table(cellText=table,rowLabels=rows,cellLoc='center',colColours=colours,colLabels=columns,bbox=(0.8, 1-dimension*0.4/17, 0.2, dimension*0.4/17))
-        the_table.set_fontsize(2*(dimension/17)*fs)
+        the_table.set_fontsize(1.4*(dimension/17)*fs)
         the_table.scale(1, 3)
 
 
