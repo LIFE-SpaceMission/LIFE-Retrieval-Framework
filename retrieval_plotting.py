@@ -48,9 +48,9 @@ class retrieval_plotting(r_globals.globals):
         self.results_directory = results_directory
         self.code_directory = os.path.dirname(os.path.realpath(__file__))
         super().__init__(input_file=str(self.results_directory+'input.ini'),retrieval = False)
-        
-        if not os.path.exists(self.results_directory + 'Plots/'):
-            os.makedirs(self.results_directory + 'Plots/')
+
+        if not os.path.exists(self.results_directory + '/Plots/'):
+            os.makedirs(self.results_directory + '/Plots/')
 
         # Define the lists containing the titles for the data
         self.titles = []
@@ -61,7 +61,7 @@ class retrieval_plotting(r_globals.globals):
 
         # Read the input data
         self.read_var()
-        
+
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
@@ -103,7 +103,7 @@ class retrieval_plotting(r_globals.globals):
             for (key, val) in self.config_file.items(section):
                 if 'settings' in key:
                     self.settings[key[9:]] = val
-                # check if the first element is a letter (the priors)           
+                # check if the first element is a letter (the priors)
                 elif val[:1].upper().isupper():
                     param = {'prior': val,
                              'type': section}
@@ -132,7 +132,7 @@ class retrieval_plotting(r_globals.globals):
                         temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
                         temp.pop(1)
                         self.titles.append('\n'.join(temp))
-                        
+
                         key_name = ('_'.join(key.split('_')[2:]))
                         if key_name == '':
                             self.params_names['c_species_abundance']=key
@@ -152,12 +152,12 @@ class retrieval_plotting(r_globals.globals):
                     # Storing the prior Type
                     self.priors.append(val.split(' ')[0])
                     self.priors_range.append([float(val.split(' ')[i]) for i in range(1,3)])
-                    
+
                 else:
                     known = {'value': float(val),
                                  'type': section}
                     self.knowns[key] = known
-        
+
         self.input_wavelength, self.input_flux, self.input_error = np.loadtxt(self.results_directory + 'input_spectrum.txt').T
         try:
             self.input_temperature, self.input_pressure = np.loadtxt(self.settings['input_profile']).T
@@ -195,7 +195,7 @@ class retrieval_plotting(r_globals.globals):
                 except:
                     cloud_vars_known['_'.join(par.split('_',2)[:2])]['abundance'] = self.knowns[par]['value']
                     chem_vars_known[par.split('_',1)[0]] = self.knowns[par]['value']
-        
+
         return temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known
 
 
@@ -212,7 +212,7 @@ class retrieval_plotting(r_globals.globals):
         self.chem_vars = chem_vars_known.copy()
         self.phys_vars = phys_vars_known.copy()
         self.cloud_vars = cloud_vars_known.copy()
-            
+
         # Read in the values from the equal weighted posteriors
         retrieved_params = list(self.params.keys())
         for par in range(len(retrieved_params)):
@@ -355,7 +355,7 @@ class retrieval_plotting(r_globals.globals):
         from petitRADTRANS import nat_cst as nc
 
         self.read_data(retrieval = False)
-        
+
         # Print status of calculation
         if process == 0:
             print('Starting PT-profile calculation.')
@@ -368,11 +368,11 @@ class retrieval_plotting(r_globals.globals):
 
             # Fetch the retrieved parameters for a given ind
             self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
-        
+
             # Test the values of P0 and g and change to required values if necessary
             self.__g_test()
             self.__P0_test(ind=i)
-            
+
             # Calculate the cloud bottom pressure from the cloud thickness parameter
             cloud_tops = []
             cloud_bottoms = []
@@ -452,7 +452,7 @@ class retrieval_plotting(r_globals.globals):
         # Print status of calculation
         if process == 0:
             print('\nPT-profile calculation completed.')
-        
+
         # Return the results
         return results
 
@@ -585,7 +585,7 @@ class retrieval_plotting(r_globals.globals):
                         save = i - 2
                     else:
                         save = i-ind_start
-                
+
                     # Save the results
                     results['retrieved_fluxes'][save,:] = self.rt_object.flux
                     results['retrieved_em_contr'][save,:,:] = self.rt_object.contr_em
@@ -607,7 +607,7 @@ class retrieval_plotting(r_globals.globals):
 
     def get_spectra(self,skip=1,n_processes=50):
         '''
-        gets the PT profiles corresponding to the parameter values 
+        gets the PT profiles corresponding to the parameter values
         of the equal weighted posteriors.
         '''
 
@@ -621,7 +621,7 @@ class retrieval_plotting(r_globals.globals):
 
     def get_pt(self,skip=1,layers=500,p_surf=4,n_processes=50):
         '''
-        gets the PT profiles corresponding to the parameter values 
+        gets the PT profiles corresponding to the parameter values
         of the equal weighted posteriors.
         '''
 
@@ -635,7 +635,7 @@ class retrieval_plotting(r_globals.globals):
 
     def __get_data(self,data_type,data_name,function_name,function_args):
         '''
-        gets the data corresponding to the parameter values 
+        gets the data corresponding to the parameter values
         of the equal weighted posteriors.
         '''
 
@@ -653,7 +653,7 @@ class retrieval_plotting(r_globals.globals):
             print('Loaded previously calculated '+data_name+' from '+self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl.')
 
         # check if the data for the specified skip
-        # values are already calculated    
+        # values are already calculated
         except:
             print('Calculating retrieved '+data_name+' from scratch.')
 
@@ -702,7 +702,7 @@ class retrieval_plotting(r_globals.globals):
     #################################################################################
     """
 
-    
+
 
     def Scale_Posteriors(self, local_equal_weighted_post, local_truths, local_titles, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True):
         '''
@@ -735,9 +735,9 @@ class retrieval_plotting(r_globals.globals):
                     if len(param_names[i].split('_')) == 2:
                         local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
                         local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
+                        if not local_truths[i] is None:
                             local_truths[i] = np.log10(local_truths[i])
-        
+
         # If we want to use log particle radii
         if log_particle_radii:
             param_names = list(self.params.keys())
@@ -746,9 +746,9 @@ class retrieval_plotting(r_globals.globals):
                     if 'particle_radius' in param_names[i]:
                         local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
                         local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
+                        if not local_truths[i] is None:
                             local_truths[i] = np.log10(local_truths[i])
-        
+
         # If we want to use log mass in the corner plot
         if log_mass:
             param_names = list(self.params.keys())
@@ -757,7 +757,7 @@ class retrieval_plotting(r_globals.globals):
                     if param_names[i] == 'M_pl':
                         local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
                         local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
+                        if not local_truths[i] is None:
                             local_truths[i] = np.log10(local_truths[i])
 
         # If we want to use log pressures update data to log pressures
@@ -770,18 +770,18 @@ class retrieval_plotting(r_globals.globals):
                     if (var_type == 'top_pressure') or (var_type == 'thickness'):
                         local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
                         local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None: 
+                        if not local_truths[i] is None:
                             local_truths[i] = np.log10(local_truths[i])
                 if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
                     if 'P0' in param_names[i]:
                         if not 'log' in param_names[i]:
                             local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                            if not local_truths[i] is None: 
+                            if not local_truths[i] is None:
                                 local_truths[i] = np.log10(local_truths[i])
                             local_titles[i] = 'log$_{10}$ P$_0$'
                         else:
                             local_titles[i] = 'log$_{10}$ P$_0$'
-        
+
         return local_equal_weighted_post, local_truths, local_titles
 
 
@@ -793,10 +793,10 @@ class retrieval_plotting(r_globals.globals):
         This function generates a corner plot for the retrieved parameters.
         '''
 
-        # Define the dimension of the corner plot, which is equal to the number of retrieved parameters 
+        # Define the dimension of the corner plot, which is equal to the number of retrieved parameters
         # Copy the equal weigted posterior and truths files to ensure that no changes are made to the file
         dimension = self.n_params
-        
+
         local_equal_weighted_post = np.copy(self.equal_weighted_post)
         local_truths = self.truths.copy()
         local_titles = self.titles.copy()
@@ -825,12 +825,12 @@ class retrieval_plotting(r_globals.globals):
                         local_truths[i] = local_truths[i]**3
                 else:
                     pass
-        
+
         # Adust the local copy of the posteriors according to the users desires
         local_equal_weighted_post, local_truths, local_titles = self.Scale_Posteriors(local_equal_weighted_post,
                             local_truths, local_titles, log_pressures=log_pressures, log_mass=log_mass,
                             log_abundances=log_abundances, log_particle_radii=log_particle_radii)
-        
+
         # add all wanted parameters to the corner plot
         inds = []
         if plot_pt:
@@ -857,7 +857,7 @@ class retrieval_plotting(r_globals.globals):
             inds += [-2,-1]
             local_titles += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
 
-        
+
         if not titles is None:
             local_titles=titles
 
@@ -911,7 +911,7 @@ class retrieval_plotting(r_globals.globals):
 
         for q in range(len(quantiles)):
             T_layers_quantiles[q][np.where(not_nan<min(2*(1-quantiles[q]),2*(quantiles[q])))] = np.nan
-        
+
             notnan = ~np.isnan(T_layers_quantiles[q])
             T_layers_quantiles[q] = T_layers_quantiles[q][notnan]
             p_layers_quantiles[q] = p_layers_quantiles[q][notnan]
@@ -919,7 +919,7 @@ class retrieval_plotting(r_globals.globals):
             X_Y_Spline = scp.make_interp_spline(np.array(p_layers_quantiles[q]),np.array(T_layers_quantiles[q]))
             p_layers_quantiles[q] = np.logspace(np.log10(p_layers_quantiles[q].min()),np.log10(p_layers_quantiles[q].max()),80)
             T_layers_quantiles[q] = X_Y_Spline(p_layers_quantiles[q])
-            
+
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
             median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top), np.median(self.pressure_cloud_top)
@@ -1007,7 +1007,7 @@ class retrieval_plotting(r_globals.globals):
             else:
                 ax.set_xlabel('Temperature [K]')
             ax.set_ylabel('Pressure [bar]')
-        
+
         # Set the limits for the plot axes
         ax.set_xlim(x_lim)
         ax.set_ylim(y_lim)
@@ -1043,7 +1043,7 @@ class retrieval_plotting(r_globals.globals):
             p_range = p_lim[1]-p_lim[0]
             Z,X,Y=np.histogram2d(self.temperature[:,-1],np.log10(self.pressure[:,-1]),bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
-        
+
         Z = sp.ndimage.filters.gaussian_filter(Z, [0.75,0.75], mode='reflect')
 
         # Generate the colormap and plot the contours of the 2d histogram
@@ -1057,7 +1057,7 @@ class retrieval_plotting(r_globals.globals):
             ax2.plot(self.true_temperature_cloud_top,(self.true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
         except:
             pass
-        
+
         # Arange the ticks for the inlay
         rp_inlay.axesticks_inlay(ax2,ax2_xlabel,ax2_ylabel,inlay_loc)
 
@@ -1067,7 +1067,7 @@ class retrieval_plotting(r_globals.globals):
 
         if x_lim_inlay is None:
             # Find the limits for the inlay plot from the contours (+- 10%)
-            # if the span in pressure exceeds 2 orders of magnitude use log axes 
+            # if the span in pressure exceeds 2 orders of magnitude use log axes
             ax2_xlim = [t_lim[0]-0.1*(t_lim[1]-t_lim[0]),t_lim[1]+0.1*(t_lim[1]-t_lim[0])]
         else:
             ax2_xlim=x_lim_inlay
@@ -1128,7 +1128,7 @@ class retrieval_plotting(r_globals.globals):
             patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
         else:
             patch_labels = quantiles_title
-            
+
         # Add the legend
         lgd = ax.legend(handles+patch_handles,labels+patch_labels,\
                         handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
@@ -1194,7 +1194,7 @@ class retrieval_plotting(r_globals.globals):
 
         for q in range(len(quantiles)):
             T_layers_quantiles[q][np.where(not_nan<min(2*(1-quantiles[q]),2*(quantiles[q])))] = np.nan
-        
+
             notnan = ~np.isnan(T_layers_quantiles[q])
             T_layers_quantiles[q] = T_layers_quantiles[q][notnan]
             p_layers_quantiles[q] = p_layers_quantiles[q][notnan]
@@ -1202,7 +1202,7 @@ class retrieval_plotting(r_globals.globals):
             X_Y_Spline = scp.make_interp_spline(np.array(p_layers_quantiles[q]),np.array(T_layers_quantiles[q]))
             p_layers_quantiles[q] = np.logspace(np.log10(p_layers_quantiles[q].min()),np.log10(p_layers_quantiles[q].max()),80)
             T_layers_quantiles[q] = X_Y_Spline(p_layers_quantiles[q])
-            
+
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
             median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top), np.median(self.pressure_cloud_top)
@@ -1291,7 +1291,7 @@ class retrieval_plotting(r_globals.globals):
             else:
                 ax.set_xlabel('Temperature [K]')
             ax.set_ylabel('Pressure [bar]')
-        
+
         # Set the limits for the plot axes
         ax.set_xlim(x_lim)
         ax.set_ylim(y_lim)
@@ -1412,7 +1412,7 @@ class retrieval_plotting(r_globals.globals):
             patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
         else:
             patch_labels = quantiles_title
-            
+
         # Add the legend
         if case_identifier=='': 
             lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
@@ -1756,7 +1756,7 @@ class retrieval_plotting(r_globals.globals):
         # Plotting the histogram of the PT profiles in the equal weighted posterior
         bins = np.array([np.linspace(x_lim[0],x_lim[1],bins),np.logspace(np.log10(y_lim[0]),np.log10(y_lim[1]),bins)])
         ax.hist2d(self.temperature_full.flatten()[~np.isnan(self.temperature_full.flatten())],self.pressure_full.flatten()[~np.isnan(self.pressure_full.flatten())],bins=bins,cmap=color_map)
-        
+
         # Plotting the input profile
         ax.semilogy(self.input_temperature,self.input_pressure,color = truth_color, label = 'Input Profile')
 
@@ -1986,7 +1986,7 @@ class retrieval_plotting(r_globals.globals):
             else:
                 y_lim=[0,list(ax.get_ylim())[1]]
                 ax.set_ylim(y_lim)
-        
+
         # Print the case identifier
         if case_identifier is not None:
             if plot_residual:
@@ -2048,7 +2048,7 @@ class retrieval_plotting(r_globals.globals):
                             skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,fit_BB=None,
                             titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$'],
                             units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$','']):
-        
+
         self.get_pt(skip=skip,n_processes=n_processes)
 
         # Find the temperature at which the atmosphere becomes opaque
@@ -2070,12 +2070,12 @@ class retrieval_plotting(r_globals.globals):
             inds = np.where((self.wavelength>=fit_BB[0]) & (self.wavelength<=fit_BB[1]))
 
             factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.truths[ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
-            T_equ_true,cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], self.input_flux[inds]/factor[inds],p0=[200]) 
+            T_equ_true,cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], self.input_flux[inds]/factor[inds],p0=[200])
 
             for i in range(np.size(self.retrieved_fluxes[:,0])):
-                factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2          
-                self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], np.ndarray.flatten(self.retrieved_fluxes[i,inds])/factor[inds],p0=[300]) 
-        
+                factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
+                self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], np.ndarray.flatten(self.retrieved_fluxes[i,inds])/factor[inds],p0=[300])
+
         # Or by sampling a specific layer in the atmosphere
         else:
             if self.settings['clouds'] == 'opaque':
@@ -2130,7 +2130,7 @@ class retrieval_plotting(r_globals.globals):
 
     def Posterior_Classification(self,parameters=['H2O','CO2','CO','H2SO484(c)','R_pl','M_pl'],relative=None,limits = None,plot_classification=True,p0_SSG=[8,6,0.007,0.5,0.5],p0_SS=None,s_max=2,s_ssg_max=5):
         self.best_post_model = {}
-        self.best_post_limit = {} 
+        self.best_post_limit = {}
 
         count_param = 0
 
@@ -2146,19 +2146,19 @@ class retrieval_plotting(r_globals.globals):
 
                 if limits is None:
                     prior = self.priors[ind]
-                                    
+
                     if prior in ['ULU', 'LU']:
                         if prior == 'LU':
                             if relative is None:
                                 post = np.log10(post)
                             else:
-                                post = np.log10(post) - np.log10(post_rel) 
+                                post = np.log10(post) - np.log10(post_rel)
                             self.best_post_limit[param] = sorted(list(self.priors_range[ind]))
                         else:
                             if relative is None:
                                 post = np.log10(1-post)
                             else:
-                                post = np.log10(post) - np.log10(post_rel) 
+                                post = np.log10(post) - np.log10(post_rel)
                             self.best_post_limit[param] = [-7,0]
                     elif prior in ['G','LG']:
                         mean = self.priors_range[ind][0]
@@ -2178,29 +2178,29 @@ class retrieval_plotting(r_globals.globals):
 
                 x_bins = np.linspace(self.best_post_limit[param][0],self.best_post_limit[param][1],1000)
                 binned_data = np.histogram(post,bins=100,range=self.best_post_limit[param],density=True)
-                                
+
                 model_likelihood = []
-                                
+
                 # Try to Fit each model to the retrieved data
                 try:
                     params_F,cov_F = sco.curve_fit(r_post.Model_Flat,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0])
                     model_likelihood.append(r_post.log_likelihood(params_F,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Flat))
                 except:
                     model_likelihood.append(-np.inf)
-                                    
+
                 try:
                     params_SS,cov_SS = sco.curve_fit(r_post.Model_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SS)
                     model_likelihood.append(r_post.log_likelihood(params_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStep))
                 except:
                     model_likelihood.append(-np.inf)
-                                
+
                 try:
                     params_SSG,cov_SSG = sco.curve_fit(r_post.Model_SoftStepG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SSG)
                     model_likelihood.append(r_post.log_likelihood(params_SSG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStepG))
                     line_SSG = r_post.Model_SoftStepG(x_bins,*params_SSG)
                 except:
                     model_likelihood.append(-np.inf)
-                                
+
                 try:
                     params_G,cov_G = sco.curve_fit(r_post.Model_Gauss,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_Gauss)
                     model_likelihood.append(r_post.log_likelihood(params_G,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Gauss))
@@ -2232,7 +2232,7 @@ class retrieval_plotting(r_globals.globals):
                 #if model_likelihood[4]!=-np.inf:
                 #    if params_u_SS[0]<0:
                 #        model_likelihood[4]=-np.inf
-                
+
                 # Storing the best fit model for the parameters of interest
                 best_fit = np.argmax(model_likelihood)
                 if best_fit == 0:
@@ -2247,7 +2247,7 @@ class retrieval_plotting(r_globals.globals):
                 #    self.best_post_model[param] = ['USS',params_u_SS]
                 else:
                     print(str(best_fit) + ' is not a valid model!')
-        
+
                 if plot_classification:
                     plt.figure(figsize=(10,10))
                     h = plt.hist(post,bins=100,range=self.best_post_limit[param],alpha=0.2,density=True)
@@ -2260,9 +2260,9 @@ class retrieval_plotting(r_globals.globals):
                     if best_fit == 2:
                         plt.plot(x_bins,r_post.Model_SoftStepG(x_bins,*params_SSG),'b-',lw=5)
                     if best_fit == 3:
-                        plt.plot(x_bins,r_post.Model_Gauss(x_bins,*params_G),'m-',lw=5)               
+                        plt.plot(x_bins,r_post.Model_Gauss(x_bins,*params_G),'m-',lw=5)
                     #if best_fit == 4:
-                    #    plt.plot(x_bins,r_post.Model_upper_SoftStep(x_bins,*params_u_SS),'y-',lw=5)   
+                    #    plt.plot(x_bins,r_post.Model_upper_SoftStep(x_bins,*params_u_SS),'y-',lw=5)
                     plt.plot([-15,0],[0,0],'k-',alpha=1)
                     plt.ylim([-max(h[0])/4,1.1*max(h[0])])
                     plt.yticks([])
@@ -2352,7 +2352,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Plot_Ice_Surface_Test(self,MMW_atm=44,MMW_H2O=18,ax=None,skip=1,bins=50,save=False,n_processes=50):
-        
+
         self.get_pt(skip=skip,n_processes=n_processes)
 
         if self.settings['clouds'] == 'opaque':
@@ -2400,10 +2400,3 @@ class retrieval_plotting(r_globals.globals):
         else:
             ax.legend(loc='best')
             return figure
-
-
-
-
-
-
-
