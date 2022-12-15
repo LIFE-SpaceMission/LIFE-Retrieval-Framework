@@ -1581,7 +1581,7 @@ class retrieval_plotting(r_globals.globals):
                 ax.semilogy(smooth_T_true[:-num_nan-10],self.input_pressure[:-num_nan-10],color ='black', label = 'P-T Profile')
                 ax.semilogy(smooth_T_true[-num_nan-10:],self.input_pressure[-num_nan-10:],color ='black', ls = ':')
             else:
-                ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'Input Profile')
+                ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'P-T Profile')
 
                 # Plotting the true/input surface temperature/pressure
                 ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
@@ -1742,10 +1742,10 @@ class retrieval_plotting(r_globals.globals):
             
         # Add the legend
         if case_identifier=='': 
-            lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
+            lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Venus Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
                             handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
         else:
-            lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ',' ']+patch_labels+[' ',' ']+labels,\
+            lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles+[' ','Venus Truth:']+handles,[' ',' ']+patch_labels+[' ',' ']+labels,\
                             handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
 
         # Save or pass back the figure

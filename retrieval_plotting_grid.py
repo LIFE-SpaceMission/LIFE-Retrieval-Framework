@@ -424,17 +424,21 @@ class grid_plotting():
                 plt.savefig(save_directory+'/'+title+'/Grid_Posterior'+profiles+plotted_posts+'.pdf', bbox_inches='tight', bbox_extra_artists=[text_ex])
                 plt.clf()
             else:
-                plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
+                #plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
+                plt.subplots_adjust(top = 0.99, bottom = 0.088 , right = 0.96, left = 0.04)
                 xlim = ax[3,0].get_xlim()
-                ylim = ax[5,0].get_ylim()
+                ylim = ax[-1,0].get_ylim()
                 ylim = (ylim[0],1.1*ylim[1])
+
+                if key=='A_B':
+                    xlim = [0.49,0.91]
                 
                 ax[0,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
                 ax[1,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=10$',ha = 'right',va='top')
-                ax[2,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=15$',ha = 'right',va='top')
-                ax[3,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=15$',ha = 'right',va='top')
-                ax[4,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
-                ax[5,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                ax[2,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                ax[3,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                #ax[4,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=50$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
+                #ax[5,0].text(xlim[0]+0.975*(xlim[1]-xlim[0]),ylim[0]+0.95*(ylim[1]-ylim[0]), list(case.values())[0] + r' $\mu$m'+'\n'+r' $\mathrm{R}=100$'+'\n'+r'$\mathrm{S/N}=20$',ha = 'right',va='top')
                 
                 ax[0,0].set_xlim(xlim)
                 ax[0,0].set_ylim(ylim)
@@ -444,10 +448,10 @@ class grid_plotting():
                 ax[2,0].set_ylim(ylim)
                 ax[3,0].set_xlim(xlim)
                 ax[3,0].set_ylim(ylim)
-                ax[4,0].set_xlim(xlim)
-                ax[4,0].set_ylim(ylim)
-                ax[5,0].set_xlim(xlim)
-                ax[5,0].set_ylim(ylim)
+                #ax[4,0].set_xlim(xlim)
+                #ax[4,0].set_ylim(ylim)
+                #ax[5,0].set_xlim(xlim)
+                #ax[5,0].set_ylim(ylim)
                 
                 plt.margins(0,0)
 
@@ -465,7 +469,8 @@ class grid_plotting():
                             sharex=sharex,sharey=sharey,squeeze=False)
                 ax[0,0].axis('off')
                 text_ex = fig.text(0.5,0.518,'Posterior Density',rotation = 90,va='center',ha='center')
-                plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
+                #plt.subplots_adjust(top = 0.99, bottom = 0.05, right = 0.96, left = 0.04)
+                plt.subplots_adjust(top = 0.99, bottom = 0.088 , right = 0.96, left = 0.04)
                 plt.savefig(save_directory+'/'+title+'/Posterior_ylabel.pdf', bbox_extra_artists=[text_ex])
                 plt.clf()
             

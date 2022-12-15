@@ -130,8 +130,8 @@ class globals:
         self.dflux = {}
         self.dferr = {}
         self.dwlbins = {}
+        self.instrument =[]
         for name in self.config_file['INPUT FILES'].keys():
-
             dat_obs = np.genfromtxt(self.config_file.get('INPUT FILES', name))
 
             # trim the spectrum to the desired wl
@@ -142,7 +142,7 @@ class globals:
             self.dwlen[name] = dat_obs[:, 0] * 1e-4  # MICRON TO CM
             self.dflux[name] = dat_obs[:, 1]  # *10000000 ### SI TO CGS
             self.dferr[name] = dat_obs[:, 2]  # *10000000
-            self.instrument =[]
+
             self.instrument.append(name)
             self.dwlbins[name] = np.zeros_like(self.dwlen[name])
             self.dwlbins[name][:-1] = np.diff(self.dwlen[name])
@@ -491,17 +491,17 @@ class globals:
         for inst in self.instrument:
             # Rebin the spectrum according to the input spectrum
             #if (np.array(nc.c/self.rt_object.freq/1e-4) == np.array(self.dwlen[inst])).any():
-            self.rt_object.flux = spectres.spectres(self.dwlen[inst],
+            flux_temp = spectres.spectres(self.dwlen[inst],
                                                        nc.c / self.rt_object.freq,
                                                        self.rt_object.flux)
             # Calculate log-likelihood
             if self.settings['moon'] == 'True':
-                model_flux = self.rt_object.flux + self.moon_flux
+                model_flux = flux_temp + self.moon_flux
                 log_likelihood += -0.5 * np.sum(((model_flux -
                                                 self.dflux[inst]) /
                                                 self.dferr[inst])**2.)
             else:
-                log_likelihood += -0.5 * np.sum(((self.rt_object.flux -
+                log_likelihood += -0.5 * np.sum(((flux_temp -
                                                 self.dflux[inst]) /
                                                 self.dferr[inst])**2.)
 

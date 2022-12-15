@@ -315,7 +315,7 @@ def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84],
 
 # Routine for generating corner plots
 def Corner_new(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
-            quantiles2d=[0.02,0.15,0.25,0.35,0.65,0.75,0.85,0.98],color='k',color_truth='C3',bins=50,add_table = False,ULU=[],ULU_lim=[-0.15,0.75]):
+            quantiles2d=[0.025,0.15,0.25,0.35,0.65,0.75,0.85,0.975],color='k',color_truth='C3',bins=50,add_table = False,ULU=[],ULU_lim=[-0.15,0.75]):
     
     # Find the dimension of the corner plot.
     if dimension is None:
