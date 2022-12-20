@@ -149,9 +149,8 @@ class globals:
             self.dwlbins[name][-1] = self.dwlbins[name][-2]
 
             if retrieval:
-                os.system('cp '+ self.config_file.get('INPUT FILES', name) + ' ' + self.prefix + 'input_spectrum.txt')
+                os.system('cp '+ self.config_file.get('INPUT FILES', name) + ' ' + self.prefix + '/input_'+self.config_file.get('INPUT FILES', name).split('/')[-1])
 
-            # TODO Add possibility to add more files (non mandatory)
 
 
     def init_rt(self):

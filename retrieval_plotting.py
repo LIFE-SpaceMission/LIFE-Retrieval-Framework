@@ -160,7 +160,15 @@ class retrieval_plotting(r_globals.globals):
                                  'type': section}
                     self.knowns[key] = known
 
-        self.input_wavelength, self.input_flux, self.input_error = np.loadtxt(self.results_directory + 'input_spectrum.txt').T
+        # Load the input Spectrum
+        self.input_wavelength, self.input_flux, self.input_error = {}, {}, {}
+        try:
+            for name in self.config_file['INPUT FILES'].keys():                
+                self.input_wavelength[name], self.input_flux[name], self.input_error[name] = np.loadtxt(self.results_directory + '/input_'+self.config_file.get('INPUT FILES', name).split('/')[-1]).T
+        except: #exception to still enable old retrievals
+            self.input_wavelength['input'], self.input_flux['input'], self.input_error['input'] = np.loadtxt(self.results_directory + 'input_spectrum.txt').T
+        
+        # Load the true P-T profile if provided
         try:
             self.input_temperature, self.input_pressure = np.loadtxt(self.settings['input_profile']).T
         except:
@@ -577,10 +585,10 @@ class retrieval_plotting(r_globals.globals):
 
             for instrument in self.dwlen.keys():  # CURRENTLY USELESS
                 # Rebin the spectrum according to the input spectrum
-                if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
-                    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
-                                                        nc.c / self.rt_object.freq,
-                                                        self.rt_object.flux)
+                #if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
+                #    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
+                #                                        nc.c / self.rt_object.freq,
+                #                                        self.rt_object.flux)
 
                 #Store the calculated flux according to the considered case
                 if i == 0:
@@ -1957,25 +1965,27 @@ class retrieval_plotting(r_globals.globals):
 
 
         if plot_noise:
-            if plot_residual:
-                ax.fill(np.append(self.wavelength,np.flip(self.wavelength)),np.append((self.input_error)/self.input_flux*100,
-                            np.flip((-self.input_error)/self.input_flux*100)),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True)
-            else:
-                ax.fill(np.append(self.wavelength,np.flip(self.wavelength)),np.append(self.input_flux+self.input_error,
-                            np.flip(self.input_flux-self.input_error)),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True)
-
+            for inst in self.input_flux.keys():
+                if plot_residual:
+                    ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append((self.input_error[inst])/self.input_flux[inst]*100,
+                            np.flip((-self.input_error[inst])/self.input_flux[inst]*100)),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True)
+                else:
+                    ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append(self.input_flux[inst]+self.input_error[inst],
+                                np.flip(self.input_flux[inst]-self.input_error[inst])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True)
+            
         # Plotting the retrieved Spectra
         if median_only:
             # Plotting the input spectra
-            if plot_true_spectrum:
-                if plot_residual:
-                    ax.plot(self.input_wavelength,self.input_flux*0,color = 'black',ls =':')
-                else:
-                    ax.plot(self.input_wavelength,self.input_flux,color = 'black',ls='-',label = 'Input Spectrum',lw = 2)
-                    #ax.plot(self.input_wavelength,self.true_flux,color = 'black',ls='-',label = 'True Spectrum')
-            if plot_datapoints:
-                if not plot_residual:
-                    ax.errorbar(self.input_wavelength,self.input_flux,yerr=self.input_error,color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum')
+            for inst in self.input_flux.keys():
+                if plot_true_spectrum:    
+                    if plot_residual:
+                        ax.plot(self.input_wavelength[inst],self.input_flux[inst]*0,color = 'black',ls =':')
+                    else:
+                        ax.plot(self.input_wavelength[inst],self.input_flux[inst],color = 'black',ls='-',label = 'Input Spectrum',lw = 2)
+                        #ax.plot(self.input_wavelength,self.true_flux,color = 'black',ls='-',label = 'True Spectrum')
+                if plot_datapoints:
+                    if not plot_residual:
+                        ax.errorbar(self.input_wavelength[inst],self.input_flux[inst],yerr=self.input_error[inst],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum')
             ax.plot(self.wavelength,flux_median,color=color,lw = 0.5, label = 'Best Fit')
         else:
             for i in range(N_levels):
@@ -1983,15 +1993,16 @@ class retrieval_plotting(r_globals.globals):
                         np.append(flux_quantiles[i],np.flip(flux_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True)
         
             # Plotting the input spectra
-            if plot_true_spectrum:
-                if plot_residual:
-                    ax.plot(self.input_wavelength,self.input_flux*0,color = 'black',ls =':')
-                else:
-                    ax.plot(self.input_wavelength,self.input_flux,color = 'black',ls='-',label = 'Input Spectrum')
-                    #ax.plot(self.input_wavelength,self.true_flux,color = 'black',ls='-',label = 'True Spectrum')
-            if plot_datapoints:
-                if not plot_residual:
-                    ax.errorbar(self.input_wavelength,self.input_flux,yerr=self.input_error,color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum')
+            for inst in self.input_flux.keys():
+                if plot_true_spectrum:
+                    if plot_residual:
+                        ax.plot(self.input_wavelength[inst],self.input_flux[inst]*0,color = 'black',ls =':')
+                    else:
+                        ax.plot(self.input_wavelength[inst],self.input_flux[inst],color = 'black',ls='-',label = 'Input Spectrum')
+                        #ax.plot(self.input_wavelength,self.true_flux,color = 'black',ls='-',label = 'True Spectrum')
+                if plot_datapoints:
+                    if not plot_residual:
+                        ax.errorbar(self.input_wavelength[inst],self.input_flux[inst],yerr=self.input_error[inst],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum')
         
         # Plotting results for the best fit.
         if plot_best_fit:
