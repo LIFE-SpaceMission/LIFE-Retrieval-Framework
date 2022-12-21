@@ -896,7 +896,7 @@ class retrieval_plotting(r_globals.globals):
 
         # If wanted add the bond albedo and the equilibrium temperature to the plot
         if plot_bond is not None:
-            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20,fit_BB=BB_fit_range, plot=False)
+            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20,fit_BB=BB_fit_range, plot=True)
             local_equal_weighted_post = np.append(local_equal_weighted_post, self.ret_opaque_T,axis=1)
             local_equal_weighted_post = np.append(local_equal_weighted_post, self.A_Bond_ret,axis=1)
             local_truths += [T_equ_true,A_Bond_true]
@@ -2108,22 +2108,31 @@ class retrieval_plotting(r_globals.globals):
             from petitRADTRANS import nat_cst as nc
             self.get_spectra(skip=skip,n_processes=n_processes)
 
-            def blackbody_lam(lam, T):
+            #def blackbody_lam(lam, T):
+            #    from scipy.constants import h,k,c
+            #    lam = 1e-6 * lam # convert the wavelenth to meters
+            #    flux = 2*np.pi*h*c**2 / (lam**5 * (np.exp(h*c / (lam*k*T)) - 1)) # calculate the BB flux
+            #    return flux
+            
+            def blackbody_lam(x, T):
                 from scipy.constants import h,k,c
+                lam = self.wavelength
                 lam = 1e-6 * lam # convert the wavelenth to meters
                 flux = 2*np.pi*h*c**2 / (lam**5 * (np.exp(h*c / (lam*k*T)) - 1)) # calculate the BB flux
-                return flux
+                return [np.sum(flux)]
 
             ind_r = [i for i in range(len(list(self.params.keys()))) if list(self.params.keys())[i]=='R_pl'][0]
             self.ret_opaque_T = np.zeros((np.size(self.retrieved_fluxes[:,0]),1))
-            inds = np.where((self.wavelength>=fit_BB[0]) & (self.wavelength<=fit_BB[1]))
-
-            factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.truths[ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
-            T_equ_true,cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], self.input_flux[inds]/factor[inds],p0=[200])
+            
+            #for inst in self.input_flux.keys():
+            #    inds = np.where((self.input_wavelength[inst]>=fit_BB[0]) & (self.input_wavelength[inst]<=fit_BB[1]))[0]
+            #    if len(inds) != 0:
+            #        factor = 1e7/1e6/(nc.c/self.input_wavelength[inst]*1e4)*1e6*self.input_wavelength[inst]*1e-6*(self.truths[ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
+            #        T_equ_true,cov = sco.curve_fit(blackbody_lam, self.input_wavelength[inst][inds], self.input_flux[inst][inds]/factor[inds],p0=[200])
 
             for i in range(np.size(self.retrieved_fluxes[:,0])):
                 factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
-                self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, self.wavelength[inds], np.ndarray.flatten(self.retrieved_fluxes[i,inds])/factor[inds],p0=[300])
+                self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
 
         # Or by sampling a specific layer in the atmosphere
         else:
@@ -2160,8 +2169,8 @@ class retrieval_plotting(r_globals.globals):
             # Save the figure or retrun the figure object
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_bond_albedo.pdf', bbox_inches='tight')
-            return fig, axs, A_Bond_true[0], T_equ_true[0]
-        return A_Bond_true[0], T_equ_true[0]
+            return A_Bond_true, T_equ_true
+        return A_Bond_true, T_equ_true
 
 
 

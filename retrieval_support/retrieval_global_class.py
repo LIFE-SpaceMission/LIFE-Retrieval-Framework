@@ -65,6 +65,7 @@ class globals:
            with open(self.path_prt + '/petitRADTRANS/path.txt', 'w+') as input_data:
                 input_data.write("#\n" + self.path_opacity)
 
+        self.log_top_pressure=-6
         self.config_file = config
         self.params = OrderedDict()
         self.knowns = OrderedDict()
@@ -106,8 +107,9 @@ class globals:
         elif self.settings['parametrization'] == 'vae_pt':
             pt_params = ['z_'+str(i+1) for i in range(len([input_pt[i] for i in range(len(input_pt)) if not 'settings' in input_pt[i]])-2)]
         elif self.settings['parametrization'] == 'guillot':
-            pt_params = ['log_delta', 'log_gamma',
-                         't_int', 't_equ', 'log_p_trans', 'alpha']
+            pt_params = ['log_delta', 'log_gamma','t_int', 't_equ', 'log_p_trans', 'alpha']
+        elif self.settings['parametrization'] == 'madhuseager':
+            pt_params = ['T0','log_P1','log_P2','log_P3','alpha1','alpha2']
         elif self.settings['parametrization'] == 'isothermal':
             pt_params = ['T_eq']
         elif self.settings['parametrization'] == 'input':
@@ -368,17 +370,6 @@ class globals:
             elif self.knowns[par]['type'] == 'MOON PARAMETERS':
                 self.moon_vars[par] = self.knowns[par]['value']
 
-        """
-        # for the vae_pt we currently cannot retrieve the surface pressure
-        if self.settings['parametrization'] == 'vae_pt':
-            if (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys()) or ('log_P0' in self.knowns.keys()) or ('P0' in self.knowns.keys())):
-                print("ERROR! For the VAE-PT profile model the surface pressure cannot be retrieved. It is fixed at a value of")
-                sys.exit()
-            else:
-                self.phys_vars['log_P0'] = np.log10(self.vae_pt.max_t)
-                self.phys_vars['log_Ptop'] = np.log10(self.vae_pt.min_t)
-        """
-
         if self.settings['clouds'] == 'opaque':
             # Choose a surface pressure below the lower cloud deck
             if not (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys())):
@@ -437,6 +428,11 @@ class globals:
 
                 self.phys_vars['g'] = nc.G * \
                     self.phys_vars['M_pl'] / (self.phys_vars['R_pl'])**2
+
+        # Check to ensure that the sampled pressures are nonotonically increasing.
+        if self.settings['parametrization'] == 'madhuseager':
+            if not self.log_top_pressure<self.temp_vars['log_P1']<self.temp_vars['log_P2']<self.temp_vars['log_P3']:
+                return -1e32
 
         self.make_press_temp_terr()  # pressures from low to high
         self.rt_object.setup_opa_structure(self.press)
@@ -557,7 +553,7 @@ class globals:
                                    Rstar=self.scat_vars['stellar_radius']*nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*nc.AU,
                             add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
 
-    def make_press_temp_terr(self,log_top_pressure=-6,log_ground_pressure=None,layers=100):
+    def make_press_temp_terr(self,log_ground_pressure=None,layers=100):
         """
         Creates the pressure-temperature profile from the temperature
         parameters and the pressure.
@@ -569,22 +565,22 @@ class globals:
 
         if self.settings['parametrization'] == 'polynomial':
             if log_ground_pressure is None:
-                self.press = np.logspace(log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
+                self.press = np.logspace(self.log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             else:
-                self.press = np.logspace(log_top_pressure,log_ground_pressure, layers, base=10)
+                self.press = np.logspace(self.log_top_pressure,log_ground_pressure, layers, base=10)
             self.temp = np.polyval(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)]
                                             for i in range(len(self.temp_vars))]), np.log10(self.press))
 
         elif self.settings['parametrization'] == 'vae_pt':
             if log_ground_pressure is None:
-                self.press = np.logspace(log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
+                self.press = np.logspace(self.log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             else:
-                self.press = np.logspace(log_top_pressure,log_ground_pressure, layers, base=10)
+                self.press = np.logspace(self.log_top_pressure,log_ground_pressure, layers, base=10)
             self.temp = self.vae_pt.get_temperatures(z=np.array([self.temp_vars['z_'+str(i+1)]
                                             for i in range(len(self.temp_vars))]), log_p=np.log10(self.press))
 
         elif self.settings['parametrization'] == 'guillot':
-            self.press = np.logspace(log_top_pressure,
+            self.press = np.logspace(self.log_top_pressure,
                                      self.phys_vars['log_P0'], 100, base=10)
             self.temp = nc.guillot_modif(self.press,
                                          1e1**self.temp_vars['log_delta'], 1e1**self.temp_vars['log_gamma'],
@@ -592,9 +588,34 @@ class globals:
                                          1e1**self.temp_vars['log_p_trans'], self.temp_vars['alpha'])
 
         elif self.settings['parametrization'] == 'isothermal':
-            self.press = np.logspace(log_top_pressure,
+            self.press = np.logspace(self.log_top_pressure,
                                      self.phys_vars['log_P0'], 100, base=10)
             self.temp = self.temp_vars['T_eq'] * np.ones_like(self.press)
+
+        elif self.settings['parametrization'] == 'madhuseager':
+            beta1=0.5
+            beta2=0.5
+            
+            def T_P(P_m,P_i,T_i,alpha,beta):
+                return (np.log(P_m/P_i)/alpha)**(1/beta)+T_i
+            
+            P0,P1,P2,P3 = 10**self.log_top_pressure,10**self.temp_vars['log_P1'],10**self.temp_vars['log_P2'],10**self.temp_vars['log_P3'] 
+            
+            self.press=np.logspace(self.log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
+            self.temp = np.zeros_like(self.press)
+            
+            T2 = self.temp_vars['T0'] + (np.log(P1/P0)/self.temp_vars['alpha1'])**(1/beta1) - (np.log(P1/P2)/self.temp_vars['alpha2'])**(1/beta2)
+            T3 = T_P(P3,P2,T2,self.temp_vars['alpha2'],beta2)
+
+            for i in range(np.size(self.press)):
+                if self.press[i] < P1:
+                    self.temp[i] = T_P(self.press[i],P0,self.temp_vars['T0'],self.temp_vars['alpha1'],beta1)
+                elif P1 < self.press[i] < P3:
+                    self.temp[i] = T_P(self.press[i],P2,T2,self.temp_vars['alpha2'],beta2)
+                elif self.press[i] > P3:
+                    self.temp[i] = T3
+
+        
 
         elif self.settings['parametrization'] == 'input':
             self.press, self.temp = np.loadtxt(
