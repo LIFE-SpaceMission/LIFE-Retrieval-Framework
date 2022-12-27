@@ -828,7 +828,7 @@ class retrieval_plotting(r_globals.globals):
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
                     plot_clouds=True,plot_chemcomp=True,plot_moon=False,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
-                    color='k',add_table=False,color_truth='C3',ULU=[],ULU_lim=[-0.15,0.75]):
+                    color='k',add_table=False,color_truth='C3',ULU=None,ULU_lim=[-0.15,0.75]):
         '''
         This function generates a corner plot for the retrieved parameters.
 
