@@ -8,6 +8,7 @@ import numpy as np
 import configparser
 from retrieval_support import retrieval_priors as priors
 import sys
+import scipy.ndimage as sci
 
 
 __author__ = "Alei, Konrad, Molliere, Quanz"
@@ -110,6 +111,8 @@ class globals:
             pt_params = ['log_delta', 'log_gamma','t_int', 't_equ', 'log_p_trans', 'alpha']
         elif self.settings['parametrization'] == 'madhuseager':
             pt_params = ['T0','log_P1','log_P2','log_P3','alpha1','alpha2']
+        elif self.settings['parametrization'] == 'mod_madhuseager':
+            pt_params = ['T0','log_P1','log_P2','alpha1','alpha2']
         elif self.settings['parametrization'] == 'isothermal':
             pt_params = ['T_eq']
         elif self.settings['parametrization'] == 'input':
@@ -433,12 +436,15 @@ class globals:
         if self.settings['parametrization'] == 'madhuseager':
             if not self.log_top_pressure<self.temp_vars['log_P1']<self.temp_vars['log_P2']<self.temp_vars['log_P3']:
                 return -1e32
+        if self.settings['parametrization'] == 'mod_madhuseager':
+            if not self.log_top_pressure<self.temp_vars['log_P1']<self.temp_vars['log_P2']:
+                return -1e32
 
         self.make_press_temp_terr()  # pressures from low to high
         self.rt_object.setup_opa_structure(self.press)
 
+        # ensure that there are no negative temperatures
         if any((self.temp < 0).tolist()):
-            #print("Negative temperature")
             return -1e32
 
         # Calculate the bottom pressure from the thickness parameter
@@ -600,7 +606,7 @@ class globals:
                 return (np.log(P_m/P_i)/alpha)**(1/beta)+T_i
             
             P0,P1,P2,P3 = 10**self.log_top_pressure,10**self.temp_vars['log_P1'],10**self.temp_vars['log_P2'],10**self.temp_vars['log_P3'] 
-            
+
             self.press=np.logspace(self.log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             self.temp = np.zeros_like(self.press)
             
@@ -614,6 +620,30 @@ class globals:
                     self.temp[i] = T_P(self.press[i],P2,T2,self.temp_vars['alpha2'],beta2)
                 elif self.press[i] > P3:
                     self.temp[i] = T3
+            
+            self.temp = sci.gaussian_filter1d(self.temp, 20.0, mode = 'nearest')
+
+        elif self.settings['parametrization'] == 'mod_madhuseager':
+            beta1=0.5
+            beta2=0.5
+            
+            def T_P(P_m,P_i,T_i,alpha,beta):
+                return (np.log(P_m/P_i)/alpha)**(1/beta)+T_i
+            
+            P0,P1,P2 = 10**self.log_top_pressure,10**self.temp_vars['log_P1'],10**self.temp_vars['log_P2'] 
+
+            self.press=np.logspace(self.log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
+            self.temp = np.zeros_like(self.press)
+            
+            T2 = self.temp_vars['T0'] + (np.log(P1/P0)/self.temp_vars['alpha1'])**(1/beta1) - (np.log(P1/P2)/self.temp_vars['alpha2'])**(1/beta2)
+
+            for i in range(np.size(self.press)):
+                if self.press[i] < P1:
+                    self.temp[i] = T_P(self.press[i],P0,self.temp_vars['T0'],self.temp_vars['alpha1'],beta1)
+                elif P1 < self.press[i]:
+                    self.temp[i] = T_P(self.press[i],P2,T2,self.temp_vars['alpha2'],beta2)
+            
+            self.temp = sci.gaussian_filter1d(self.temp, 20.0, mode = 'nearest')
 
         
 
