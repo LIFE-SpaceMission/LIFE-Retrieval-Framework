@@ -408,8 +408,8 @@ class retrieval_plotting(r_globals.globals):
             pressure_full = self.press
             temperature_full = self.temp
             ind = np.where(self.press > 10**self.phys_vars['log_P0'])
-            pressure_full[ind] = np.nan
-            temperature_full[ind] = np.nan
+            #pressure_full[ind] = np.nan
+            #temperature_full[ind] = np.nan
 
             # Calculate the pressure temperature profile corresponding to the set of parameters
             if ((self.settings['clouds'] == 'opaque') and (i>0)):
@@ -659,7 +659,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def get_pt(self,skip=1,layers=500,p_surf=4,n_processes=50):
+    def get_pt(self,skip=1,layers=500,p_surf=4,n_processes=50,reevaluate_PT=False):
         '''
         gets the PT profiles corresponding to the parameter values
         of the equal weighted posteriors.
@@ -669,11 +669,11 @@ class retrieval_plotting(r_globals.globals):
         # to the retrieved posterior distributions of partameters
         if not hasattr(self, 'pressure'):
             function_args = {'skip':skip,'layers':layers,'p_surf':p_surf,'n_processes':n_processes}
-            self.__get_data(data_type='PT',data_name='PT profiles',function_name='Calc_PT_Profiles',function_args=function_args)
+            self.__get_data(data_type='PT',data_name='PT profiles',function_name='Calc_PT_Profiles',function_args=function_args,force_evaluate=reevaluate_PT)
 
 
 
-    def __get_data(self,data_type,data_name,function_name,function_args):
+    def __get_data(self,data_type,data_name,function_name,function_args,force_evaluate=False):
         '''
         gets the data corresponding to the parameter values
         of the equal weighted posteriors.
@@ -682,6 +682,9 @@ class retrieval_plotting(r_globals.globals):
         # check if the data for the specified skip
         # values are already calculated
         try:
+            if force_evaluate:
+                raise ValueError('Forced recalculation of P-T profiles.')
+
             load_file = open(self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl', "rb")
             loaded_data = pickle.load(load_file)
             load_file.close()
@@ -940,13 +943,13 @@ class retrieval_plotting(r_globals.globals):
 
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
-                    legend_n_col = 2, legend_loc = 'best',n_processes=50,true_cloud_top=None,figsize=(6.4, 4.8),h_cover=0.45):
+                    legend_n_col = 2, legend_loc = 'best',n_processes=50,true_cloud_top=None,figsize=(6.4, 4.8),h_cover=0.45,reevaluate_PT = False):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
         '''
 
-        self.get_pt(skip=skip,n_processes=n_processes)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
         # find the quantiles for the different pressures and temperatures
         p_layers_quantiles = [np.nanquantile(self.pressure_full,q,axis=0) for q in quantiles]
@@ -954,18 +957,59 @@ class retrieval_plotting(r_globals.globals):
             T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0)-np.nanquantile(self.temperature_full,0.5,axis=0) for q in quantiles]
         else:
             T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0) for q in quantiles]
-        not_nan = np.count_nonzero(~np.isnan(self.pressure_full),axis = 0)/np.shape(self.pressure_full)[0]
 
-        for q in range(len(quantiles)):
-            T_layers_quantiles[q][np.where(not_nan<min(2*(1-quantiles[q]),2*(quantiles[q])))] = np.nan
-        
-            notnan = ~np.isnan(T_layers_quantiles[q])
-            T_layers_quantiles[q] = T_layers_quantiles[q][notnan]
-            p_layers_quantiles[q] = p_layers_quantiles[q][notnan]
+        # Merge the P-T profile quantiles with the surface pressure if retrieved
+        p_max = 1e6
+        p_layers_bottom = len(quantiles)//2*[[]]
+        T_layers_bottom = len(quantiles)//2*[[]]
+        if not self.settings['clouds'] == 'opaque':
 
-            X_Y_Spline = scp.make_interp_spline(np.array(p_layers_quantiles[q]),np.array(T_layers_quantiles[q]))
-            p_layers_quantiles[q] = np.logspace(np.log10(p_layers_quantiles[q].min()),np.log10(p_layers_quantiles[q].max()),80)
-            T_layers_quantiles[q] = X_Y_Spline(p_layers_quantiles[q])
+            if plot_residual:
+                mean_S_T = np.median(self.temperature[:,-1])
+            else:
+                mean_S_T = 0
+
+            # Define limits and make a 2d histogram of the surface pressures and temperatures
+            t_lim = [np.min(self.temperature[:,-1])-mean_S_T,np.max(self.temperature[:,-1])-mean_S_T]
+            t_range = t_lim[1]-t_lim[0]
+            p_lim = [np.min(np.log10(self.pressure[:,-1])),np.max(np.log10(self.pressure[:,-1]))]
+            p_range = p_lim[1]-p_lim[0]
+
+            # Calculate Contours for the surface pressure
+            Z,X,Y=np.histogram2d(self.temperature[:,-1]-mean_S_T,np.log10(self.pressure[:,-1]),bins=100,
+                            range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
+            Z = sp.ndimage.filters.gaussian_filter(Z, [7,7], mode='reflect')
+            color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
+            map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
+            contour = plt.contour((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,levels=np.array(levels),alpha=1,zorder=2).allsegs[:-1]
+            p_max = np.max(contour[0][0][:,1])
+
+            # iterate over all contours
+            for i in range(len(contour)):
+                # Calculate the distance between the contour and the P-T profile quantiles
+                dist  = sp.spatial.distance.cdist(np.array([contour[i][0][:,0]/1000,(np.log10(contour[i][0][:,1])+6)/10]).T,
+                                                    np.array([T_layers_quantiles[-(i+1)]/1000,(np.log10(p_layers_quantiles[-(i+1)])+6)/10]).T)
+                dist2 = sp.spatial.distance.cdist(np.array([contour[i][0][:,0]/1000,(np.log10(contour[i][0][:,1])+6)/10]).T,
+                                                    np.array([T_layers_quantiles[i]/1000,(np.log10(p_layers_quantiles[i])+6)/10]).T)
+
+                # Find the points of minimal distance on the contour (use 6 points to get bot minimas)
+                num = 6
+                s  = np.shape(dist)
+                s2 = np.shape(dist2)
+                ind  = np.array([[i//s[1] ,i%s[1] ] for i in np.argsort(dist , axis=None)[:num]])
+                ind2 = np.array([[i//s2[1],i%s2[1]] for i in np.argsort(dist2, axis=None)[:num]])
+                ind  = [ind[np.argmax(p_layers_quantiles[-(i+1)][ind[:,1]])],ind[np.argmin(p_layers_quantiles[-(i+1)][ind[:,1]])]]
+                ind2 = [ind2[np.argmax(p_layers_quantiles[i][ind2[:,1]])],   ind2[np.argmin(p_layers_quantiles[i][ind2[:,1]])]]
+
+                # Save the segments of the contours for later plotting
+                p_layers_bottom[i] = contour[i][0][ind[0][0]:ind2[0][0],1]
+                T_layers_bottom[i] = contour[i][0][ind[0][0]:ind2[0][0],0]
+
+                # Reject P-T quantiles with pressures higher than the surface pressure
+                p_layers_quantiles[-(i+1)]= p_layers_quantiles[-(i+1)][:ind[0][1]]
+                T_layers_quantiles[-(i+1)]= T_layers_quantiles[-(i+1)][:ind[0][1]]
+                p_layers_quantiles[i]     = p_layers_quantiles[i][:ind2[0][1]]
+                T_layers_quantiles[i]     = T_layers_quantiles[i][:ind2[0][1]]
             
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
@@ -993,8 +1037,12 @@ class retrieval_plotting(r_globals.globals):
 
         # Plotting the retrieved PT profile
         for i in range(N_levels):
-            ax.fill(np.append(T_layers_quantiles[i],np.flip(T_layers_quantiles[-i-1])),
-                    np.append(p_layers_quantiles[i],np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+            if self.settings['clouds'] == 'opaque':
+                ax.fill(np.append(np.append(sp.ndimage.filters.gaussian_filter1d(T_layers_quantiles[i], 5, mode='nearest'),T_layers_bottom[i][::-1]),np.flip(sp.ndimage.filters.gaussian_filter1d(T_layers_quantiles[-i-1], 5, mode='nearest'))),
+                        np.append(np.append(p_layers_quantiles[i],p_layers_bottom[i][::-1]),np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+            else:
+                ax.fill(sp.ndimage.filters.gaussian_filter1d(np.append(np.append(T_layers_quantiles[i],T_layers_bottom[i][::-1]),np.flip(T_layers_quantiles[-i-1])), 10, mode='nearest'),
+                        np.append(np.append(p_layers_quantiles[i],p_layers_bottom[i][::-1]),np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
         if plot_residual:
             ax.semilogy([0,0], y_lim,color ='black', linestyle=':')
             ax.annotate('Retrieved\nP-T Median',[0+0.035*x_lim[1],10**(0.975*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(y_lim[0]))],color = 'black',rotation=0,ha='left')
@@ -1010,12 +1058,13 @@ class retrieval_plotting(r_globals.globals):
             x = np.nanquantile(self.pressure_full,0.5,axis=0)
             yinterp = np.interp(self.input_pressure, x, y)
             smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 5)
+            smooth_T_true[np.where(self.input_pressure>p_max)]=np.nan
 
             # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
             if np.isnan(smooth_T_true[-10]):
                 num_nan = np.count_nonzero(np.isnan(smooth_T_true))
-                ax.semilogy(smooth_T_true[:-num_nan-10],self.input_pressure[:-num_nan-10],color ='black', label = 'P-T Profile')
-                ax.semilogy(smooth_T_true[-num_nan-10:],self.input_pressure[-num_nan-10:],color ='black', ls = ':')
+                ax.semilogy(smooth_T_true[:-num_nan-30],self.input_pressure[:-num_nan-30],color ='black', label = 'P-T Profile')
+                ax.semilogy(smooth_T_true[-num_nan-30:],self.input_pressure[-num_nan-30:],color ='black', ls = ':')
             else:
                 ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'P-T Profile')
 
@@ -1085,6 +1134,8 @@ class retrieval_plotting(r_globals.globals):
             t_range = t_lim[1]-t_lim[0]
             p_lim = [np.min(np.log10(self.pressure[:,-1])),np.max(np.log10(self.pressure[:,-1]))]
             p_range = p_lim[1]-p_lim[0]
+
+            # Use previously defined limits to calculate a 2d histogram of the surface pressures and temperatures
             Z,X,Y=np.histogram2d(self.temperature[:,-1],np.log10(self.pressure[:,-1]),bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
         
