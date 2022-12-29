@@ -4,10 +4,10 @@ from collections import OrderedDict
 import warnings
 import json
 import sys
+import os
 import numpy as np
 import configparser
 from retrieval_support import retrieval_priors as priors
-import sys
 import scipy.ndimage as sci
 
 
@@ -79,14 +79,20 @@ class globals:
         self.settings['moon']=False
         self.settings['scattering']=False
 
+        # Import PRt
+        sys.path.append(self.path_prt)
+        os.environ['pRT_input_data_path'] = self.path_opacity
+        self.rt = __import__('petitRADTRANS')
+        self.nc = self.rt.nat_cst
+
 
     def read_var(self):
         '''
         This function reads the config.ini file and fills up the three
         dictionaries: settings, params, knowns.
         '''
-        for section in self.config_file.sections():
 
+        for section in self.config_file.sections():
             for (key, val) in self.config_file.items(section):
                 if 'settings' in key:
                     self.settings[key[9:]] = val
@@ -107,6 +113,7 @@ class globals:
         for the given parametrization are provided by the user. If not,
         it stops the run.
         '''
+
         input_pt = list(self.config_file['TEMPERATURE PARAMETERS'].keys())
 
         # check if all parameters are there:
@@ -143,6 +150,7 @@ class globals:
         self.dferr = {}
         self.dwlbins = {}
         self.instrument =[]
+        
         for name in self.config_file['INPUT FILES'].keys():
             dat_obs = np.genfromtxt(self.config_file.get('INPUT FILES', name))
 
@@ -168,17 +176,13 @@ class globals:
         """
         Initializes the rt_object given the wavelength range.
         """
-        import sys,os
-        sys.path.append(self.path_prt)
-        os.environ['pRT_input_data_path'] = self.path_opacity
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
-
+        # add resolutions
         string = ''
         if self.settings['resolution'] != '1000':
             string = '_R_' + str(self.settings['resolution'])
         speciesres = []
 
+        # Line absorbers
         for key in self.params.keys():
             if self.params[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
                 speciesres.append(key+string)
@@ -188,10 +192,8 @@ class globals:
 
         # check if lines are there (trick with resolution)
         species = [s.split('_')[0] for s in speciesres]
-        line_species = os.listdir(
-            self.path_opacity + '/opacities/lines/corr_k/')
+        line_species = os.listdir(self.path_opacity + '/opacities/lines/corr_k/')
         used_line_species = (list(set(speciesres) & set(line_species)))
-        #print(speciesres)
         tot_mols =[s.split('_')[0] for s in used_line_species]
 
         # rayleigh_species
@@ -200,10 +202,9 @@ class globals:
         used_rayleigh_species = list(set(species) & set(rayleigh_species))
         tot_mols.extend(used_rayleigh_species)
 
+        # CIA species
         used_cia_species = []
-
         if self.settings['CIA']=='True':
-            # CIA species
             continuum_opacities = os.listdir(
                 self.path_opacity + '/opacities/continuum/CIA/')
 
@@ -263,7 +264,7 @@ class globals:
             self.MMW_Storage[reader[i,0]]=float(reader[i,1])
 
         ls = sorted(used_line_species)[::-1]
-        self.rt_object = Radtrans(line_species=ls, #sorted(used_line_species),
+        self.rt_object = self.rt.Radtrans(line_species=ls, #sorted(used_line_species),
                                   rayleigh_species=sorted(used_rayleigh_species),
                                   continuum_opacities=sorted(used_cia_species),
                                   cloud_species=sorted(used_cloud_species),
@@ -273,17 +274,11 @@ class globals:
 
         self.rt_object.setup_opa_structure(np.logspace(-6, 0, 100, base=10))
 
-        #try:
-        #    self.rt_object.reflectance = self.knowns['reflectance'] * np.ones_like(
-        #        self.rt_object.freq)
-        #    self.rt_object.emissivity = self.knowns['emissivity'] * \
-        #        np.ones_like(self.rt_object.freq)
-        #except:
-        #    pass
 
     def print_params(self):
         with open('%sparams.json' % self.prefix, 'w') as f:
             json.dump(list(self.params.keys()), f, indent=2)
+
 
     def Priors(self, cube):
         ccube = cube.copy()
@@ -305,23 +300,19 @@ class globals:
                 'G': priors.GaussianPrior(ccube[key], float(prior[1]), float(prior[2])).astype('float64'),
                 'LG': np.power(10., priors.GaussianPrior(ccube[key], float(prior[1]), float(prior[2]))),
             }
+
             pr = switcher.get(prior[0])
             if pr is None:
                 priors.InvalidPrior(par)
             ccube[key] = pr
         return ccube
 
+
     def LogLike(self, cube):
         """
         Calculates the log(likelihood) of the forward model generated
         with parameters and known variables.
         """
-        import sys
-        sys.path.append(self.path_prt)
-        os.environ['pRT_input_data_path'] = self.path_opacity
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
-
         # Generate dictionaries for the different classes of parameters
         self.temp_vars = {}
         self.chem_vars = {}
@@ -377,25 +368,6 @@ class globals:
             elif self.knowns[par]['type'] == 'MOON PARAMETERS':
                 self.moon_vars[par] = self.knowns[par]['value']
 
-        # Case dependant setting of the surface pressure
-        if self.settings['clouds'] == 'opaque':
-            # Choose a surface pressure below the lower cloud deck
-            if not (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys())):
-                self.phys_vars['log_P0'] = 4
-            else:
-                if (('log_P0' in self.knowns.keys()) or ('P0' in self.knowns.keys())):
-                    self.phys_vars['log_P0'] = 4
-                else:
-                    print("ERROR! For opaque cloud models the surface pressure P0 is not retrievable!")
-                    sys.exit()
-        else:
-            if 'log_P0' not in self.phys_vars.keys():
-                if 'P0' in self.phys_vars.keys():
-                    self.phys_vars['log_P0'] = np.log10(self.phys_vars['P0'])
-                else:
-                    print("ERROR! Either log_P0 or P0 is needed!")
-                    sys.exit()
-
         # Setting the scattering parameters
         if self.settings['scattering'] == 'True':
             # Try adding the reflectance
@@ -412,40 +384,16 @@ class globals:
             except:
                 pass
 
-        # Scaling the distance to m
-        try:
-            self.phys_vars['d_syst'] = self.phys_vars['d_syst'] * nc.pc / 100
-        except:
-            print("ERROR! Distance from the star is missing!")
-            sys.exit()
-        
-        # Scaling the radius to cm
-        try:
-            self.phys_vars['R_pl'] = self.phys_vars['R_pl'] * nc.r_earth
-        except:
-            print("ERROR! Planetary radius is missing!")
-            sys.exit()
 
-        # Scaling the moon radius to cm
-        if self.settings['moon'] == 'True':
-            try:
-                self.moon_vars['R_m'] = self.moon_vars['R_m'] * nc.r_earth
-            except:
-                print("ERROR! Moon radius is missing!")
-                sys.exit()
 
-        # CALCULATE G given M_Pl/R_pl or log_g. If in knowns already, skip
-        if 'g' not in self.phys_vars.keys():
-            if 'log_g' in self.phys_vars.keys():
-                self.phys_vars['g'] = 10**self.phys_vars['log_g']
-            else:
-                try:
-                    self.phys_vars['M_pl'] = self.phys_vars['M_pl'] * nc.m_earth
-                except:
-                    print("ERROR! Planetary mass is missing!")
-                    sys.exit()
-                self.phys_vars['g'] = nc.G * \
-                    self.phys_vars['M_pl'] / (self.phys_vars['R_pl'])**2
+        # Scaling the distances to m/cm
+        self.L_scale()
+
+        # Test and Potential conversion of P0
+        self.P0_test()
+
+        # Test/derivation of surface gravity
+        self.g_test()
 
         # Check to ensure that the sampled pressures are nonotonically increasing.
         if self.settings['parametrization'] == 'madhuseager':
@@ -460,13 +408,6 @@ class globals:
             if cube[self.params.index('alpha')] < -1:
                 return -1e32
 
-        # Check that the abundances do not exceed 1
-        metal_sum = sum(self.chem_vars.values())
-        if metal_sum > 1:
-            return -1e32
-        else:
-            self.inert = (1-metal_sum) * np.ones_like(self.press)
-
         # Test prior Volume
         log_prior = cube.sum()
         if (log_prior == -np.inf):
@@ -479,6 +420,13 @@ class globals:
         # Ensure that there are no negative temperatures
         if any((self.temp < 0).tolist()):
             return -1e32
+
+        # Check that the abundances do not exceed 1
+        metal_sum = sum(self.chem_vars.values())
+        if metal_sum > 1:
+            return -1e32
+        else:
+            self.inert = (1-metal_sum) * np.ones_like(self.press)
 
         # Calculate the bottom pressure from the thickness parameter
         for key in self.cloud_vars.keys():
@@ -506,13 +454,13 @@ class globals:
         for inst in self.instrument:
             # Rebin the spectrum according to the input spectrum
             flux_temp = spectres.spectres(self.dwlen[inst],
-                                            nc.c/self.rt_object.freq,
+                                            self.nc.c/self.rt_object.freq,
                                             self.rt_object.flux)
             
             # Rebin and add the moon Flux if present
             if self.settings['moon'] == 'True':
                 flux_temp = flux_temp + spectres.spectres(self.dwlen[inst],
-                                                nc.c/self.rt_object.freq,
+                                                self.nc.c/self.rt_object.freq,
                                                 self.moon_flux)
 
             # Calculate log-likelihood
@@ -523,15 +471,96 @@ class globals:
         return log_likelihood
 
 
+    def L_scale(self):
+        '''
+        Function to scale lengths check form pc
+        and earth radii to cm and m
+        '''
+
+        # Scaling the distance to m
+        try:
+            self.phys_vars['d_syst'] = self.phys_vars['d_syst'] * self.nc.pc / 100
+        except:
+            print("ERROR! Distance from the star is missing!")
+            sys.exit()
+        
+        # Scaling the radius to cm
+        try:
+            self.phys_vars['R_pl'] = self.phys_vars['R_pl'] * self.nc.r_earth
+        except:
+            print("ERROR! Planetary radius is missing!")
+            sys.exit()
+
+        # Scaling the moon radius to cm
+        if self.settings['moon'] == 'True':
+            try:
+                self.moon_vars['R_m'] = self.moon_vars['R_m'] * self.nc.r_earth
+            except:
+                print("ERROR! Moon radius is missing!")
+                sys.exit()
+
+
+    def P0_test(self,ind=None):
+        '''
+        Function to check if the surface pressure is provided or can
+        be calculated from the provided parameters and brings it to
+        the correct format for petit radtrans
+        '''
+
+        # Case dependant setting of the surface pressure
+        if self.settings['clouds'] == 'opaque':
+            # Choose a surface pressure below the lower cloud deck
+            if not (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys())):
+                self.phys_vars['log_P0'] = 4
+            else:
+                if (('log_P0' in self.knowns.keys()) or ('P0' in self.knowns.keys())):
+                    if ind is not None:
+                        if ind == 0:
+                            if 'P0' in self.knowns.keys():
+                                self.phys_vars['log_P0'] = np.log10(self.knowns['P0']['value'])
+                            else:
+                                self.phys_vars['log_P0'] = self.knowns['log_P0']['value']
+                        else:
+                            self.phys_vars['log_P0'] = 4
+                    else:
+                        self.phys_vars['log_P0'] = 4
+                else:
+                    print("ERROR! For opaque cloud models the surface pressure P0 is not retrievable!")
+                    sys.exit()
+        else:
+            if 'log_P0' not in self.phys_vars.keys():
+                if 'P0' in self.phys_vars.keys():
+                    self.phys_vars['log_P0'] = np.log10(self.phys_vars['P0'])
+                else:
+                    print("ERROR! Either log_P0 or P0 is needed!")
+                    sys.exit()
+
+
+    def g_test(self):
+        """
+        Function to check if the surface gravity is provided or can
+        be calculated from the provided parameters and brings it to
+        the correct format for petit radtrans
+        """
+
+        # Calculate the surface gravity g given M_Pl and R_pl or log_g. If in knowns already, skip
+        if 'g' not in self.phys_vars.keys():
+            if 'log_g' in self.phys_vars.keys():
+                self.phys_vars['g'] = 10**self.phys_vars['log_g']
+            else:
+                try:
+                    self.phys_vars['M_pl'] = self.phys_vars['M_pl'] * self.nc.m_earth
+                except:
+                    print("ERROR! Planetary mass is missing!")
+                    sys.exit()
+                self.phys_vars['g'] = self.nc.G*self.phys_vars['M_pl'] / (self.phys_vars['R_pl'])**2
+
+
     def retrieval_model_plain(self,em_contr=True):
         """
         Creates the pressure-temperature profile for the current atmosphere
         and calculates the corresponding emitted flux.
         """
-        import sys
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
 
         add_cloud_scat_as_abs = False
         self.abundances = {}
@@ -554,8 +583,8 @@ class globals:
 
         if self.settings['moon'] == 'True':
             nu = self.rt_object.freq
-            exponent = nc.h*nu/(nc.kB*self.moon_vars['T_m'])
-            B_nu = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
+            exponent = self.nc.h*nu/(self.nc.kB*self.moon_vars['T_m'])
+            B_nu = 2*self.nc.h*nu**3/self.nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
             self.moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
 
         if not self.settings['directlight']:
@@ -566,7 +595,7 @@ class globals:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
                             geometry='planetary_ave',Tstar= self.scat_vars['stellar_temp'],
-                                   Rstar=self.scat_vars['stellar_radius']*nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*nc.AU,
+                                   Rstar=self.scat_vars['stellar_radius']*self.nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*self.nc.AU,
                             add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
 
 
@@ -575,10 +604,6 @@ class globals:
         Creates the pressure-temperature profile from the temperature
         parameters and the pressure.
         """
-        import sys
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
 
         if log_top_pressure is None:
             log_top_pressure = self.log_top_pressure
@@ -605,7 +630,7 @@ class globals:
             else:
                 self.press=np.logspace(log_top_pressure,log_ground_pressure, layers, base=10)
                 
-            self.temp = nc.guillot_modif(self.press,
+            self.temp = self.nc.guillot_modif(self.press,
                                          1e1**self.temp_vars['log_delta'], 1e1**self.temp_vars['log_gamma'],
                                          self.temp_vars['t_int'], self.temp_vars['t_equ'],
                                          1e1**self.temp_vars['log_p_trans'], self.temp_vars['alpha'])

@@ -79,6 +79,12 @@ class retrieval_plotting(r_globals.globals):
         self.best_fit = self.data.get_best_fit()['parameters']
         self.evidence = [self.data.get_stats()['global evidence'],self.data.get_stats()['global evidence error']]
 
+        # Import PRt
+        sys.path.append(self.path_prt)
+        os.environ['pRT_input_data_path'] = self.path_opacity
+        self.rt = __import__('petitRADTRANS')
+        self.nc = self.rt.nat_cst
+
 
 
 
@@ -103,44 +109,52 @@ class retrieval_plotting(r_globals.globals):
             for (key, val) in self.config_file.items(section):
                 if 'settings' in key:
                     self.settings[key[9:]] = val
-                # check if the first element is a letter (the priors)
+
+                # check if the first element is a letter (the priors) -> retrieved parameter
                 elif val[:1].upper().isupper():
                     param = {'prior': val,
                              'type': section}
                     self.params[key] = param
+
+                    # Define the titles such that they work well for the chemical abundances
                     if section == 'CHEMICAL COMPOSITION PARAMETERS':
-                        # Define the titles such that they work well for the chemical abundances
                         self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$')
                         self.params_names[key.split('_')[0]]=key
+                    
+                    # Define the titles such that they work well for the physical parameters
                     elif section == 'PHYSICAL PARAMETERS':
-                        # Define the titles such that they work well for the chemical abundances
                         s = key.split('_')
                         try:
                             self.titles.append('$\\mathrm{'+s[0]+'_{'+s[1]+'}}$')
                         except:
                             self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$')
                         self.params_names[key]=key
+
+                    # Define the titles such that they work well for the temperature parameters    
                     elif section == 'TEMPERATURE PARAMETERS':
                         # Define the titles such that they work well for the pt parameters
                         self.titles.append('$\\mathrm{'+str(key)+'}$')
                         self.params_names[key]=key
+                    
+                    # Define the titles such that they work well for the cloud parameters
                     elif section == 'CLOUD PARAMETERS':
-                        # Define the titles such that they work well for the chemical abundances
                         temp = key.split('_')
                         if 'H2SO4' in temp[0]:
                             temp[0] = 'H2SO4(c)'
                         temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
                         temp.pop(1)
                         self.titles.append('\n'.join(temp))
-
                         key_name = ('_'.join(key.split('_')[2:]))
                         if key_name == '':
                             self.params_names['c_species_abundance']=key
                         else:
                             self.params_names['c_'+key_name]=key
+
+                    # Define the titles such that they work well for the Moon        
                     elif section == 'MOON PARAMETERS':
                         self.titles.append('$\\mathrm{'+str(key)+'}$')
 
+                    # Define standard titles for any other parameters 
                     else:
                         self.titles.append(key)
                         self.params_names[key]=key
@@ -155,6 +169,7 @@ class retrieval_plotting(r_globals.globals):
                     self.priors.append(val.split(' ')[0])
                     self.priors_range.append([float(val.split(' ')[i]) for i in range(1,3)])
 
+                # check if the first element is a letter (the priors) -> known parameter
                 else:
                     known = {'value': float(val),
                                  'type': section}
@@ -187,6 +202,7 @@ class retrieval_plotting(r_globals.globals):
         phys_vars_known = {}
         chem_vars_known = {}
         cloud_vars_known = {}
+        scat_vars_known = {} 
         moon_vars_known = {} 
 
         # Read in all known spectral parameters
@@ -206,19 +222,17 @@ class retrieval_plotting(r_globals.globals):
                 except:
                     cloud_vars_known['_'.join(par.split('_',2)[:2])]['abundance'] = self.knowns[par]['value']
                     chem_vars_known[par.split('_',1)[0]] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'SCATTERING PARAMETERS':
+                 # WARNING THEY ARE NO LONGER LOGARITHMS
+                 scat_vars_known[par] = self.knowns[par]['value']
             elif self.knowns[par]['type'] == 'MOON PARAMETERS': 
-                if not par in moon_vars_known.keys():
-                    moon_vars_known[par] = {}
-                try:
-                    moon_vars_known[par] = self.knowns[par]['value']
-                except:
-                    print('read in of knowns not working')
+                moon_vars_known[par] = self.knowns[par]['value']
         
-        return temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, moon_vars_known
+        return temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, scat_vars_known, moon_vars_known
 
 
 
-    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=False):
+    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,scat_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=False):
         '''
         This function creates libraries for the retrieved
         parameters in a retrieval for a given index of the
@@ -230,6 +244,7 @@ class retrieval_plotting(r_globals.globals):
         self.chem_vars = chem_vars_known.copy()
         self.phys_vars = phys_vars_known.copy()
         self.cloud_vars = cloud_vars_known.copy()
+        self.scat_vars = scat_vars_known.copy()
         self.moon_vars = moon_vars_known.copy()
             
         # Read in the values from the equal weighted posteriors
@@ -256,66 +271,10 @@ class retrieval_plotting(r_globals.globals):
                 except:
                     self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])]['abundance'] = temp_equal_weighted_post[ind,par]
                     self.chem_vars[retrieved_params[par].split('_',1)[0]] = temp_equal_weighted_post[ind,par]
+            elif self.params[retrieved_params[par]]['type'] == 'SCATTERING PARAMETERS':
+                self.scat_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
             elif self.params[retrieved_params[par]]['type'] == 'MOON PARAMETERS':
                 self.moon_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
-
-
-
-    def __g_test(self):
-        '''
-        Function to check if the surface gravity is provided or can
-        be calculated from the provided parameters and brings it to
-        the correct format for petit radtrans
-        '''
-        from petitRADTRANS import nat_cst as nc
-
-        # Calculate the surface gravity g given M_Pl and R_pl or log_g. If in knowns already, skip
-        if 'g' not in self.phys_vars.keys():
-            if 'log_g' in self.phys_vars.keys():
-                self.phys_vars['g'] = 10**self.phys_vars['log_g']
-            else:
-                try:
-                    self.phys_vars['M_pl'] = self.phys_vars['M_pl'] * nc.m_earth
-                except:
-                    print("ERROR! Planetary mass is missing!")
-                    sys.exit()
-                self.phys_vars['g'] = nc.G*self.phys_vars['M_pl'] / (self.phys_vars['R_pl'])**2
-
-
-
-    def __P0_test(self,ind=None):
-        '''
-        Function to check if the surface pressure is provided or can
-        be calculated from the provided parameters and brings it to
-        the correct format for petit radtrans
-        '''
-
-        if self.settings['clouds'] == 'opaque':
-            # Choose a surface pressure below the lower cloud deck
-            if not (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys())):
-                self.phys_vars['log_P0'] = 4
-            else:
-                if (('log_P0' in self.knowns.keys()) or ('P0' in self.knowns.keys())):
-                    if ind is not None:
-                        if ind == 0:
-                            if 'P0' in self.knowns.keys():
-                                self.phys_vars['log_P0'] = np.log10(self.knowns['P0']['value'])
-                            else:
-                                self.phys_vars['log_P0'] = self.knowns['log_P0']['value']
-                        else:
-                            self.phys_vars['log_P0'] = 4
-                    else:
-                        self.phys_vars['log_P0'] = 4
-                else:
-                    print("ERROR! For opaque cloud models the surface pressure P0 is not retrievable!")
-                    sys.exit()
-        else:
-            if 'log_P0' not in self.phys_vars.keys():
-                if 'P0' in self.phys_vars.keys():
-                    self.phys_vars['log_P0'] = np.log10(self.phys_vars['P0'])
-                else:
-                    print("ERROR! Either log_P0 or P0 is needed!")
-                    sys.exit()
 
 
 
@@ -342,7 +301,7 @@ class retrieval_plotting(r_globals.globals):
         temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
 
         # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, moon_vars_known = self.__get_knowns()
+        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, scat_vars_known, moon_vars_known = self.__get_knowns()
 
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
@@ -370,11 +329,7 @@ class retrieval_plotting(r_globals.globals):
             ind_end = dimension
             process = 0
 
-        # Import petitRADTRANS
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
-
+        # Read the data
         self.read_data(retrieval = False)
 
         # Print status of calculation
@@ -388,11 +343,11 @@ class retrieval_plotting(r_globals.globals):
             ind = min(2,i)+skip*max(0,i-2)
 
             # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,scat_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
         
             # Test the values of P0 and g and change to required values if necessary
-            self.__g_test()
-            self.__P0_test(ind=i)
+            self.g_test()
+            self.P0_test(ind=i)
 
             # Calculate the cloud bottom pressure from the cloud thickness parameter
             cloud_tops = []
@@ -490,7 +445,7 @@ class retrieval_plotting(r_globals.globals):
         temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
 
         # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, moon_vars_known = self.__get_knowns()
+        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, scat_vars_known, moon_vars_known = self.__get_knowns()
 
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
@@ -518,10 +473,7 @@ class retrieval_plotting(r_globals.globals):
             ind_end = dimension
             process = 0
 
-        # Import petitRADTRANS
-        sys.path.append(self.path_prt)
-        from petitRADTRANS import Radtrans
-        from petitRADTRANS import nat_cst as nc
+        # Initialize the RT object and read the data
         self.init_rt()
         self.read_data(retrieval = False)
 
@@ -536,29 +488,14 @@ class retrieval_plotting(r_globals.globals):
             ind = min(2,i)+skip*max(0,i-2)
 
             # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,moon_vars_known,temp_equal_weighted_post,ind)
+            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,scat_vars_known,moon_vars_known,temp_equal_weighted_post,ind)
 
             # Scaling physical variables of the system to correct units
-            try:
-                self.phys_vars['d_syst'] = self.phys_vars['d_syst'] * nc.pc / 100
-            except:
-                print("ERROR! Distance from the star is missing!")
-                sys.exit()
-            try:
-                self.phys_vars['R_pl'] = self.phys_vars['R_pl'] * nc.r_earth
-            except:
-                print("ERROR! Planetary radius is missing!")
-                sys.exit()
-            if self.settings['moon'] == 'True':
-                try:
-                    self.moon_vars['R_m'] = self.moon_vars['R_m'] * nc.r_earth
-                except:
-                    print("ERROR! Moon radius is missing!")
-                    sys.exit()
+            self.L_scale()
 
             # Test the values of P0 and g and change to required values if necessary
-            self.__g_test()
-            self.__P0_test()
+            self.g_test()
+            self.P0_test()
 
             # Calculate the pressure temperature profile corresponding to the set of parameters
             self.make_press_temp_terr()
@@ -587,12 +524,12 @@ class retrieval_plotting(r_globals.globals):
                 # Rebin the spectrum according to the input spectrum
                 #if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
                 #    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
-                #                                        nc.c / self.rt_object.freq,
+                #                                        self.nc.c / self.rt_object.freq,
                 #                                        self.rt_object.flux)
 
                 #Store the calculated flux according to the considered case
                 if i == 0:
-                    results['wavelength'] = nc.c/self.rt_object.freq/1e-4 #self.dwlen[instrument]
+                    results['wavelength'] = self.nc.c/self.rt_object.freq/1e-4 #self.dwlen[instrument]
                     if self.settings['moon'] == 'True':
                         results['true_flux'] = np.array(self.rt_object.flux+self.moon_flux)
                     else:
@@ -1586,9 +1523,6 @@ class retrieval_plotting(r_globals.globals):
         # Find the temperature at which the atmosphere becomes opaque
         # Either By fitting a BB Spectrum
         if fit_BB is not None:
-            sys.path.append(self.path_prt)
-            from petitRADTRANS import Radtrans
-            from petitRADTRANS import nat_cst as nc
             self.get_spectra(skip=skip,n_processes=n_processes)
 
             #def blackbody_lam(lam, T):
@@ -1610,11 +1544,11 @@ class retrieval_plotting(r_globals.globals):
             #for inst in self.input_flux.keys():
             #    inds = np.where((self.input_wavelength[inst]>=fit_BB[0]) & (self.input_wavelength[inst]<=fit_BB[1]))[0]
             #    if len(inds) != 0:
-            #        factor = 1e7/1e6/(nc.c/self.input_wavelength[inst]*1e4)*1e6*self.input_wavelength[inst]*1e-6*(self.truths[ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
+            #        factor = 1e7/1e6/(self.nc.c/self.input_wavelength[inst]*1e4)*1e6*self.input_wavelength[inst]*1e-6*(self.truths[ind_r]*self.nc.r_earth)**2/(self.knowns['d_syst']['value']*self.nc.pc)**2
             #        T_equ_true,cov = sco.curve_fit(blackbody_lam, self.input_wavelength[inst][inds], self.input_flux[inst][inds]/factor[inds],p0=[200])
 
             for i in range(np.size(self.retrieved_fluxes[:,0])):
-                factor = 1e7/1e6/(nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*nc.r_earth)**2/(self.knowns['d_syst']['value']*nc.pc)**2
+                factor = 1e7/1e6/(self.nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*self.nc.r_earth)**2/(self.knowns['d_syst']['value']*self.nc.pc)**2
                 self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
 
         # Or by sampling a specific layer in the atmosphere
@@ -1840,35 +1774,32 @@ class retrieval_plotting(r_globals.globals):
     def Moon_flux(self,MoonDIR):
         # plots retrieved moon fluxes for retrievals with moon in model 
 
-        import sys
-        sys.path.append('/net/ipa-gate/export/ipa/quanz/user_accounts/leemanni/') # find better way to import pRT
-        from petitRADTRANS import nat_cst as nc
         DIR = self.results_directory
         #plt.close() # make sure previous plot is closed
 
         def B_nu(wl,T):
             # calculate black body radiation in erg/cm^2/s/Hz/sr
-            nu = nc.c/(wl*1e-4)
-            exponent = nc.h*nu/(nc.kB*T)
-            intensity = 2*nc.h*nu**3/nc.c**2 / (np.exp(exponent)-1)
+            nu = self.nc.c/(wl*1e-4)
+            exponent = self.nc.h*nu/(self.nc.kB*T)
+            intensity = 2*self.nc.h*nu**3/self.nc.c**2 / (np.exp(exponent)-1)
             return intensity
 
         def model_moon_flux(wl,T_m,R_m):
             # returns modelled moon flux in erg/m^2/s/Hz
             BB_flux = B_nu(wl,T_m)
-            dist_scale_moon = (R_m)**2/(10*nc.pc/100)**2
+            dist_scale_moon = (R_m)**2/(10*self.nc.pc/100)**2
             moon_flux = np.pi * BB_flux*dist_scale_moon
             return moon_flux
 
         # get wl range
         Earth_Spec= np.loadtxt('{}input_spectrum.txt'.format(DIR), delimiter=' ')
         L=Earth_Spec[:,0]
-        f = nc.c/(L*1e-4)
+        f = self.nc.c/(L*1e-4)
 
         # get retrieved moon params
         local_equal_weighted_post = np.copy(self.equal_weighted_post)
         Tm = local_equal_weighted_post[:,-3] # in K
-        Rm = local_equal_weighted_post[:,-2]* nc.r_earth # in cm
+        Rm = local_equal_weighted_post[:,-2]* self.nc.r_earth # in cm
 
         model_flux = np.zeros((len(local_equal_weighted_post),len(L)))
         for k in range(len(local_equal_weighted_post)):
