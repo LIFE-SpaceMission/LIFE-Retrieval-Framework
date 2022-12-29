@@ -46,3 +46,19 @@ class parallel():
         function_args['process'] = process
         self.result[process] = getattr(results_temp,function)(**function_args)
         
+
+
+
+
+# Printing function for parallel computation
+def print_task_assignment(calculation_type,n_processes,dimension):
+    print('\n-----------------------------------------------------')
+    print('\n    '+str(calculation_type)+' calculation on multiple CPUs:')
+    print('')
+    print('    Number of calculations:\t'+str(dimension))
+    print('    Number of processes:\t'+str(n_processes))
+    print('')
+    print('    Distribution of tasks:')
+    for proc_ind in range(n_processes):
+        print('\tProcess '+str(proc_ind)+':\t'+str(calculation_type)+':\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
+    print('\n-----------------------------------------------------\n')

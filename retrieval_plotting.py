@@ -7,14 +7,10 @@ __status__ = "Development"
 # Standard Libraries
 from ssl import PROTOCOL_TLS_CLIENT
 import sys, os, re
-import math as m
 import matplotlib.pyplot as plt
 import matplotlib.colors as col
 import numpy as np
 import pickle
-from scipy.ndimage.filters import gaussian_filter1d
-import scipy.interpolate as scp
-import scipy.optimize as sco
 import scipy as sp
 import time as t
 
@@ -78,12 +74,6 @@ class retrieval_plotting(r_globals.globals):
         self.equal_weighted_post = self.data.get_equal_weighted_posterior()
         self.best_fit = self.data.get_best_fit()['parameters']
         self.evidence = [self.data.get_stats()['global evidence'],self.data.get_stats()['global evidence error']]
-
-        # Import PRt
-        sys.path.append(self.path_prt)
-        os.environ['pRT_input_data_path'] = self.path_opacity
-        self.rt = __import__('petitRADTRANS')
-        self.nc = self.rt.nat_cst
 
 
 
@@ -191,93 +181,6 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def __get_knowns(self):
-        '''
-        This function creates libraries for the known
-        parameters in a retrieval.
-        '''
-
-        # Dictionaries to stor the parameters for spectrum calculation
-        temp_vars_known = {}
-        phys_vars_known = {}
-        chem_vars_known = {}
-        cloud_vars_known = {}
-        scat_vars_known = {} 
-        moon_vars_known = {} 
-
-        # Read in all known spectral parameters
-        for par in self.knowns.keys():
-            #key = list(self.knowns.keys()).index(par)
-            if self.knowns[par]['type'] == 'TEMPERATURE PARAMETERS':
-                temp_vars_known[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'PHYSICAL PARAMETERS':
-                phys_vars_known[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                chem_vars_known[par.split('_',1)[0]] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'CLOUD PARAMETERS':
-                if not '_'.join(par.split('_',2)[:2]) in cloud_vars_known.keys():
-                    cloud_vars_known['_'.join(par.split('_',2)[:2])] = {}
-                try:
-                    cloud_vars_known['_'.join(par.split('_',2)[:2])][par.split('_',2)[2]] = self.knowns[par]['value']
-                except:
-                    cloud_vars_known['_'.join(par.split('_',2)[:2])]['abundance'] = self.knowns[par]['value']
-                    chem_vars_known[par.split('_',1)[0]] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'SCATTERING PARAMETERS':
-                 # WARNING THEY ARE NO LONGER LOGARITHMS
-                 scat_vars_known[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'MOON PARAMETERS': 
-                moon_vars_known[par] = self.knowns[par]['value']
-        
-        return temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, scat_vars_known, moon_vars_known
-
-
-
-    def __get_retrieved(self,temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,scat_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=False):
-        '''
-        This function creates libraries for the retrieved
-        parameters in a retrieval for a given index of the
-        equal weighted posterior.
-        '''
-
-        # Copy the known parameters into temporary dictionaries
-        self.temp_vars = temp_vars_known.copy()
-        self.chem_vars = chem_vars_known.copy()
-        self.phys_vars = phys_vars_known.copy()
-        self.cloud_vars = cloud_vars_known.copy()
-        self.scat_vars = scat_vars_known.copy()
-        self.moon_vars = moon_vars_known.copy()
-            
-        # Read in the values from the equal weighted posteriors
-        retrieved_params = list(self.params.keys())
-        for par in range(len(retrieved_params)):
-            if self.params[retrieved_params[par]]['type'] == 'TEMPERATURE PARAMETERS':
-                self.temp_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
-            elif self.params[retrieved_params[par]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                self.chem_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
-            elif self.params[retrieved_params[par]]['type'] == 'PHYSICAL PARAMETERS':
-                self.phys_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
-            elif self.params[retrieved_params[par]]['type'] == 'CLOUD PARAMETERS':
-                if not '_'.join(retrieved_params[par].split('_',2)[:2]) in self.cloud_vars.keys():
-                    self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])] = {}
-                try:
-                    self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])][retrieved_params[par].split('_',2)[2]] = temp_equal_weighted_post[ind,par]
-                    if ind == 0 or ind_bypass:
-                        if self.settings['clouds'] == 'opaque':
-                            if retrieved_params[par].split('_',2)[2] == 'thickness':
-                                min_cloud_center = temp_equal_weighted_post[2:,par-1]+temp_equal_weighted_post[2:,par]/2
-                                hist = np.histogram(np.log10(min_cloud_center),bins=50)
-                                self.cloud_opacity_cut = sco.curve_fit(rp_mathfunc.Logistic_Function,(hist[1][:-1]+hist[1][1:])/2,hist[0],p0=[80,10,0])[0]
-                                self.opacity = rp_mathfunc.Inverse_Logistic_Function(self.cloud_opacity_cut[0]*np.array([0.16,0.5,0.84]),*self.cloud_opacity_cut)
-                except:
-                    self.cloud_vars['_'.join(retrieved_params[par].split('_',2)[:2])]['abundance'] = temp_equal_weighted_post[ind,par]
-                    self.chem_vars[retrieved_params[par].split('_',1)[0]] = temp_equal_weighted_post[ind,par]
-            elif self.params[retrieved_params[par]]['type'] == 'SCATTERING PARAMETERS':
-                self.scat_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
-            elif self.params[retrieved_params[par]]['type'] == 'MOON PARAMETERS':
-                self.moon_vars[retrieved_params[par]] = temp_equal_weighted_post[ind,par]
-
-
-
 
 
     """
@@ -300,30 +203,16 @@ class retrieval_plotting(r_globals.globals):
         temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
         temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
 
-        # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, scat_vars_known, moon_vars_known = self.__get_knowns()
-
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
 
         #If run in multiprocessing split up the jobs
         if (n_processes is not None) and (process is not None):
-
+            if process == 0:
+                # Print the task assignment
+                rp_parallel.print_task_assignment('PT-Profile',n_processes,dimension)
             ind_start = process*dimension//n_processes
             ind_end = min(dimension,(process+1)*dimension//n_processes)
-
-            # Printing infor ffor the multiprocessing case
-            if process == 0:
-                print('\n-----------------------------------------------------')
-                print('\n    PT-Profile calculation on multiple CPUs:')
-                print('')
-                print('    PT-Profiles to calculate: ',str(dimension))
-                print('    Number of processes: '+str(n_processes))
-                print('')
-                print('    Distribution of tasks:')
-                for proc_ind in range(n_processes):
-                    print('\tProcess '+str(proc_ind)+':\tProfiles:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
-                print('\n-----------------------------------------------------\n')
         else:
             ind_start = 0
             ind_end = dimension
@@ -342,9 +231,10 @@ class retrieval_plotting(r_globals.globals):
         for i in range(ind_start,ind_end):
             ind = min(2,i)+skip*max(0,i-2)
 
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,scat_vars_known,moon_vars_known,temp_equal_weighted_post,ind,ind_bypass=(i==ind_start))
-        
+            # Fetch the known parameters and a sample of retrieved
+            # parameters from the posteriors
+            self.get_param_sample(temp_equal_weighted_post[ind,:])
+
             # Test the values of P0 and g and change to required values if necessary
             self.g_test()
             self.P0_test(ind=i)
@@ -359,19 +249,14 @@ class retrieval_plotting(r_globals.globals):
                 pressure_cloud_top = self.press[0]
                 temperature_cloud_top = self.temp[0]
 
+            # Extrapolate the retrieved P-T profile to higher pressures
             self.make_press_temp_terr(log_ground_pressure=p_surf,layers=layers)
-            pressure_full = self.press
-            temperature_full = self.temp
+            pressure_extrapol = self.press
+            temperature_extrapol = self.temp
             ind = np.where(self.press > 10**self.phys_vars['log_P0'])
-            #pressure_full[ind] = np.nan
-            #temperature_full[ind] = np.nan
 
             # Calculate the pressure temperature profile corresponding to the set of parameters
-            if ((self.settings['clouds'] == 'opaque') and (i>0)):
-                self.phys_vars['log_P0'] = self.cloud_opacity_cut[-1]
-                self.make_press_temp_terr(layers=layers)
-            else:
-                self.make_press_temp_terr(layers=layers)
+            self.make_press_temp_terr(layers=layers)
 
             # store the calculated values
             if i == 0:
@@ -398,8 +283,8 @@ class retrieval_plotting(r_globals.globals):
                     # Initialize the arrays for storage
                     results['pressure'] = np.zeros((size,len(self.press)))
                     results['temperature'] = np.zeros((size,len(self.temp)))
-                    results['pressure_full'] = np.zeros((size,len(pressure_full)))
-                    results['temperature_full'] = np.zeros((size,len(temperature_full)))
+                    results['pressure_extrapol'] = np.zeros((size,len(pressure_extrapol)))
+                    results['temperature_extrapol'] = np.zeros((size,len(temperature_extrapol)))
                     if len(self.cloud_vars) != 0:
                         results['pressure_cloud_top'] = np.zeros((size,len([pressure_cloud_top])))
                         results['temperature_cloud_top'] = np.zeros((size,len([temperature_cloud_top])))
@@ -412,8 +297,8 @@ class retrieval_plotting(r_globals.globals):
                 # Save the results
                 results['pressure'][save,:] = self.press
                 results['temperature'][save,:] = self.temp
-                results['pressure_full'][save,:] = pressure_full
-                results['temperature_full'][save,:] = temperature_full
+                results['pressure_extrapol'][save,:] = pressure_extrapol
+                results['temperature_extrapol'][save,:] = temperature_extrapol
                 if len(self.cloud_vars) != 0:
                     results['pressure_cloud_top'][save,:] = pressure_cloud_top
                     results['temperature_cloud_top'][save,:] = temperature_cloud_top
@@ -444,30 +329,16 @@ class retrieval_plotting(r_globals.globals):
         temp_equal_weighted_post = np.append(np.array([self.best_fit]),self.equal_weighted_post[:,:-1],axis=0)
         temp_equal_weighted_post = np.append(np.array([self.truths]),temp_equal_weighted_post,axis=0)
 
-        # Fetch the known parameters
-        temp_vars_known, phys_vars_known, chem_vars_known, cloud_vars_known, scat_vars_known, moon_vars_known = self.__get_knowns()
-
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
 
         #If run in multiprocessing split up the jobs
         if (n_processes is not None) and (process is not None):
-
+            if process == 0:
+                # Print the task assignment
+                rp_parallel.print_task_assignment('Spectrum',n_processes,dimension)
             ind_start = process*dimension//n_processes
             ind_end = min(dimension,(process+1)*dimension//n_processes)
-
-            # Printing infor ffor the multiprocessing case
-            if process == 0:
-                print('\n-----------------------------------------------------')
-                print('\n    Spectrum calculation on multiple CPUs:')
-                print('')
-                print('    Spectra to calculate: ',str(dimension))
-                print('    Number of processes: '+str(n_processes))
-                print('')
-                print('    Distribution of tasks:')
-                for proc_ind in range(n_processes):
-                    print('\tProcess '+str(proc_ind)+':\tSpectra:\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
-                print('\n-----------------------------------------------------\n')
         else:
             ind_start = 0
             ind_end = dimension
@@ -487,8 +358,9 @@ class retrieval_plotting(r_globals.globals):
         for i in range(ind_start,ind_end):
             ind = min(2,i)+skip*max(0,i-2)
 
-            # Fetch the retrieved parameters for a given ind
-            self.__get_retrieved(temp_vars_known,chem_vars_known,phys_vars_known,cloud_vars_known,scat_vars_known,moon_vars_known,temp_equal_weighted_post,ind)
+            # Fetch the known parameters and a sample of retrieved
+            # parameters from the posteriors
+            self.get_param_sample(temp_equal_weighted_post[ind,:])
 
             # Scaling physical variables of the system to correct units
             self.L_scale()
@@ -502,8 +374,8 @@ class retrieval_plotting(r_globals.globals):
             self.rt_object.setup_opa_structure(self.press)
 
             # Calculate the cloud bottom pressure from the cloud thickness parameter
-            for key in self.cloud_vars.keys():
-                self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
+            #for key in self.cloud_vars.keys():
+            #    self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
 
             # Ensure that the total atmospheric weight is equal to 1
             metal_sum = sum(self.chem_vars.values())
@@ -582,7 +454,7 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def get_spectra(self,skip=1,n_processes=50):
+    def get_spectra(self,skip=1,n_processes=50,reevaluate_spectra=False):
         '''
         gets the PT profiles corresponding to the parameter values
         of the equal weighted posteriors.
@@ -592,7 +464,7 @@ class retrieval_plotting(r_globals.globals):
         # to the retrieved posterior distributions of partameters
         if not hasattr(self, 'retrieved_fluxes'):
             function_args = {'skip':skip,'n_processes':n_processes}
-            self.__get_data(data_type='Spec',data_name='spectra',function_name='Calc_Spectra',function_args=function_args)
+            self.__get_data(data_type='Spec',data_name='spectra',function_name='Calc_Spectra',function_args=function_args,force_evaluate=reevaluate_spectra)
 
 
 
@@ -889,11 +761,11 @@ class retrieval_plotting(r_globals.globals):
         self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
         # find the quantiles for the different pressures and temperatures
-        p_layers_quantiles = [np.nanquantile(self.pressure_full,q,axis=0) for q in quantiles]
+        p_layers_quantiles = [np.nanquantile(self.pressure_extrapol,q,axis=0) for q in quantiles]
         if plot_residual:
-            T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0)-np.nanquantile(self.temperature_full,0.5,axis=0) for q in quantiles]
+            T_layers_quantiles = [np.nanquantile(self.temperature_extrapol,q,axis=0)-np.nanquantile(self.temperature_extrapol,0.5,axis=0) for q in quantiles]
         else:
-            T_layers_quantiles = [np.nanquantile(self.temperature_full,q,axis=0) for q in quantiles]
+            T_layers_quantiles = [np.nanquantile(self.temperature_extrapol,q,axis=0) for q in quantiles]
 
         # Merge the P-T profile quantiles with the surface pressure if retrieved
         p_max = 1e6
@@ -991,10 +863,10 @@ class retrieval_plotting(r_globals.globals):
 
         # Plotting the true/input profile (interpolation for smoothing)
         if plot_residual:
-            y = np.nanquantile(self.temperature_full,0.5,axis=0)
-            x = np.nanquantile(self.pressure_full,0.5,axis=0)
+            y = np.nanquantile(self.temperature_extrapol,0.5,axis=0)
+            x = np.nanquantile(self.pressure_extrapol,0.5,axis=0)
             yinterp = np.interp(self.input_pressure, x, y)
-            smooth_T_true = gaussian_filter1d(self.input_temperature-yinterp,sigma = 5)
+            smooth_T_true = sp.ndimage.filters.gaussian_filter1d(self.input_temperature-yinterp,sigma = 5)
             smooth_T_true[np.where(self.input_pressure>p_max)]=np.nan
 
             # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
@@ -1181,13 +1053,13 @@ class retrieval_plotting(r_globals.globals):
 
 
     def PT_Histogram(self, ax=None, save=False, plot_clouds=False, x_lim=[0,1000], y_lim=[1e-6,1e4], color_map=None, skip=1, bins=200, legend_color='white', truth_color='white',
-                    legend_loc = 'best',n_processes=50):
+                    legend_loc = 'best',n_processes=50,reevaluate_PT = False):
         '''
         This Function creates a plot that visualizes the 2d histogram of the retrieved
         2d PT profile in comparison with the PT profile spectrum for the retrieval.
         '''
 
-        self.get_pt(skip=skip,n_processes=n_processes)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
         # Create colormap if requaested
         if color_map is not None:
@@ -1207,7 +1079,7 @@ class retrieval_plotting(r_globals.globals):
 
         # Plotting the histogram of the PT profiles in the equal weighted posterior
         bins = np.array([np.linspace(x_lim[0],x_lim[1],bins),np.logspace(np.log10(y_lim[0]),np.log10(y_lim[1]),bins)])
-        ax.hist2d(self.temperature_full.flatten()[~np.isnan(self.temperature_full.flatten())],self.pressure_full.flatten()[~np.isnan(self.pressure_full.flatten())],bins=bins,cmap=color_map)
+        ax.hist2d(self.temperature_extrapol.flatten()[~np.isnan(self.temperature_extrapol.flatten())],self.pressure_extrapol.flatten()[~np.isnan(self.pressure_extrapol.flatten())],bins=bins,cmap=color_map)
 
         # Plotting the input profile
         ax.semilogy(self.input_temperature,self.input_pressure,color = truth_color, label = 'Input Profile')
@@ -1253,9 +1125,9 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Emission_Contribution(self, skip=1, n_processes=50):
-        self.get_spectra(skip=skip,n_processes=n_processes)
-        self.get_pt(skip=skip,n_processes=n_processes)
+    def Emission_Contribution(self, skip=1, n_processes=50,reevaluate_PT = False,reevaluate_spectra=False):
+        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
         
         print(np.shape(self.retrieved_fluxes))
@@ -1270,21 +1142,21 @@ class retrieval_plotting(r_globals.globals):
         plt.clf()
         plt.figure()
         if self.settings['clouds'] == 'opaque':
-            p = np.linspace(np.log10(self.pressure_full[0,0]),np.log10(self.pressure_full[0,-1]),100)
+            p = np.linspace(np.log10(self.pressure_extrapol[0,0]),np.log10(self.pressure_extrapol[0,-1]),100)
             pwidth=(p[1]-p[0])/2
 
             local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=1)/np.sum(np.mean(local_retrieved_em_contr,axis=1))            
             for i in range(len(p)):
                 plt.fill([0,0,1,1],[p[i]-pwidth,p[i]+pwidth,p[i]+pwidth,p[i]-pwidth],color='k',alpha= local_retrieved_em_contr[i]/np.max(local_retrieved_em_contr),edgecolor=None)
         else:
-            p = np.linspace(np.log10(self.pressure_full[0,0]),4,100)
+            p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,100)
             pwidth=(p[1]-p[0])/2
 
             for i in range(len(local_retrieved_em_contr[0,:])):
                 local_retrieved_em_contr[-1,i]=0
 
                 p_in = np.linspace(np.log10(self.pressure[i,0]),np.log10(self.pressure[i,-1]),100)
-                f = scp.interp1d(p_in, local_retrieved_em_contr[:,i],fill_value=0,bounds_error=False)
+                f = sp.interpolate.interp1d(p_in, local_retrieved_em_contr[:,i],fill_value=0,bounds_error=False)
 
                 local_retrieved_em_contr[:,i]=f(p)
     
@@ -1296,10 +1168,10 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Emission_Contribution_Wlen(self, skip=1, n_processes=50,color = 'k',true_ct=5e-2):
-        self.get_spectra(skip=skip,n_processes=n_processes)
-        self.get_pt(skip=skip,n_processes=n_processes)
-        p = np.linspace(np.log10(self.pressure_full[0,0]),4,25)
+    def Emission_Contribution_Wlen(self, skip=1, n_processes=50,color = 'k',true_ct=5e-2,reevaluate_PT = False,reevaluate_spectra=False):
+        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
+        p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,25)
         X, Y = np.meshgrid(self.input_wavelength, 10**p)
  
         local_retrieved_em_contr = (self.retrieved_em_contr.copy())
@@ -1318,7 +1190,7 @@ class retrieval_plotting(r_globals.globals):
                 p_in = np.linspace(np.log10(self.pressure[i,0]),np.log10(self.pressure[i,-1]),25)
                 for j in range(len(local_retrieved_em_contr[0,0,:])):
                     local_retrieved_em_contr[i,-1,j]=0
-                    f = scp.interp1d(p_in, local_retrieved_em_contr[i,:,j],fill_value=0,bounds_error=False)
+                    f = sp.interpolate.interp1d(p_in, local_retrieved_em_contr[i,:,j],fill_value=0,bounds_error=False)
                     local_retrieved_em_contr[i,:,j]=f(p)
             local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=0)/(np.sum(np.mean(local_retrieved_em_contr,axis=0),axis=0)[None,:])
             local_retrieved_em_contr = local_retrieved_em_contr/np.max(local_retrieved_em_contr)
@@ -1349,23 +1221,25 @@ class retrieval_plotting(r_globals.globals):
 
     def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
-                    noise_title = 'Observation Noise', plot_best_fit = False, legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False):
+                    noise_title = 'Observation Noise', plot_best_fit = False, legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
         '''
 
-        self.get_spectra(skip=skip,n_processes=n_processes)
+        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
 
         # Find the quantiles for the different spectra
         if median_only:
             if plot_residual:
-                flux_median = (np.quantile(self.retrieved_fluxes,0.5,axis=0)-self.input_flux)/self.input_flux*100
+                for inst in self.input_flux.keys():
+                    flux_median = (np.quantile(self.retrieved_fluxes,0.5,axis=0)-self.input_flux[inst])/self.input_flux[inst]*100
             else:
                 flux_median = np.quantile(self.retrieved_fluxes,0.5,axis=0)
         else:
             if plot_residual:
-                flux_quantiles = [(np.quantile(self.retrieved_fluxes,q,axis=0)-self.input_flux)/self.input_flux*100 for q in quantiles]
+                for inst in self.input_flux.keys():
+                    flux_quantiles = [(np.quantile(self.retrieved_fluxes,q,axis=0)-self.input_flux[inst])/self.input_flux[inst]*100 for q in quantiles]
             else:
                 flux_quantiles = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
 
@@ -1516,14 +1390,14 @@ class retrieval_plotting(r_globals.globals):
     def Plot_Ret_Bond_Albedo(self, L_star, sigma_L_star, sep_planet, sigma_sep_planet, A_Bond_true = None, T_equ_true= None,
                             skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,fit_BB=None,
                             titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$'],
-                            units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$','']):
+                            units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$',''],reevaluate_PT = False,reevaluate_spectra=False):
 
-        self.get_pt(skip=skip,n_processes=n_processes)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
         # Find the temperature at which the atmosphere becomes opaque
         # Either By fitting a BB Spectrum
         if fit_BB is not None:
-            self.get_spectra(skip=skip,n_processes=n_processes)
+            self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
 
             #def blackbody_lam(lam, T):
             #    from scipy.constants import h,k,c
@@ -1545,11 +1419,11 @@ class retrieval_plotting(r_globals.globals):
             #    inds = np.where((self.input_wavelength[inst]>=fit_BB[0]) & (self.input_wavelength[inst]<=fit_BB[1]))[0]
             #    if len(inds) != 0:
             #        factor = 1e7/1e6/(self.nc.c/self.input_wavelength[inst]*1e4)*1e6*self.input_wavelength[inst]*1e-6*(self.truths[ind_r]*self.nc.r_earth)**2/(self.knowns['d_syst']['value']*self.nc.pc)**2
-            #        T_equ_true,cov = sco.curve_fit(blackbody_lam, self.input_wavelength[inst][inds], self.input_flux[inst][inds]/factor[inds],p0=[200])
+            #        T_equ_true,cov = sp.optimize.curve_fit(blackbody_lam, self.input_wavelength[inst][inds], self.input_flux[inst][inds]/factor[inds],p0=[200])
 
             for i in range(np.size(self.retrieved_fluxes[:,0])):
                 factor = 1e7/1e6/(self.nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*self.nc.r_earth)**2/(self.knowns['d_syst']['value']*self.nc.pc)**2
-                self.ret_opaque_T[i,0], cov = sco.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
+                self.ret_opaque_T[i,0], cov = sp.optimize.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
 
         # Or by sampling a specific layer in the atmosphere
         else:
@@ -1658,32 +1532,32 @@ class retrieval_plotting(r_globals.globals):
 
                 # Try to Fit each model to the retrieved data
                 try:
-                    params_F,cov_F = sco.curve_fit(r_post.Model_Flat,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0])
+                    params_F,cov_F = sp.optimize.curve_fit(r_post.Model_Flat,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0])
                     model_likelihood.append(r_post.log_likelihood(params_F,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Flat))
                 except:
                     model_likelihood.append(-np.inf)
 
                 try:
-                    params_SS,cov_SS = sco.curve_fit(r_post.Model_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SS)
+                    params_SS,cov_SS = sp.optimize.curve_fit(r_post.Model_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SS)
                     model_likelihood.append(r_post.log_likelihood(params_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStep))
                 except:
                     model_likelihood.append(-np.inf)
 
                 try:
-                    params_SSG,cov_SSG = sco.curve_fit(r_post.Model_SoftStepG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SSG)
+                    params_SSG,cov_SSG = sp.optimize.curve_fit(r_post.Model_SoftStepG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SSG)
                     model_likelihood.append(r_post.log_likelihood(params_SSG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_SoftStepG))
                     line_SSG = r_post.Model_SoftStepG(x_bins,*params_SSG)
                 except:
                     model_likelihood.append(-np.inf)
 
                 try:
-                    params_G,cov_G = sco.curve_fit(r_post.Model_Gauss,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_Gauss)
+                    params_G,cov_G = sp.optimize.curve_fit(r_post.Model_Gauss,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_Gauss)
                     model_likelihood.append(r_post.log_likelihood(params_G,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_Gauss))
                 except:
                     model_likelihood.append(-np.inf)
 
                 #try:
-                #    params_u_SS,cov_u_SS = sco.curve_fit(r_post.Model_upper_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_u_SS)
+                #    params_u_SS,cov_u_SS = sp.optimize.curve_fit(r_post.Model_upper_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_u_SS)
                 #    model_likelihood.append(r_post.log_likelihood(params_u_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],r_post.Model_upper_SoftStep))
                 #except:
                 #    model_likelihood.append(-np.inf)
@@ -1938,9 +1812,9 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Plot_Ice_Surface_Test(self,MMW_atm=44,MMW_H2O=18,ax=None,skip=1,bins=50,save=False,n_processes=50):
+    def Plot_Ice_Surface_Test(self,MMW_atm=44,MMW_H2O=18,ax=None,skip=1,bins=50,save=False,n_processes=50,reevaluate_PT = False):
 
-        self.get_pt(skip=skip,n_processes=n_processes)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
         if self.settings['clouds'] == 'opaque':
             ret_surface_T = self.temperature_cloud_top

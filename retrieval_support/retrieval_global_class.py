@@ -313,78 +313,11 @@ class globals:
         Calculates the log(likelihood) of the forward model generated
         with parameters and known variables.
         """
+
         # Generate dictionaries for the different classes of parameters
-        self.temp_vars = {}
-        self.chem_vars = {}
-        self.phys_vars = {}
-        self.cloud_vars = {}
-        self.scat_vars = {}
-        self.moon_vars = {}
-
-        # Sample the priors to generate values for the retrieved parameters
-        for par in self.params.keys():
-            key = list(self.params.keys()).index(par)
-            if self.params[par]['type'] == 'TEMPERATURE PARAMETERS':
-                self.temp_vars[par] = cube[key]
-            elif self.params[par]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                self.chem_vars[par] = cube[key]
-            elif self.params[par]['type'] == 'PHYSICAL PARAMETERS':
-                self.phys_vars[par] = cube[key]
-            elif self.params[par]['type'] == 'SCATTERING PARAMETERS':
-                self.scat_vars[par] = cube[key]
-            elif self.params[par]['type'] == 'CLOUD PARAMETERS':
-                if not '_'.join(par.split('_',2)[:2]) in self.cloud_vars.keys():
-                    self.cloud_vars['_'.join(par.split('_',2)[:2])] = {}
-                try:
-                    self.cloud_vars['_'.join(par.split('_',2)[:2])][par.split('_',2)[2]] = cube[key]
-                except:
-                    self.cloud_vars['_'.join(par.split('_',2)[:2])]['abundance'] = cube[key]
-                    self.chem_vars[par.split('_',1)[0]] = cube[key]
-            elif self.params[par]['type'] == 'MOON PARAMETERS':
-                self.moon_vars[par] = cube[key]
-        
-        # Add the known parameters to the dictionary
-        for par in self.knowns.keys():
-            key = list(self.knowns.keys()).index(par)
-            if self.knowns[par]['type'] == 'TEMPERATURE PARAMETERS':
-                self.temp_vars[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                # WARNING THEY ARE NO LONGER LOGARITHMS
-                self.chem_vars[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'PHYSICAL PARAMETERS':
-                # WARNING THEY ARE NO LONGER LOGARITHMS
-                self.phys_vars[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'CLOUD PARAMETERS':
-                if not '_'.join(par.split('_',2)[:2]) in self.cloud_vars.keys():
-                    self.cloud_vars['_'.join(par.split('_',2)[:2])] = {}
-                try:
-                    self.cloud_vars['_'.join(par.split('_',2)[:2])][par.split('_',2)[2]] = self.knowns[par]['value']
-                except:
-                    self.cloud_vars['_'.join(par.split('_',2)[:2])]['abundance'] = self.knowns[par]['value']
-                    self.chem_vars[par.split('_',1)[0]] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'SCATTERING PARAMETERS':
-                 # WARNING THEY ARE NO LONGER LOGARITHMS
-                 self.scat_vars[par] = self.knowns[par]['value']
-            elif self.knowns[par]['type'] == 'MOON PARAMETERS':
-                self.moon_vars[par] = self.knowns[par]['value']
-
-        # Setting the scattering parameters
-        if self.settings['scattering'] == 'True':
-            # Try adding the reflectance
-            try:
-                self.rt_object.reflectance = self.scat_vars['reflectance'] * np.ones_like(
-                    self.rt_object.freq)
-            except:
-                pass
-
-            # Try adding the emissivity
-            try:
-                self.rt_object.emissivity = self.scat_vars['emissivity'] * \
-                    np.ones_like(self.rt_object.freq)
-            except:
-                pass
-
-
+        # and add the known parameters as well as a sample of the
+        # retrieved parameters to them
+        self.get_param_sample(cube)
 
         # Scaling the distances to m/cm
         self.L_scale()
@@ -428,13 +361,6 @@ class globals:
         else:
             self.inert = (1-metal_sum) * np.ones_like(self.press)
 
-        # Calculate the bottom pressure from the thickness parameter
-        for key in self.cloud_vars.keys():
-            self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
-
-        # Initialize the log-likelihood
-        log_likelihood = 0.
-
         # Calculate the forward model; this returns the wavelengths in cm
         # and the flux F_nu in erg/cm^2/s/Hz.
         self.retrieval_model_plain()
@@ -450,18 +376,27 @@ class globals:
             if self.settings['moon'] == 'True':
                 self.moon_flux *= self.moon_vars['R_m']**2/self.phys_vars['d_syst']**2
                      
-        # Calculate log-likelihood
+        # Calculate total log-likelihood (sum over instruments)
+        log_likelihood = 0.
         for inst in self.instrument:
-            # Rebin the spectrum according to the input spectrum
-            flux_temp = spectres.spectres(self.dwlen[inst],
-                                            self.nc.c/self.rt_object.freq,
-                                            self.rt_object.flux)
-            
-            # Rebin and add the moon Flux if present
-            if self.settings['moon'] == 'True':
-                flux_temp = flux_temp + spectres.spectres(self.dwlen[inst],
+            # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
+            if not (np.round(self.dwlen[inst],10)==np.round(self.nc.c/self.rt_object.freq,10)).all():
+                flux_temp = spectres.spectres(self.dwlen[inst],
                                                 self.nc.c/self.rt_object.freq,
-                                                self.moon_flux)
+                                                self.rt_object.flux)
+                
+                # Rebin and add the moon Flux if present
+                if self.settings['moon'] == 'True':
+                    flux_temp = flux_temp + spectres.spectres(self.dwlen[inst],
+                                                    self.nc.c/self.rt_object.freq,
+                                                    self.moon_flux)
+
+            else:
+                flux_temp = self.rt_object.flux
+                
+                # Rebin and add the moon Flux if present
+                if self.settings['moon'] == 'True':
+                    flux_temp = flux_temp + self.moon_flux
 
             # Calculate log-likelihood
             log_likelihood += -0.5 * np.sum(((flux_temp -
@@ -469,6 +404,65 @@ class globals:
                                             self.dferr[inst])**2.)
 
         return log_likelihood
+
+    
+    def get_param_sample(self,cube):
+        '''
+        Function to generate dictionaries and
+        containing a sample of parameters that
+        is used to generate the spectra
+        '''
+        
+        # Generate the gictionaries for the parameters 
+        self.temp_vars = {}
+        self.chem_vars = {}
+        self.phys_vars = {}
+        self.cloud_vars = {}
+        self.scat_vars = {}
+        self.moon_vars = {}
+
+        # Add the known parameters to the dictionary
+        for par in self.knowns.keys():
+            if self.knowns[par]['type'] == 'TEMPERATURE PARAMETERS':
+                self.temp_vars[par] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                self.chem_vars[par] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'PHYSICAL PARAMETERS':
+                self.phys_vars[par] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'CLOUD PARAMETERS':
+                if not '_'.join(par.split('_',2)[:2]) in self.cloud_vars.keys():
+                    self.cloud_vars['_'.join(par.split('_',2)[:2])] = {}
+                try:
+                    self.cloud_vars['_'.join(par.split('_',2)[:2])][par.split('_',2)[2]] = self.knowns[par]['value']
+                except:
+                    self.cloud_vars['_'.join(par.split('_',2)[:2])]['abundance'] = self.knowns[par]['value']
+                    self.chem_vars[par.split('_',1)[0]] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'SCATTERING PARAMETERS':
+                self.scat_vars[par] = self.knowns[par]['value']
+            elif self.knowns[par]['type'] == 'MOON PARAMETERS':
+                self.moon_vars[par] = self.knowns[par]['value']
+
+        # Add samples of the retrieved parameters to the dictionary
+        r_params = list(self.params.keys())
+        for par in range(len(r_params)):
+            if self.params[r_params[par]]['type'] == 'TEMPERATURE PARAMETERS':
+                self.temp_vars[r_params[par]] = cube[par]
+            elif self.params[r_params[par]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                self.chem_vars[r_params[par]] = cube[par]
+            elif self.params[r_params[par]]['type'] == 'PHYSICAL PARAMETERS':
+                self.phys_vars[r_params[par]] = cube[par]
+            elif self.params[r_params[par]]['type'] == 'CLOUD PARAMETERS':
+                if not '_'.join(r_params[par].split('_',2)[:2]) in self.cloud_vars.keys():
+                    self.cloud_vars['_'.join(r_params[par].split('_',2)[:2])] = {}
+                try:
+                    self.cloud_vars['_'.join(r_params[par].split('_',2)[:2])][r_params[par].split('_',2)[2]] = cube[par]
+                except:
+                    self.cloud_vars['_'.join(r_params[par].split('_',2)[:2])]['abundance'] = cube[par]
+                    self.chem_vars[r_params[par].split('_',1)[0]] = cube[par]
+            elif self.params[r_params[par]]['type'] == 'SCATTERING PARAMETERS':
+                self.scat_vars[r_params[par]] = cube[par]
+            elif self.params[r_params[par]]['type'] == 'MOON PARAMETERS':
+                self.moon_vars[r_params[par]] = cube[par]
 
 
     def L_scale(self):
@@ -571,6 +565,8 @@ class globals:
                 add_cloud_scat_as_abs = True
                 self.abundances[name] = np.zeros_like(self.press)
                 for cloud in self.cloud_vars.keys():
+                    # Calculate the bottom pressure from the thickness parameter
+                    self.cloud_vars[cloud]['bottom_pressure'] = self.cloud_vars[cloud]['top_pressure']+self.cloud_vars[cloud]['thickness']
                     if name in cloud:
                         self.abundances[name][np.where((self.press<self.cloud_vars[cloud]['bottom_pressure'])
                                                       &(self.press>self.cloud_vars[cloud]['top_pressure']))] = self.chem_vars[name]
@@ -581,12 +577,29 @@ class globals:
                     self.press) * self.chem_vars[name]
         self.calc_MMW()
 
+        # Calculate the moon flux
         if self.settings['moon'] == 'True':
             nu = self.rt_object.freq
             exponent = self.nc.h*nu/(self.nc.kB*self.moon_vars['T_m'])
             B_nu = 2*self.nc.h*nu**3/self.nc.c**2 / (np.exp(exponent)-1)  # in erg/cm^2/s/Hz/sr
             self.moon_flux = np.pi*B_nu  # in erg/cm^2/s/Hz 
 
+        # Setting the scattering parameters for the surface
+        if self.settings['scattering'] == 'True':
+            # Try adding the reflectance
+            try:
+                self.rt_object.reflectance = self.scat_vars['reflectance'] * np.ones_like(
+                    self.rt_object.freq)
+            except:
+                pass
+            # Try adding the emissivity
+            try:
+                self.rt_object.emissivity = self.scat_vars['emissivity'] * \
+                    np.ones_like(self.rt_object.freq)
+            except:
+                pass
+
+        # Calculate the Spectrum of the planet
         if not self.settings['directlight']:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
