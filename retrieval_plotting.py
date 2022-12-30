@@ -206,17 +206,8 @@ class retrieval_plotting(r_globals.globals):
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
 
-        #If run in multiprocessing split up the jobs
-        if (n_processes is not None) and (process is not None):
-            if process == 0:
-                # Print the task assignment
-                rp_parallel.print_task_assignment('PT-Profile',n_processes,dimension)
-            ind_start = process*dimension//n_processes
-            ind_end = min(dimension,(process+1)*dimension//n_processes)
-        else:
-            ind_start = 0
-            ind_end = dimension
-            process = 0
+        # Split up the jobs onto the multiple processes
+        process,ind_start,ind_end = rp_parallel.task_assignment('PT-Profile',n_processes,dimension,process)
 
         # Read the data
         self.read_data(retrieval = False)
@@ -332,17 +323,8 @@ class retrieval_plotting(r_globals.globals):
         # Iterate over the equal weighted posterior distribution using the user-defined skip value
         dimension = np.shape(temp_equal_weighted_post)[0]//skip
 
-        #If run in multiprocessing split up the jobs
-        if (n_processes is not None) and (process is not None):
-            if process == 0:
-                # Print the task assignment
-                rp_parallel.print_task_assignment('Spectrum',n_processes,dimension)
-            ind_start = process*dimension//n_processes
-            ind_end = min(dimension,(process+1)*dimension//n_processes)
-        else:
-            ind_start = 0
-            ind_end = dimension
-            process = 0
+        # Split up the jobs onto the multiple processes
+        process,ind_start,ind_end = rp_parallel.task_assignment('Spectrum',n_processes,dimension,process)
 
         # Initialize the RT object and read the data
         self.init_rt()
@@ -373,10 +355,6 @@ class retrieval_plotting(r_globals.globals):
             self.make_press_temp_terr()
             self.rt_object.setup_opa_structure(self.press)
 
-            # Calculate the cloud bottom pressure from the cloud thickness parameter
-            #for key in self.cloud_vars.keys():
-            #    self.cloud_vars[key]['bottom_pressure'] = self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']
-
             # Ensure that the total atmospheric weight is equal to 1
             metal_sum = sum(self.chem_vars.values())
             self.inert = (1-metal_sum) *np.ones_like(self.press)
@@ -385,58 +363,44 @@ class retrieval_plotting(r_globals.globals):
             # and the flux F_nu in erg/cm^2/s/Hz.
             self.retrieval_model_plain(em_contr=True)
 
-            # Convert the calculated flux to the flux recieved at earth per m^2
-            if self.phys_vars['d_syst'] is not None:
-                self.rt_object.flux *= self.phys_vars['R_pl']**2/self.phys_vars['d_syst']**2
-
+            # Store the calculated flux according to the considered case 
+            if i == 0:
+                results['wavelength'] = self.nc.c/self.rt_object.freq/1e-4 #self.dwlen[instrument]
                 if self.settings['moon'] == 'True':
-                    self.moon_flux *= self.moon_vars['R_m']**2/self.phys_vars['d_syst']**2
-
-            for instrument in self.dwlen.keys():  # CURRENTLY USELESS
-                # Rebin the spectrum according to the input spectrum
-                #if not np.size(self.rt_object.freq) == np.size(self.dwlen[instrument]):
-                #    self.rt_object.flux = spectres.spectres(self.dwlen[instrument],
-                #                                        self.nc.c / self.rt_object.freq,
-                #                                        self.rt_object.flux)
-
-                #Store the calculated flux according to the considered case
-                if i == 0:
-                    results['wavelength'] = self.nc.c/self.rt_object.freq/1e-4 #self.dwlen[instrument]
-                    if self.settings['moon'] == 'True':
-                        results['true_flux'] = np.array(self.rt_object.flux+self.moon_flux)
-                    else:
-                        results['true_flux'] = np.array(self.rt_object.flux)
-                    results['true_em_contr'] = np.array(self.rt_object.contr_em)
-
-                elif i == 1:
-                    if self.settings['moon'] == 'True':
-                        results['best_flux'] = np.array(self.rt_object.flux+self.moon_flux)
-                    else:
-                        results['best_flux'] = np.array(self.rt_object.flux)
-                    results['best_em_contr'] = np.array(self.rt_object.contr_em)
-
+                    results['true_flux'] = np.array(self.rt_object.flux+self.moon_flux)
                 else:
-                    if (i == 2) or (i==ind_start):
-                        if i==2:
-                            size = ind_end-ind_start-2
-                        else:
-                            size = ind_end-ind_start
+                    results['true_flux'] = np.array(self.rt_object.flux)
+                results['true_em_contr'] = np.array(self.rt_object.contr_em)
 
-                        # Initialize the arrays for storage
-                        results['retrieved_fluxes'] = np.zeros((size,len(self.rt_object.flux)))
-                        results['retrieved_em_contr'] = np.zeros((size,np.shape(self.rt_object.contr_em)[0],np.shape(self.rt_object.contr_em)[1]))
+            elif i == 1:
+                if self.settings['moon'] == 'True':
+                    results['best_flux'] = np.array(self.rt_object.flux+self.moon_flux)
+                else:
+                    results['best_flux'] = np.array(self.rt_object.flux)
+                results['best_em_contr'] = np.array(self.rt_object.contr_em)
 
-                    if process == 0:
-                        save = i - 2
+            else:
+                if (i == 2) or (i==ind_start):
+                    if i==2:
+                        size = ind_end-ind_start-2
                     else:
-                        save = i-ind_start
+                        size = ind_end-ind_start
 
-                    # Save the results
-                    if self.settings['moon'] == 'True':
-                        results['retrieved_fluxes'][save,:] = self.rt_object.flux + self.moon_flux
-                    else:
-                        results['retrieved_fluxes'][save,:] = self.rt_object.flux
-                    results['retrieved_em_contr'][save,:,:] = self.rt_object.contr_em
+                    # Initialize the arrays for storage
+                    results['retrieved_fluxes'] = np.zeros((size,len(self.rt_object.flux)))
+                    results['retrieved_em_contr'] = np.zeros((size,np.shape(self.rt_object.contr_em)[0],np.shape(self.rt_object.contr_em)[1]))
+
+                if process == 0:
+                    save = i - 2
+                else:
+                    save = i-ind_start
+
+                # Save the results
+                if self.settings['moon'] == 'True':
+                    results['retrieved_fluxes'][save,:] = self.rt_object.flux + self.moon_flux
+                else:
+                    results['retrieved_fluxes'][save,:] = self.rt_object.flux
+                results['retrieved_em_contr'][save,:,:] = self.rt_object.contr_em
             
             # Print status of calculation
             if process == 0:
@@ -494,6 +458,7 @@ class retrieval_plotting(r_globals.globals):
             if force_evaluate:
                 raise ValueError('Forced recalculation of P-T profiles.')
 
+            # Try loading previously calculated data
             load_file = open(self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl', "rb")
             loaded_data = pickle.load(load_file)
             load_file.close()
@@ -504,8 +469,8 @@ class retrieval_plotting(r_globals.globals):
 
             print('Loaded previously calculated '+data_name+' from '+self.results_directory+'Plots/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl.')
 
-        # check if the data for the specified skip
-        # values are already calculated
+        # If not calculated or the revaluation is desired
+        # Calculate from scratch
         except:
             print('Calculating retrieved '+data_name+' from scratch.')
 

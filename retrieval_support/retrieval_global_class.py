@@ -328,7 +328,7 @@ class globals:
         # Test/derivation of surface gravity
         self.g_test()
 
-        # Check to ensure that the sampled pressures are nonotonically increasing.
+        # Check: Return -inf if pressures for madhuseager models are not nonotonically increasing.
         if self.settings['parametrization'] == 'madhuseager':
             if not self.log_top_pressure<self.temp_vars['log_P1']<self.temp_vars['log_P2']<self.temp_vars['log_P3']<self.phys_vars['log_P0']:
                 return -1e32
@@ -336,12 +336,12 @@ class globals:
             if not self.log_top_pressure<self.temp_vars['log_P1']<self.temp_vars['log_P2']<self.phys_vars['log_P0']:
                 return -1e32
 
-        # Check parameter value for the Guillot model
+        # Check: Return -inf if parameters for the Guillot model are bad
         if self.settings['parametrization'] == 'guillot':
             if cube[self.params.index('alpha')] < -1:
                 return -1e32
 
-        # Test prior Volume
+        # Check: Return -inf if the cube is bad
         log_prior = cube.sum()
         if (log_prior == -np.inf):
             return -1e32
@@ -350,11 +350,11 @@ class globals:
         self.make_press_temp_terr()  # pressures from low to high
         self.rt_object.setup_opa_structure(self.press)
 
-        # Ensure that there are no negative temperatures
+        # Check: Return -inf if there are negative temperatures
         if any((self.temp < 0).tolist()):
             return -1e32
 
-        # Check that the abundances do not exceed 1
+        # Check: Return -inf if the abundances exceed 1
         metal_sum = sum(self.chem_vars.values())
         if metal_sum > 1:
             return -1e32
@@ -369,18 +369,12 @@ class globals:
         if np.sum(np.isnan(self.rt_object.flux)) > 0:
             print("NaN spectrum encountered")
             return -1e32
-
-        # Scale the fluxes
-        if self.phys_vars['d_syst'] is not None:
-            self.rt_object.flux *= self.phys_vars['R_pl']**2/self.phys_vars['d_syst']**2
-            if self.settings['moon'] == 'True':
-                self.moon_flux *= self.moon_vars['R_m']**2/self.phys_vars['d_syst']**2
                      
         # Calculate total log-likelihood (sum over instruments)
         log_likelihood = 0.
         for inst in self.instrument:
             # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
-            if not (np.round(self.dwlen[inst],10)==np.round(self.nc.c/self.rt_object.freq,10)).all():
+            if not np.array([(np.round(self.dwlen[inst],10)==np.round(self.nc.c/self.rt_object.freq,10))]).all():
                 flux_temp = spectres.spectres(self.dwlen[inst],
                                                 self.nc.c/self.rt_object.freq,
                                                 self.rt_object.flux)
@@ -391,6 +385,7 @@ class globals:
                                                     self.nc.c/self.rt_object.freq,
                                                     self.moon_flux)
 
+            # If no rebin is required
             else:
                 flux_temp = self.rt_object.flux
                 
@@ -610,6 +605,12 @@ class globals:
                             geometry='planetary_ave',Tstar= self.scat_vars['stellar_temp'],
                                    Rstar=self.scat_vars['stellar_radius']*self.nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*self.nc.AU,
                             add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
+
+        # Scale the fluxes to the desired separation
+        if self.phys_vars['d_syst'] is not None:
+            self.rt_object.flux *= self.phys_vars['R_pl']**2/self.phys_vars['d_syst']**2
+            if self.settings['moon'] == 'True':
+                self.moon_flux *= self.moon_vars['R_m']**2/self.phys_vars['d_syst']**2
 
 
     def make_press_temp_terr(self,log_ground_pressure=None,layers=100,log_top_pressure=None):

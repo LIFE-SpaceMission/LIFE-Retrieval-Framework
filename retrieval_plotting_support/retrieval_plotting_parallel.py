@@ -48,6 +48,20 @@ class parallel():
         
 
 
+# Assignment of Tasks to different processes for parallel computation
+def task_assignment(calculation_type,n_processes,dimension,process):
+    if (n_processes is not None) and (process is not None):
+        if process == 0:
+            # Print the task assignment
+            print_task_assignment(calculation_type,n_processes,dimension)
+        ind_start = process*dimension//n_processes
+        ind_end = min(dimension,(process+1)*dimension//n_processes)
+    else:
+        ind_start = 0
+        ind_end = dimension
+        process = 0
+    return process,ind_start,ind_end
+
 
 
 # Printing function for parallel computation
