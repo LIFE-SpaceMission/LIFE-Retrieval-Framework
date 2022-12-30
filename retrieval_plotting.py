@@ -359,8 +359,7 @@ class retrieval_plotting(r_globals.globals):
             metal_sum = sum(self.chem_vars.values())
             self.inert = (1-metal_sum) *np.ones_like(self.press)
 
-            # Calculate the forward model; this returns the wavelengths in cm
-            # and the flux F_nu in erg/cm^2/s/Hz.
+            # Calculate the forward spectrum corresponding to the parameters.
             self.retrieval_model_plain(em_contr=True)
 
             # Store the calculated flux according to the considered case 
@@ -604,7 +603,7 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_moon=False,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
+                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
                     color='k',add_table=False,color_truth='C3',ULU=None,ULU_lim=[-0.15,0.75]):
         '''
         This function generates a corner plot for the retrieved parameters.
@@ -623,6 +622,7 @@ class retrieval_plotting(r_globals.globals):
         inds_physparam = []
         inds_chemcomp = []
         inds_clouds = []
+        inds_scatt = []
         inds_moon = []
 
         param_names = list(self.params.keys())
@@ -631,6 +631,8 @@ class retrieval_plotting(r_globals.globals):
                 inds_chemcomp += [i]
             if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
                 inds_clouds += [i]
+            if self.params[param_names[i]]['type'] == 'SCATTERING PARAMETERS':
+                inds_scatt += [i]
             if self.params[param_names[i]]['type'] == 'MOON PARAMETERS':
                 inds_moon += [i]
             if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
@@ -662,6 +664,8 @@ class retrieval_plotting(r_globals.globals):
             inds += [i for i in range(len(param_names)) if i in inds_chemcomp]
         if plot_clouds:
             inds += [i for i in range(len(param_names)) if i in inds_clouds]
+        if plot_scatt:
+            inds += [i for i in range(len(param_names)) if i in inds_scatt]
         if plot_moon:
             inds += [i for i in range(len(param_names)) if i in inds_moon]
 
@@ -1092,7 +1096,7 @@ class retrieval_plotting(r_globals.globals):
     def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
                     noise_title = 'Observation Noise', legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False,
-                    split_instruments=False,single_instrument=None):
+                    split_instruments=False,single_instrument=None,log_x=False,log_y=False):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
@@ -1158,6 +1162,8 @@ class retrieval_plotting(r_globals.globals):
                     ax.fill(np.append(inst_wls[inst],np.flip(inst_wls[inst])),
                             np.append(inst_quantiles[inst][i],np.flip(inst_quantiles[inst][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
 
+            ax.plot(inst_wls[inst],spectres.spectres(inst_wls[inst],self.wavelength,self.true_flux),'r-',zorder=3)
+
         # Plotting the input spectrum
         for inst in intruments:
             # Plot the noise for the input spectrum
@@ -1182,7 +1188,9 @@ class retrieval_plotting(r_globals.globals):
                 ax.set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
             ax.set_xlabel(r'Wavelength [$\mu$m]')
 
-        # Set the limits for the plot axes
+        # Set the limits for the plot axes and the scaling
+        if log_x:
+            ax.set_xscale('log')
         if x_lim is not None:
             ax.set_xlim(x_lim)
         else:
@@ -1191,6 +1199,8 @@ class retrieval_plotting(r_globals.globals):
                 x_lim = [min(inst_wls[inst][0],x_lim[0]),max(inst_wls[inst][-1],x_lim[1])]
             ax.set_xlim(x_lim)
 
+        if log_y:
+            ax.set_yscale('log')
         if y_lim is not None:
             ax.set_ylim(y_lim)
         else:

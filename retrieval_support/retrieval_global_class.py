@@ -256,6 +256,7 @@ class globals:
         print('Used continuum opacities:\t' + str(used_cia_species))
         print('Used cloud species:\t\t' + str(used_cloud_species))
         print('Used species *in general*:\t' + str(self.tot_mols))
+        print()
 
         # Read in the molecular weights database
         self.MMW_Storage = {}
@@ -263,6 +264,9 @@ class globals:
         for i in range(len(reader[:,0])):
             self.MMW_Storage[reader[i,0]]=float(reader[i,1])
 
+        # Initialize th pRT object and prevent printing of reading
+        old_stdout = sys.stdout
+        sys.stdout = open(os.devnull, "w")
         ls = sorted(used_line_species)[::-1]
         self.rt_object = self.rt.Radtrans(line_species=ls, #sorted(used_line_species),
                                   rayleigh_species=sorted(used_rayleigh_species),
@@ -271,6 +275,7 @@ class globals:
                                   wlen_bords_micron=WLEN,
                                   mode='c-k',
                                   do_scat_emis=self.settings['scattering'])
+        sys.stdout = old_stdout
 
         self.rt_object.setup_opa_structure(np.logspace(-6, 0, 100, base=10))
 
@@ -594,7 +599,9 @@ class globals:
             except:
                 pass
 
-        # Calculate the Spectrum of the planet
+        # Calculate the Spectrum of the planet, prevent unnecessary printing
+        old_stdout = sys.stdout
+        sys.stdout = open(os.devnull, "w")
         if not self.settings['directlight']:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
@@ -602,9 +609,10 @@ class globals:
         else:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
-                            geometry='planetary_ave',Tstar= self.scat_vars['stellar_temp'],
-                                   Rstar=self.scat_vars['stellar_radius']*self.nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*self.nc.AU,
+                            geometry=self.settings['geometry'],Tstar= self.scat_vars['stellar_temp'],
+                            Rstar=self.scat_vars['stellar_radius']*self.nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*self.nc.AU,
                             add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
+        sys.stdout = old_stdout
 
         # Scale the fluxes to the desired separation
         if self.phys_vars['d_syst'] is not None:
