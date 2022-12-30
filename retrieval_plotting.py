@@ -1102,15 +1102,11 @@ class retrieval_plotting(r_globals.globals):
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
 
         # If provided select instruments to plot
-        if single_instrument is None:
-            intruments = self.input_flux.keys()
-            save_name = ''
-        else:
-            if not single_instrument in self.input_flux.keys():
-                print(single_instrument + ' is not a valid instrument. Valid instruments:', list(self.input_flux.keys()))
-                sys.exit()
-            intruments = [single_instrument]
-            save_name = single_instrument[8:]
+        if (not single_instrument is None) and (not single_instrument in self.input_flux.keys()):
+            print(single_instrument + ' is not a valid instrument. Valid instruments:', list(self.input_flux.keys()))
+            sys.exit()
+        intruments = self.input_flux.keys() if single_instrument is None else [single_instrument]
+        save_name = '' if single_instrument is None else single_instrument[8:]
 
         # Define factors depening on wether residual is plotted or not
         fac_input = 1 if plot_residual else 0
