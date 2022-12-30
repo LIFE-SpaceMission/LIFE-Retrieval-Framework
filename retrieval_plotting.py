@@ -787,7 +787,6 @@ class retrieval_plotting(r_globals.globals):
             
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
-            median_temperature_cloud_top, median_pressure_cloud_top = np.median(self.temperature_cloud_top), np.median(self.pressure_cloud_top)
             cloud_top_quantiles = [np.quantile(self.pressure_cloud_top,q) for q in quantiles]
 
         # Generate colorlevels for the different quantiles
@@ -1083,93 +1082,6 @@ class retrieval_plotting(r_globals.globals):
     """
     #################################################################################
     #                                                                               #
-    #   Routines for generating emission contribution plots.                        #
-    #                                                                               #
-    #################################################################################
-    """
-
-
-
-    def Emission_Contribution(self, skip=1, n_processes=50,reevaluate_PT = False,reevaluate_spectra=False):
-        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
-        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
-
-        local_retrieved_em_contr = self.retrieved_em_contr.copy()
-        local_retrieved_em_contr = np.sum((local_retrieved_em_contr*self.retrieved_fluxes[:,None,:])/(np.sum(self.retrieved_fluxes,axis=1)[:,None,None]),axis=0)
-
-        plt.clf()
-        plt.figure()
-        if self.settings['clouds'] == 'opaque':
-            p = np.linspace(np.log10(self.pressure_extrapol[0,0]),np.log10(self.pressure_extrapol[0,-1]),100)
-            pwidth=(p[1]-p[0])/2
-
-            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=1)/np.sum(np.mean(local_retrieved_em_contr,axis=1))            
-            for i in range(len(p)):
-                plt.fill([0,0,1,1],[p[i]-pwidth,p[i]+pwidth,p[i]+pwidth,p[i]-pwidth],color='k',alpha= local_retrieved_em_contr[i]/np.max(local_retrieved_em_contr),edgecolor=None)
-        else:
-            p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,100)
-            pwidth=(p[1]-p[0])/2
-
-            for i in range(len(local_retrieved_em_contr[0,:])):
-                local_retrieved_em_contr[-1,i]=0
-
-                p_in = np.linspace(np.log10(self.pressure[i,0]),np.log10(self.pressure[i,-1]),100)
-                f = sp.interpolate.interp1d(p_in, local_retrieved_em_contr[:,i],fill_value=0,bounds_error=False)
-
-                local_retrieved_em_contr[:,i]=f(p)
-    
-            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=1)/np.sum(np.mean(local_retrieved_em_contr,axis=1))
-            for i in range(len(p)):
-                plt.fill([0,0,1,1],[p[i]-pwidth,p[i]+pwidth,p[i]+pwidth,p[i]-pwidth],color='k',alpha= local_retrieved_em_contr[i]/np.max(local_retrieved_em_contr),edgecolor=None)
-         
-        plt.savefig(self.results_directory+'Plots/Mean_Emission_Contribution.pdf')
-
-
-
-    def Emission_Contribution_Wlen(self, skip=1, n_processes=50,color = 'k',true_ct=5e-2,reevaluate_PT = False,reevaluate_spectra=False):
-        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
-        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
-        p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,25)
-        X, Y = np.meshgrid(self.input_wavelength, 10**p)
- 
-        local_retrieved_em_contr = (self.retrieved_em_contr.copy())
-        local_retrieved_em_contr = local_retrieved_em_contr[:,::2,:] + local_retrieved_em_contr[:,1::2,:]
-        local_retrieved_em_contr = local_retrieved_em_contr[:,::2,:] + local_retrieved_em_contr[:,1::2,:]
-
-        cmap = col.LinearSegmentedColormap.from_list('my_list', ['w',color], N=1000)
-
-        plt.figure(figsize=(2.2,1.4))
-        if self.settings['clouds'] == 'opaque':
-            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=0)/(np.sum(np.mean(local_retrieved_em_contr,axis=0),axis=0)[None,:])
-            local_retrieved_em_contr = local_retrieved_em_contr/np.max(local_retrieved_em_contr)
-            plt.contourf(X,Y,local_retrieved_em_contr,[(i+1)/10 for i in range(10)],cmap=cmap)         
-        else:
-            for i in range(len(local_retrieved_em_contr[:,0,0])):
-                p_in = np.linspace(np.log10(self.pressure[i,0]),np.log10(self.pressure[i,-1]),25)
-                for j in range(len(local_retrieved_em_contr[0,0,:])):
-                    local_retrieved_em_contr[i,-1,j]=0
-                    f = sp.interpolate.interp1d(p_in, local_retrieved_em_contr[i,:,j],fill_value=0,bounds_error=False)
-                    local_retrieved_em_contr[i,:,j]=f(p)
-            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=0)/(np.sum(np.mean(local_retrieved_em_contr,axis=0),axis=0)[None,:])
-            local_retrieved_em_contr = local_retrieved_em_contr/np.max(local_retrieved_em_contr)
-            plt.contourf(X,Y,local_retrieved_em_contr,[(i+1)/10 for i in range(10)],cmap=cmap)         
-
-        plt.hlines(true_ct,4,18.5,color = 'k', ls ='--',label = 'True Cloud Top')
-        plt.legend(frameon=False,loc='lower center')
-        plt.gca().set_xlim([4,18.5])
-        plt.gca().set_yscale('log')
-        plt.gca().invert_yaxis()
-        plt.gca().set_xlabel(r'Wavelength [$\mu$m]')
-        plt.gca().set_ylabel('Pressure [bar]')
-        plt.savefig(self.results_directory+'Plots/Mean_Emission_Contribution_Wlen.pdf',bbox_inches='tight', transparent=True)
-
-
-
-
-
-    """
-    #################################################################################
-    #                                                                               #
     #   Routine for generating Spectrum plots.                                      #
     #                                                                               #
     #################################################################################
@@ -1179,7 +1091,8 @@ class retrieval_plotting(r_globals.globals):
 
     def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
-                    noise_title = 'Observation Noise', legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False, split_instruments=False):
+                    noise_title = 'Observation Noise', legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False,
+                    split_instruments=False,single_instrument=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
@@ -1188,9 +1101,20 @@ class retrieval_plotting(r_globals.globals):
         # Load or calculate the spectra
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
 
+        # If provided select instruments to plot
+        if single_instrument is None:
+            intruments = self.input_flux.keys()
+            save_name = ''
+        else:
+            if not single_instrument in self.input_flux.keys():
+                print(single_instrument + ' is not a valid instrument. Valid instruments:', list(self.input_flux.keys()))
+                sys.exit()
+            intruments = [single_instrument]
+            save_name = single_instrument[8:]
+
         # Define factors depening on wether residual is plotted or not
         fac_input = 1 if plot_residual else 0
-        fac_resid = {inst:(100/self.input_flux[inst] if plot_residual else 1) for inst in self.input_flux.keys()}
+        fac_resid = {inst:(100/self.input_flux[inst] if plot_residual else 1) for inst in intruments}
 
         # Find the quantiles for the different spectra
         median_all_wl = np.quantile(self.retrieved_fluxes,0.5,axis=0)
@@ -1204,7 +1128,7 @@ class retrieval_plotting(r_globals.globals):
         inst_quantiles = {}
         inst_wls = {}
         if split_instruments or plot_residual:
-            for inst in self.input_flux.keys():
+            for inst in intruments:
                 # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
                 if not np.array([(np.round(self.input_wavelength[inst],10)==np.round(self.wavelength,10))]).all():
                     inst_median[inst] = (spectres.spectres(self.input_wavelength[inst],self.wavelength,median_all_wl)-self.input_flux[inst]*fac_input)*fac_resid[inst]
@@ -1239,7 +1163,7 @@ class retrieval_plotting(r_globals.globals):
                             np.append(inst_quantiles[inst][i],np.flip(inst_quantiles[inst][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
 
         # Plotting the input spectrum
-        for inst in self.input_flux.keys():
+        for inst in intruments:
             # Plot the noise for the input spectrum
             if plot_noise:
                 ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append((self.input_flux[inst]*abs(fac_input-1)+self.input_error[inst])*fac_resid[inst],
@@ -1318,9 +1242,9 @@ class retrieval_plotting(r_globals.globals):
             pass
         elif save:
             if plot_residual:
-                plt.savefig(self.results_directory+'Plots/plot_spectrum_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
+                plt.savefig(self.results_directory+'Plots/plot_spectrum_residual'+save_name+'.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
             else:
-                plt.savefig(self.results_directory+'Plots/plot_spectrum.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
+                plt.savefig(self.results_directory+'Plots/plot_spectrum'+save_name+'.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
             return figure, ax
 
 
@@ -1409,6 +1333,93 @@ class retrieval_plotting(r_globals.globals):
                 plt.savefig(self.results_directory+'Plots/plot_bond_albedo.pdf', bbox_inches='tight')
 
         return A_Bond_true, T_equ_true
+
+
+
+
+
+    """
+    #################################################################################
+    #                                                                               #
+    #   Routines for generating emission contribution plots.                        #
+    #                                                                               #
+    #################################################################################
+    """
+
+
+
+    def Emission_Contribution(self, skip=1, n_processes=50,reevaluate_PT = False,reevaluate_spectra=False):
+        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
+
+        local_retrieved_em_contr = self.retrieved_em_contr.copy()
+        local_retrieved_em_contr = np.sum((local_retrieved_em_contr*self.retrieved_fluxes[:,None,:])/(np.sum(self.retrieved_fluxes,axis=1)[:,None,None]),axis=0)
+
+        plt.clf()
+        plt.figure()
+        if self.settings['clouds'] == 'opaque':
+            p = np.linspace(np.log10(self.pressure_extrapol[0,0]),np.log10(self.pressure_extrapol[0,-1]),100)
+            pwidth=(p[1]-p[0])/2
+
+            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=1)/np.sum(np.mean(local_retrieved_em_contr,axis=1))            
+            for i in range(len(p)):
+                plt.fill([0,0,1,1],[p[i]-pwidth,p[i]+pwidth,p[i]+pwidth,p[i]-pwidth],color='k',alpha= local_retrieved_em_contr[i]/np.max(local_retrieved_em_contr),edgecolor=None)
+        else:
+            p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,100)
+            pwidth=(p[1]-p[0])/2
+
+            for i in range(len(local_retrieved_em_contr[0,:])):
+                local_retrieved_em_contr[-1,i]=0
+
+                p_in = np.linspace(np.log10(self.pressure[i,0]),np.log10(self.pressure[i,-1]),100)
+                f = sp.interpolate.interp1d(p_in, local_retrieved_em_contr[:,i],fill_value=0,bounds_error=False)
+
+                local_retrieved_em_contr[:,i]=f(p)
+    
+            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=1)/np.sum(np.mean(local_retrieved_em_contr,axis=1))
+            for i in range(len(p)):
+                plt.fill([0,0,1,1],[p[i]-pwidth,p[i]+pwidth,p[i]+pwidth,p[i]-pwidth],color='k',alpha= local_retrieved_em_contr[i]/np.max(local_retrieved_em_contr),edgecolor=None)
+         
+        plt.savefig(self.results_directory+'Plots/Mean_Emission_Contribution.pdf')
+
+
+
+    def Emission_Contribution_Wlen(self, skip=1, n_processes=50,color = 'k',true_ct=5e-2,reevaluate_PT = False,reevaluate_spectra=False):
+        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
+        self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
+        p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,25)
+        X, Y = np.meshgrid(self.input_wavelength, 10**p)
+ 
+        local_retrieved_em_contr = (self.retrieved_em_contr.copy())
+        local_retrieved_em_contr = local_retrieved_em_contr[:,::2,:] + local_retrieved_em_contr[:,1::2,:]
+        local_retrieved_em_contr = local_retrieved_em_contr[:,::2,:] + local_retrieved_em_contr[:,1::2,:]
+
+        cmap = col.LinearSegmentedColormap.from_list('my_list', ['w',color], N=1000)
+
+        plt.figure(figsize=(2.2,1.4))
+        if self.settings['clouds'] == 'opaque':
+            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=0)/(np.sum(np.mean(local_retrieved_em_contr,axis=0),axis=0)[None,:])
+            local_retrieved_em_contr = local_retrieved_em_contr/np.max(local_retrieved_em_contr)
+            plt.contourf(X,Y,local_retrieved_em_contr,[(i+1)/10 for i in range(10)],cmap=cmap)         
+        else:
+            for i in range(len(local_retrieved_em_contr[:,0,0])):
+                p_in = np.linspace(np.log10(self.pressure[i,0]),np.log10(self.pressure[i,-1]),25)
+                for j in range(len(local_retrieved_em_contr[0,0,:])):
+                    local_retrieved_em_contr[i,-1,j]=0
+                    f = sp.interpolate.interp1d(p_in, local_retrieved_em_contr[i,:,j],fill_value=0,bounds_error=False)
+                    local_retrieved_em_contr[i,:,j]=f(p)
+            local_retrieved_em_contr = np.mean(local_retrieved_em_contr,axis=0)/(np.sum(np.mean(local_retrieved_em_contr,axis=0),axis=0)[None,:])
+            local_retrieved_em_contr = local_retrieved_em_contr/np.max(local_retrieved_em_contr)
+            plt.contourf(X,Y,local_retrieved_em_contr,[(i+1)/10 for i in range(10)],cmap=cmap)         
+
+        plt.hlines(true_ct,4,18.5,color = 'k', ls ='--',label = 'True Cloud Top')
+        plt.legend(frameon=False,loc='lower center')
+        plt.gca().set_xlim([4,18.5])
+        plt.gca().set_yscale('log')
+        plt.gca().invert_yaxis()
+        plt.gca().set_xlabel(r'Wavelength [$\mu$m]')
+        plt.gca().set_ylabel('Pressure [bar]')
+        plt.savefig(self.results_directory+'Plots/Mean_Emission_Contribution_Wlen.pdf',bbox_inches='tight', transparent=True)
 
 
 
