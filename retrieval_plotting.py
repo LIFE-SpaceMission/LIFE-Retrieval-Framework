@@ -1094,16 +1094,9 @@ class retrieval_plotting(r_globals.globals):
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
         self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
-        
-        print(np.shape(self.retrieved_fluxes))
-        print(np.shape(self.retrieved_em_contr))
-
         local_retrieved_em_contr = self.retrieved_em_contr.copy()
         local_retrieved_em_contr = np.sum((local_retrieved_em_contr*self.retrieved_fluxes[:,None,:])/(np.sum(self.retrieved_fluxes,axis=1)[:,None,None]),axis=0)
 
-        #local_true_em_contr = local_true_em_contr/np.sum(local_true_em_contr)
-
-        print(np.shape(local_retrieved_em_contr))
         plt.clf()
         plt.figure()
         if self.settings['clouds'] == 'opaque':
@@ -1186,30 +1179,44 @@ class retrieval_plotting(r_globals.globals):
 
     def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
-                    noise_title = 'Observation Noise', plot_best_fit = False, legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False):
+                    noise_title = 'Observation Noise', legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False, split_instruments=False):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
         '''
 
+        # Load or calculate the spectra
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
 
-        # Find the quantiles for the different spectra
-        if median_only:
-            if plot_residual:
-                for inst in self.input_flux.keys():
-                    flux_median = (np.quantile(self.retrieved_fluxes,0.5,axis=0)-self.input_flux[inst])/self.input_flux[inst]*100
-            else:
-                flux_median = np.quantile(self.retrieved_fluxes,0.5,axis=0)
-        else:
-            if plot_residual:
-                for inst in self.input_flux.keys():
-                    flux_quantiles = [(np.quantile(self.retrieved_fluxes,q,axis=0)-self.input_flux[inst])/self.input_flux[inst]*100 for q in quantiles]
-            else:
-                flux_quantiles = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
+        # Define factors depening on wether residual is plotted or not
+        fac_input = 1 if plot_residual else 0
+        fac_resid = {inst:(100/self.input_flux[inst] if plot_residual else 1) for inst in self.input_flux.keys()}
 
-            # Generate colorlevels for the different quantiles
-            color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
+        # Find the quantiles for the different spectra
+        median_all_wl = np.quantile(self.retrieved_fluxes,0.5,axis=0)
+        quantiles_all_wl = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
+        
+        # Generate colorlevels for the different quantiles
+        color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
+
+        # If necessary rebin the quantiles, calculate the residuals, and split up into instruments
+        inst_median = {}
+        inst_quantiles = {}
+        inst_wls = {}
+        if split_instruments or plot_residual:
+            for inst in self.input_flux.keys():
+                # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
+                if not np.array([(np.round(self.input_wavelength[inst],10)==np.round(self.wavelength,10))]).all():
+                    inst_median[inst] = (spectres.spectres(self.input_wavelength[inst],self.wavelength,median_all_wl)-self.input_flux[inst]*fac_input)*fac_resid[inst]
+                    inst_quantiles[inst] = [(spectres.spectres(self.input_wavelength[inst],self.wavelength,quantiles_all_wl[q])-self.input_flux[inst]*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
+                else:
+                    inst_median[inst] = (median_all_wl-self.input_flux[inst]*fac_input)*fac_resid[inst]
+                    inst_quantiles[inst] = [(quantiles_all_wl[q]-self.input_flux[inst]*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
+                inst_wls[inst] = self.input_wavelength[inst]
+        else:
+            inst_median['all_wl'] = median_all_wl
+            inst_quantiles['all_wl'] = quantiles_all_wl
+            inst_wls['all_wl'] = self.wavelength
 
         # Start of the plotting
         ax_arg = ax
@@ -1221,54 +1228,31 @@ class retrieval_plotting(r_globals.globals):
             ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
         else:
             pass
-
-
-        if plot_noise:
-            for inst in self.input_flux.keys():
-                if plot_residual:
-                    ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append((self.input_error[inst])/self.input_flux[inst]*100,
-                            np.flip((-self.input_error[inst])/self.input_flux[inst]*100)),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True)
-                else:
-                    ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append(self.input_flux[inst]+self.input_error[inst],
-                                np.flip(self.input_flux[inst]-self.input_error[inst])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True)
             
         # Plotting the retrieved Spectra
-        if median_only:
-            # Plotting the input spectra
-            for inst in self.input_flux.keys():
-                if plot_true_spectrum:    
-                    if plot_residual:
-                        ax.plot(self.input_wavelength[inst],self.input_flux[inst]*0,color = 'black',ls =':')
-                    else:
-                        ax.plot(self.input_wavelength[inst],self.input_flux[inst],color = 'black',ls='-',label = 'Input Spectrum',lw = 2)
-                        #ax.plot(self.input_wavelength,self.true_flux,color = 'black',ls='-',label = 'True Spectrum')
-                if plot_datapoints:
-                    if not plot_residual:
-                        ax.errorbar(self.input_wavelength[inst],self.input_flux[inst],yerr=self.input_error[inst],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum')
-            ax.plot(self.wavelength,flux_median,color=color,lw = 0.5, label = 'Best Fit')
-        else:
-            for i in range(N_levels):
-                ax.fill(np.append(self.wavelength,np.flip(self.wavelength)),
-                        np.append(flux_quantiles[i],np.flip(flux_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True)
-        
-            # Plotting the input spectra
-            for inst in self.input_flux.keys():
-                if plot_true_spectrum:
-                    if plot_residual:
-                        ax.plot(self.input_wavelength[inst],self.input_flux[inst]*0,color = 'black',ls =':')
-                    else:
-                        ax.plot(self.input_wavelength[inst],self.input_flux[inst],color = 'black',ls='-',label = 'Input Spectrum')
-                        #ax.plot(self.input_wavelength,self.true_flux,color = 'black',ls='-',label = 'True Spectrum')
-                if plot_datapoints:
-                    if not plot_residual:
-                        ax.errorbar(self.input_wavelength[inst],self.input_flux[inst],yerr=self.input_error[inst],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum')
-        
-        # Plotting results for the best fit.
-        if plot_best_fit:
-            if plot_residual:
-                ax.plot(self.wavelength,(self.best_flux-self.input_flux)/self.input_flux,color = 'C3',ls ='--',label = 'Best fit Spectrum')
+        for inst in inst_wls.keys():
+            if median_only:
+                ax.plot(inst_wls[inst],inst_median[inst],color=color,lw = 0.5, label = 'Best Fit')
             else:
-                ax.plot(self.wavelength,self.best_flux,color = 'C3',ls ='--',label = 'Best fit Spectrum')
+                for i in range(N_levels):
+                    ax.fill(np.append(inst_wls[inst],np.flip(inst_wls[inst])),
+                            np.append(inst_quantiles[inst][i],np.flip(inst_quantiles[inst][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+
+        # Plotting the input spectrum
+        for inst in self.input_flux.keys():
+            # Plot the noise for the input spectrum
+            if plot_noise:
+                ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append((self.input_flux[inst]*abs(fac_input-1)+self.input_error[inst])*fac_resid[inst],
+                        np.flip((self.input_flux[inst]*abs(fac_input-1)-self.input_error[inst])*fac_resid[inst])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True,zorder=0)
+
+            # Plotting the input spectra either as line or datapoints
+            if plot_true_spectrum:
+                label = None if plot_residual else 'Input Spectrum'
+                ls = ':' if plot_residual else '-'
+                lw = 2 if median_only else 1.5
+                ax.plot(self.input_wavelength[inst],self.input_flux[inst]*abs(fac_input-1),color = 'black',ls=ls,label=label,lw=lw,zorder=2)
+            if plot_datapoints:
+                ax.errorbar(self.input_wavelength[inst],self.input_flux[inst]*abs(fac_input-1),yerr=self.input_error[inst],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum',zorder=2)
 
         # If it is a single plot show the axes titles
         if ax_arg is None:
@@ -1282,8 +1266,10 @@ class retrieval_plotting(r_globals.globals):
         if x_lim is not None:
             ax.set_xlim(x_lim)
         else:
-            x_lim = [np.min(self.wavelength),np.max(self.wavelength)]
-            ax.set_xlim([np.min(self.wavelength),np.max(self.wavelength)])
+            x_lim = [1e1000,0]
+            for inst in inst_wls.keys():
+                x_lim = [min(inst_wls[inst][0],x_lim[0]),max(inst_wls[inst][-1],x_lim[1])]
+            ax.set_xlim(x_lim)
 
         if y_lim is not None:
             ax.set_ylim(y_lim)
@@ -1326,7 +1312,6 @@ class retrieval_plotting(r_globals.globals):
         else:
             lgd = ax.legend(handles+patch_handles,labels+patch_labels,
                     handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
-
 
         # Save or pass back the figure
         if ax_arg is not None:
@@ -1415,17 +1400,14 @@ class retrieval_plotting(r_globals.globals):
         A_Bond_true = 1 - 16*np.pi*(sep_planet * AU)**2*sigma_SBoltzmann*T_equ_true**4/(L_star*L_sun)
 
         if plot:
-            # Combine the different parameters into one array
-            data = np.hstack([L_star_data,sep_planet_data,self.ret_opaque_T,self.A_Bond_ret])
-
             # Generate the corner plot
-            fig, axs = rp_posteriors.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,
-                                    quantiles1d=quantiles1d)
+            data = np.hstack([L_star_data,sep_planet_data,self.ret_opaque_T,self.A_Bond_ret])
+            fig, axs = rp_posteriors.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,quantiles1d=quantiles1d)
 
             # Save the figure or retrun the figure object
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_bond_albedo.pdf', bbox_inches='tight')
-            return A_Bond_true, T_equ_true
+
         return A_Bond_true, T_equ_true
 
 
