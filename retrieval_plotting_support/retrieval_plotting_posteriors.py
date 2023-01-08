@@ -17,12 +17,10 @@ from retrieval_plotting_support import retrieval_plotting_colors as rp_col
 
 
 # Routine for generating corner plots
-def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16, 0.5, 0.84], 
-            quantiles2d=[0.025,0.15,0.25,0.35,0.65,0.75,0.85,0.975],color='k',color_truth='C3',bins=50,add_table = False,ULU=None,ULU_lim=[-0.15,0.75]):
-    
+def Corner(params,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quantiles2d=[0.025,0.15,0.25,0.35,0.65,0.75,0.85,0.975],
+                    color='k',color_truth='C3',bins=50,add_table = False,ULU=None,ULU_lim=[-0.15,0.75]):
     # Find the dimension of the corner plot.
-    if dimension is None:
-        dimension=np.shape(data)[1]
+    dimension=len(params)
 
     # Generate colorlevels for the different quantiles
     color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles2d)
@@ -30,7 +28,7 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
     if add_table:
         table = []
         columns = ('True', 'Retrieved')
-        rows = titles
+        rows = [titles[param] for param in params]
         colours = ['white','white']
 
     # Start of plotting routine
@@ -40,18 +38,20 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
     
     # Iterate over the equal weighted posteriors of all retrieved parameters.
     # Diagonal histogram plots
-    for i in range(dimension):
+    for param in params:
+        i = params.index(param)
+
         # Plot the 1d histogram for each retrieved parameter on the diagonal.
         if ULU is not None:
-            if i in ULU:  
-                h = np.histogram(data[:,i],density=True,bins=bins,range = (ULU_lim[0],0))
+            if param in ULU:  
+                h = np.histogram(data[param],density=True,bins=bins,range = (ULU_lim[0],0))
                 h2 = np.histogram(np.log10(1-10**(np.arange(-7,0,0.000001))),density=True,bins=h[1])
                 h = (h[0]/h2[0],h[1])
                 h = axs[i,i].hist(h[1][: -1],h[1], weights = sp.ndimage.filters.gaussian_filter(h[0], [ULU_lim[1]], mode='constant'),histtype='stepfilled',color=color_levels[1],density=True)
             else:
-                h = axs[i,i].hist(data[:,i],histtype='stepfilled',color=color_levels[1],density=True,bins=bins)
+                h = axs[i,i].hist(data[param],histtype='stepfilled',color=color_levels[1],density=True,bins=bins)
         else:
-            h = axs[i,i].hist(data[:,i],histtype='stepfilled',color=color_levels[1],density=True,bins=bins)
+            h = axs[i,i].hist(data[param],histtype='stepfilled',color=color_levels[1],density=True,bins=bins)
 
         # Define the limits of the plot and remove the yticks
         axs[i,i].set_xlim([h[1][0],h[1][-1]])
@@ -66,21 +66,21 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                     ind = [np.min(np.where(h_cumulative>=quantiles1d[i]))for i in range(len(quantiles1d))]
                     q = ((h[1][1:]+h[1][:-1])/2)[ind]
                 else:
-                    q = [np.quantile(data[:,i],ind) for ind in quantiles1d]
+                    q = [np.quantile(data[param],ind) for ind in quantiles1d]
             else:
-                q = [np.quantile(data[:,i],ind) for ind in quantiles1d]
+                q = [np.quantile(data[param],ind) for ind in quantiles1d]
             axs[i,i].vlines(q,axs[i,i].get_ylim()[0],axs[i,i].get_ylim()[1],colors='k', ls='--')
 
             # Round q and print the retrieved value above the histogram plot
             round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
             if round>=0.5:
                 if add_table:
-                    table.append([str(int(truths[i])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$'])
+                    table.append([str(int(truths[param])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$'])
                 else:
                     axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
             else:
                 if add_table:
-                    table.append([str(np.round(truths[i],int(-np.floor(round-0.5)))),
+                    table.append([str(np.round(truths[param],int(-np.floor(round-0.5)))),
                             str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                             str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                             str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$'])
@@ -90,14 +90,16 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                             str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
 
         # Plot the ground truth values if known
-        if not truths[i] is None:
-            axs[i,i].plot([truths[i],truths[i]],axs[i,i].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
+        if not truths[param] is None:
+            axs[i,i].plot([truths[param],truths[param]],axs[i,i].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
     
     # 2d histograms plotted below the diagonal
     if ULU is not None:
-        H_fac = np.shape(data[0,:])[0]*[[]]
-        for i in range(dimension):
-            for j in range(dimension):
+        H_fac = dimension*[[]]
+        for param_i in params:
+            i = params.index(param_i)
+            for param_j in params:
+                j = params.index(param_j)
                 # Find the axis boundaries and set the x limits
                 ylim = axs[i,i].get_xlim()
                 xlim = axs[j,j].get_xlim()
@@ -105,17 +107,16 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                 # For all subplots below the Diagonal
                 if i > j:               
                     # Plot the 2d histograms between different parameters to show correlations between the parameters                
-                    Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=bins,range = [list(xlim),list(ylim)])
+                    Z,X,Y=np.histogram2d(data[param_j],data[param_i],bins=bins,range = [list(xlim),list(ylim)])
 
-                    if i in ULU:
+                    if param_i in ULU:
                         h = np.histogram(np.log10(1-10**(np.arange(-7,0,0.000001))),density=True,bins=Y)
                         H_fac[i]=1/h[0]
                         Z = Z/(h[0][None,:])
 
                         axs[j,j].clear()
                         h_new = axs[j,j].hist(X[: -1],X,weights = sp.ndimage.filters.gaussian_filter(np.sum(Z,axis = 1),[ULU_lim[1]], mode='reflect'),histtype='stepfilled',color=color_levels[1],density=True)
-                        #axs[j,j].hist(data[:,j],bins = X,histtype='step',color='red',density=True)
-                        fac = (h_new[0]/sp.ndimage.filters.gaussian_filter(np.histogram(data[:,j],density=True,bins=X)[0],[ULU_lim[1]], mode='reflect'))
+                        fac = (h_new[0]/sp.ndimage.filters.gaussian_filter(np.histogram(data[param_j],density=True,bins=X)[0],[ULU_lim[1]], mode='reflect'))
                         fac[np.where(fac==np.inf)]=0
                         fac[np.where(fac==np.nan)]=0
                         H_fac[j] = fac
@@ -129,19 +130,19 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                         q = ((h_new[1][1:]+h_new[1][:-1])/2)[ind]
                         axs[j,j].vlines(q,axs[j,j].get_ylim()[0],axs[j,j].get_ylim()[1],colors='k', ls='--')
 
-                        if not truths[j] is None:
-                            axs[j,j].plot([truths[j],truths[j]],axs[j,j].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
+                        if not truths[param_j] is None:
+                            axs[j,j].plot([truths[param_j],truths[param_j]],axs[j,j].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
 
                         # Round q and print the retrieved value above the histogram plot
                         round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
                         if round>=0.5:
                             if add_table:
-                                table[j] = [str(int(truths[j])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$']
+                                table[j] = [str(int(truths[param_j])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$']
                             else:
                                 axs[j,j].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
                         else:
                             if add_table:
-                                table[j] = [str(np.round(truths[j],int(-np.floor(round-0.5)))),
+                                table[j] = [str(np.round(truths[param_j],int(-np.floor(round-0.5)))),
                                         str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$']
@@ -150,15 +151,14 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
 
-                    if j in ULU:
+                    if param_j in ULU:
                         h = np.histogram(np.log10(1-10**(np.arange(-7,0,0.000001))),density=True,bins=X)
                         Z = Z/(h[0][:,None])
 
                         axs[i,i].clear()
                         h_new = axs[i,i].hist(Y[: -1],Y,weights = sp.ndimage.filters.gaussian_filter(np.sum(Z,axis = 0),[ULU_lim[1]/2], mode='reflect'),histtype='stepfilled',color=color_levels[1],density=True)
-                        #axs[i,i].hist(data[:,i],bins = Y,histtype='step',color='red',density=True)
 
-                        fac = (h_new[0]/sp.ndimage.filters.gaussian_filter(np.histogram(data[:,i],density=True,bins=Y)[0],[ULU_lim[1]/2], mode='reflect'))
+                        fac = (h_new[0]/sp.ndimage.filters.gaussian_filter(np.histogram(data[param_i],density=True,bins=Y)[0],[ULU_lim[1]/2], mode='reflect'))
                         fac[np.where(fac==np.inf)]=0
                         fac[np.where(fac==np.nan)]=0
                         H_fac[i] = fac
@@ -171,19 +171,19 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                         q = ((h_new[1][1:]+h_new[1][:-1])/2)[ind]
                         axs[i,i].vlines(q,axs[i,i].get_ylim()[0],axs[i,i].get_ylim()[1],colors='k', ls='--')
 
-                        if not truths[i] is None:
-                            axs[i,i].plot([truths[i],truths[i]],axs[i,i].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
+                        if not truths[param_i] is None:
+                            axs[i,i].plot([truths[param_i],truths[param_i]],axs[i,i].get_ylim(),color=color_truth,linestyle = ':',linewidth = 2)
 
                         # Round q and print the retrieved value above the histogram plot
                         round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
                         if round>=0.5:
                             if add_table:
-                                table[i] = [str(int(truths[i])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$']
+                                table[i] = [str(int(truths[param_i])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$']
                             else:
                                 axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
                         else:
                             if add_table:
-                                table[i] = [str(np.round(truths[i],int(-np.floor(round-0.5)))),
+                                table[i] = [str(np.round(truths[param_i],int(-np.floor(round-0.5)))),
                                         str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$']
@@ -192,8 +192,11 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
 
-    for i in range(dimension):
-        for j in range(dimension):
+    for param_i in params:
+        i = params.index(param_i)
+        for param_j in params:
+            j = params.index(param_j)
+
             # Find the axis boundaries and set the x limits
             ylim = axs[i,i].get_xlim()
             xlim = axs[j,j].get_xlim()
@@ -206,21 +209,20 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
             if i > j:
                 # Plot the local truth values if provided
                 
-                if not truths[j] is None:
-                    axs[i,j].plot([truths[j],truths[j]],[-10000,10000],color=color_truth,linestyle = ':',linewidth = 2)
-                if not truths[i] is None:
-                    axs[i,j].plot([-10000,10000],[truths[i],truths[i]],color=color_truth,linestyle = ':',linewidth = 2)
-                if not ((truths[j] is None) or (truths[i] is None)):
-                    axs[i,j].plot(truths[j],truths[i],color=color_truth,marker='o',markersize=8)
+                if not truths[param_j] is None:
+                    axs[i,j].plot([truths[param_j],truths[param_j]],[-10000,10000],color=color_truth,linestyle = ':',linewidth = 2)
+                if not truths[param_i] is None:
+                    axs[i,j].plot([-10000,10000],[truths[param_i],truths[param_i]],color=color_truth,linestyle = ':',linewidth = 2)
+                if not ((truths[param_j] is None) or (truths[param_i] is None)):
+                    axs[i,j].plot(truths[param_j],truths[param_i],color=color_truth,marker='o',markersize=8)
                 
                 # Plot the 2d histograms between different parameters to show correlations between the parameters                
-                Z,X,Y=np.histogram2d(data[:,j],data[:,i],bins=bins,range = [list(xlim),list(ylim)])
+                Z,X,Y=np.histogram2d(data[param_j],data[param_i],bins=bins,range = [list(xlim),list(ylim)])
 
                 if ULU is not None:
                     Z = Z*(H_fac[i][None,:])*(H_fac[j][:,None])
 
                 Z = sp.ndimage.filters.gaussian_filter(Z, [1.5*ULU_lim[1],1.5*ULU_lim[1]], mode='reflect')
-
 
                 map, norm, levels = rp_col.color_map(Z,color_levels,level_thresholds)
                 axs[i,j].contourf((X[:-1]+X[1:])/2,(Y[:-1]+Y[1:])/2,Z.T,cmap=map,norm=norm,levels=np.array(levels))
@@ -245,13 +247,8 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                     axs[i,j].set_yticklabels(np.round(yticks,int(-np.floor(roundy-0.5))),fontsize=fs,rotation=45)
                     
                 # Printing the labels for the axes
-                if units is None:
-                    axs[i,j].set_ylabel(titles[i],fontsize=fs)
-                else:
-                    if units[i] == '':
-                        axs[i,j].set_ylabel(titles[i],fontsize=fs)
-                    else:
-                        axs[i,j].set_ylabel(titles[i]+' '+units[i],fontsize=fs)
+                axs[i,j].set_ylabel(titles[param_i],fontsize=fs)
+
             else:
                 axs[i,j].set_yticks([])
 
@@ -267,13 +264,8 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
                     axs[i,j].set_xticklabels(np.round(xticks,int(-np.floor(roundx-0.5))),fontsize=fs,rotation=45,ha='right')
                 
                 # Printing the labels for the axes
-                if units is None:
-                    axs[i,j].set_xlabel(titles[j],fontsize=fs)
-                else:
-                    if units[j] == '':
-                        axs[i,j].set_xlabel(titles[j],fontsize=fs)
-                    else:
-                        axs[i,j].set_xlabel(titles[j]+' '+units[j],fontsize=fs)
+                axs[i,j].set_xlabel(titles[param_j],fontsize=fs)
+
             else:
                 axs[i,j].set_xticks([])
 
@@ -298,8 +290,8 @@ def Corner(data,titles,units=None,truths=None,dimension=None,quantiles1d = [0.16
 
 
 # Routine for plotting the 1d posteriors
-def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84], 
-                color='k',color_truth='C3',bins=50,lw = 2,ax=None,histtype='stepfilled',alpha=0.5,hatch=None,ULU = False, ULU_lim=[-0.15,0.75]):
+def Posterior(data,title,truth,quantiles1d = [0.16, 0.5, 0.84],color='k',color_truth='C3',bins=50,lw = 2,
+                ax=None,histtype='stepfilled',alpha=0.5,hatch=None,ULU = False, ULU_lim=[-0.15,0.75]):
 
     # Start of plotting routine
     ax_arg = ax
@@ -308,8 +300,6 @@ def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84],
     else:
         pass
 
-    # Plot the 1d histogram for each retrieved parameter on the diagonal.
-    # Plot the 1d histogram for each retrieved parameter on the diagonal.
     if ULU:
         h = np.histogram(data,density=True,bins=bins,range = (ULU_lim[0],0))
         h2 = np.histogram(np.log10(1-10**(np.arange(-7,0,0.000001))),density=True,bins=h[1])
@@ -325,12 +315,6 @@ def Posterior(data,title,units=None,truth=None,quantiles1d = [0.16, 0.5, 0.84],
         ylim = [0,1.1*np.max(h[0])]
         ax.set_ylim(ylim)
         ax.set_yticks([])
-
-        # Generating the title for the plot
-        if units is None or '':
-            title = title
-        else:
-            title = title+' '+units
 
         # Plotting the secified quantiles
         if quantiles1d is not None:

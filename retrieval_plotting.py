@@ -13,6 +13,8 @@ import numpy as np
 import pickle
 import scipy as sp
 import time as t
+import astropy.units as u
+from operator import itemgetter
 
 # Import additional external files
 from retrieval_support import retrieval_global_class as r_globals
@@ -49,7 +51,6 @@ class retrieval_plotting(r_globals.globals):
             os.makedirs(self.results_directory + '/Plots/')
 
         # Define the lists containing the titles for the data
-        self.titles = []
         self.truths = []
         self.priors = []
         self.priors_range = []
@@ -57,6 +58,10 @@ class retrieval_plotting(r_globals.globals):
 
         # Read the input data
         self.read_var()
+        self.generate_titles()
+
+        # Read the input spectra
+        self.read_data(retrieval=False,result_dir=self.results_directory)
 
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
@@ -89,89 +94,64 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def read_var(self):
+    def generate_titles(self):
         '''
         This function reads the input.ini file and fills up the three
         dictionaries: settings, params, knowns.
         '''
-        for section in self.config_file.sections():
 
-            for (key, val) in self.config_file.items(section):
-                if 'settings' in key:
-                    self.settings[key[9:]] = val
+        for key in self.params.keys():
+            # Define the titles such that they work well for the chemical abundances
+            if self.params[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                self.params[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
+                self.params_names[key.split('_')[0]]=key
+                        
+            # Define the titles such that they work well for the physical parameters
+            elif self.params[key]['type'] == 'PHYSICAL PARAMETERS':
+                s = key.split('_')
+                try:
+                    self.params[key]['title'] = '$\\mathrm{'+s[0]+'_{'+s[1]+'}}$'
+                except:
+                    self.params[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$'
+                self.params_names[key]=key
 
-                # check if the first element is a letter (the priors) -> retrieved parameter
-                elif val[:1].upper().isupper():
-                    param = {'prior': val,
-                             'type': section}
-                    self.params[key] = param
-
-                    # Define the titles such that they work well for the chemical abundances
-                    if section == 'CHEMICAL COMPOSITION PARAMETERS':
-                        self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$')
-                        self.params_names[key.split('_')[0]]=key
-                    
-                    # Define the titles such that they work well for the physical parameters
-                    elif section == 'PHYSICAL PARAMETERS':
-                        s = key.split('_')
-                        try:
-                            self.titles.append('$\\mathrm{'+s[0]+'_{'+s[1]+'}}$')
-                        except:
-                            self.titles.append('$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$')
-                        self.params_names[key]=key
-
-                    # Define the titles such that they work well for the temperature parameters    
-                    elif section == 'TEMPERATURE PARAMETERS':
-                        # Define the titles such that they work well for the pt parameters
-                        self.titles.append('$\\mathrm{'+str(key)+'}$')
-                        self.params_names[key]=key
-                    
-                    # Define the titles such that they work well for the cloud parameters
-                    elif section == 'CLOUD PARAMETERS':
-                        temp = key.split('_')
-                        if 'H2SO4' in temp[0]:
-                            temp[0] = 'H2SO4(c)'
-                        temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
-                        temp.pop(1)
-                        self.titles.append('\n'.join(temp))
-                        key_name = ('_'.join(key.split('_')[2:]))
-                        if key_name == '':
-                            self.params_names['c_species_abundance']=key
-                        else:
-                            self.params_names['c_'+key_name]=key
-
-                    # Define the titles such that they work well for the Moon        
-                    elif section == 'MOON PARAMETERS':
-                        self.titles.append('$\\mathrm{'+str(key)+'}$')
-
-                    # Define standard titles for any other parameters 
-                    else:
-                        self.titles.append(key)
-                        self.params_names[key]=key
-
-                    # Storing the truths if provided
-                    if val.split(' ')[-2]== 'T':
-                        self.truths.append(float(val.split(' ')[-1]))
-                    else:
-                        self.truths.append(None)
-
-                    # Storing the prior Type
-                    self.priors.append(val.split(' ')[0])
-                    self.priors_range.append([float(val.split(' ')[i]) for i in range(1,3)])
-
-                # check if the first element is a letter (the priors) -> known parameter
+            # Define the titles such that they work well for the temperature parameters    
+            elif self.params[key]['type'] == 'TEMPERATURE PARAMETERS':
+                # Define the titles such that they work well for the pt parameters
+                self.params[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+                self.params_names[key]=key
+                        
+            # Define the titles such that they work well for the cloud parameters
+            elif self.params[key]['type'] == 'CLOUD PARAMETERS':
+                temp = key.split('_')
+                if 'H2SO4' in temp[0]:
+                    temp[0] = 'H2SO4(c)'
+                temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
+                temp.pop(1)
+                self.params[key]['title'] = '\n'.join(temp)
+                key_name = ('_'.join(key.split('_')[2:]))
+                if key_name == '':
+                    self.params_names['c_species_abundance']=key
                 else:
-                    known = {'value': float(val),
-                                 'type': section}
-                    self.knowns[key] = known
+                    self.params_names['c_'+key_name]=key
 
-        # Load the input Spectrum
-        self.input_wavelength, self.input_flux, self.input_error = {}, {}, {}
-        try:
-            for name in self.config_file['INPUT FILES'].keys():                
-                self.input_wavelength[name], self.input_flux[name], self.input_error[name] = np.loadtxt(self.results_directory + '/input_'+self.config_file.get('INPUT FILES', name).split('/')[-1]).T
-        except: #exception to still enable old retrievals
-            self.input_wavelength['input'], self.input_flux['input'], self.input_error['input'] = np.loadtxt(self.results_directory + 'input_spectrum.txt').T
+            # Define the titles such that they work well for the Moon        
+            elif self.params[key]['type'] == 'MOON PARAMETERS':
+                self.params[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+
+            # Define standard titles for any other parameters 
+            else:
+                self.params[key]['title'] = key
+                self.params_names[key]=key
+
+            # Storing the truths if provided
+            self.truths.append(self.params[key]['truth'])
+
+            # Storing the prior Type
+            self.priors.append(self.params[key]['prior_type'])
+            self.priors_range.append([self.params[key]['prior']])
+
+        
         
         # Load the true P-T profile if provided
         try:
@@ -208,9 +188,6 @@ class retrieval_plotting(r_globals.globals):
 
         # Split up the jobs onto the multiple processes
         process,ind_start,ind_end = rp_parallel.task_assignment('PT-Profile',n_processes,dimension,process)
-
-        # Read the data
-        self.read_data(retrieval = False)
 
         # Print status of calculation
         if process == 0:
@@ -328,7 +305,6 @@ class retrieval_plotting(r_globals.globals):
 
         # Initialize the RT object and read the data
         self.init_rt()
-        self.read_data(retrieval = False)
 
         # Print status of calculation
         if process == 0:
@@ -343,9 +319,6 @@ class retrieval_plotting(r_globals.globals):
             # Fetch the known parameters and a sample of retrieved
             # parameters from the posteriors
             self.get_param_sample(temp_equal_weighted_post[ind,:])
-
-            # Scaling physical variables of the system to correct units
-            self.L_scale()
 
             # Test the values of P0 and g and change to required values if necessary
             self.g_test()
@@ -520,190 +493,164 @@ class retrieval_plotting(r_globals.globals):
 
 
 
-    def Scale_Posteriors(self, local_equal_weighted_post, local_truths, local_titles, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True):
+    def Scale_Posteriors(self, local_post, local_truths, local_titles, params,
+                        log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True):
         '''
         This ajusts a local copy of the posterior for plotting.
         '''
 
-        # If we want to use log abundnces update data to log abundances
-        if log_abundances:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
+        for param in params: 
+            # If we want to use log abundnces update data to log abundances
+            if log_abundances:    
                 # Adjust retrieved abundances for the line absorbers
-                if self.params[param_names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                    #Plotting for the special upper limit prior case
-                    if self.priors[i] == 'ULU':
-                        #local_equal_weighted_post[:,i] = np.log10(1-local_equal_weighted_post[:,i])
-                        #local_titles[i] = 'log$_{10}(1-$ ' + local_titles[i] + '$)$'
-                        #if not local_truths[i] is None:
-                        #    local_truths[i] = np.log10(1-local_truths[i])
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}($ ' + local_titles[i] + '$)$'
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
+                if self.params[param]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                    local_post[param] = np.log10(local_post[param])
+                    local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                    if not local_truths[param] is None:
+                        local_truths[param] = np.log10(local_truths[param])
+                # Adjust retrieved abundances for the clod absorbers
+                if self.params[param]['type'] == 'CLOUD PARAMETERS':
+                    if len(param.split('_')) == 2:
+                        local_post[param] = np.log10(local_post[param])
+                        local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                        if not local_truths[param] is None:
+                            local_truths[param] = np.log10(local_truths[param])
+
+            # If we want to use log particle radii
+            if log_particle_radii:
+                if 'particle_radius' in param:
+                    local_post[param] = np.log10(local_post[param])
+                    local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                    if not local_truths[param] is None:
+                        local_truths[param] = np.log10(local_truths[param])
+
+            # If we want to use log mass in the corner plot
+            if log_mass:
+                if param == 'M_pl':
+                    local_post[param] = np.log10(local_post[param])
+                    local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                    if not local_truths[param] is None:
+                        local_truths[param] = np.log10(local_truths[param])
+
+            # If we want to use log pressures update data to log pressures
+            if log_pressures:
+                if self.params[param]['unit'] == u.bar:
+                    if not 'log_' in param:
+                        local_post[param] = np.log10(local_post[param])
+                        local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                        if not local_truths[param] is None:
+                            local_truths[param] = np.log10(local_truths[param])
                     else:
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
-                # Adjust retrieved abundances for the clod absorbers
-                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                    if len(param_names[i].split('_')) == 2:
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
+                        local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
 
-        # If we want to use log particle radii
-        if log_particle_radii:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                    if 'particle_radius' in param_names[i]:
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
-
-        # If we want to use log mass in the corner plot
-        if log_mass:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
-                    if param_names[i] == 'M_pl':
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
-
-        # If we want to use log pressures update data to log pressures
-        if log_pressures:
-            param_names = list(self.params.keys())
-            for i in range(len(param_names)):
-                # Adjust retrieved abundances for the clod absorbers
-                if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                    var_type = param_names[i].split('_',2)[-1]
-                    if (var_type == 'top_pressure') or (var_type == 'thickness'):
-                        local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                        local_titles[i] = 'log$_{10}$ ' + local_titles[i]
-                        if not local_truths[i] is None:
-                            local_truths[i] = np.log10(local_truths[i])
-                if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
-                    if 'P0' in param_names[i]:
-                        if not 'log' in param_names[i]:
-                            local_equal_weighted_post[:,i] = np.log10(local_equal_weighted_post[:,i])
-                            if not local_truths[i] is None:
-                                local_truths[i] = np.log10(local_truths[i])
-                            local_titles[i] = 'log$_{10}$ P$_0$'
-                        else:
-                            local_titles[i] = 'log$_{10}$ P$_0$'
-
-        return local_equal_weighted_post, local_truths, local_titles
+        return local_post, local_truths, local_titles
 
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_bond=None,BB_fit_range=None, titles = None, units=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
-                    color='k',add_table=False,color_truth='C3',ULU=None,ULU_lim=[-0.15,0.75]):
+                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_bond=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
+                    color='k',add_table=False,color_truth='C3',ULU_lim=[-0.15,0.75],units=None,unit_titles=None,titles=None):
         '''
         This function generates a corner plot for the retrieved parameters.
 
         '''
 
-        # Define the dimension of the corner plot, which is equal to the number of retrieved parameters
-        # Copy the equal weigted posterior and truths files to ensure that no changes are made to the file
-        dimension = self.n_params
+        # get the indices of all parameters shown in the corner plot
+        inds = []
+        param_names = list(self.params)
+        for i in self.params:
+            if self.params[i]['type'] == 'TEMPERATURE PARAMETERS':
+                if plot_pt:
+                    inds += [param_names.index(i)]
+            if self.params[i]['type'] == 'PHYSICAL PARAMETERS':
+                if plot_physparam:
+                    inds += [param_names.index(i)]
+            if self.params[i]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':        
+                if plot_chemcomp:
+                    inds += [param_names.index(i)]
+            if self.params[i]['type'] == 'CLOUD PARAMETERS':
+                if plot_clouds:
+                    inds += [param_names.index(i)]
+            if self.params[i]['type'] == 'SCATTERING PARAMETERS':
+                if plot_scatt:
+                    inds += [param_names.index(i)]
+            if self.params[i]['type'] == 'MOON PARAMETERS':
+                if plot_moon:
+                    inds += [param_names.index(i)]
+        params = [param_names[i] for i in inds]
 
-        local_equal_weighted_post = np.copy(self.equal_weighted_post)
-        local_truths = self.truths.copy()
-        local_titles = self.titles.copy()
+        # Copy the relevant data
+        local_post   = {param_names[i]:np.copy(self.equal_weighted_post[:,i]) for i in inds}
+        local_truths = {i:self.params[i]['truth'] for i in params}
 
-        inds_pt = []
-        inds_physparam = []
-        inds_chemcomp = []
-        inds_clouds = []
-        inds_scatt = []
-        inds_moon = []
+        # Generate the titles
+        local_titles = {i:self.params[i]['title'] for i in params}
+        for param in params:
+            if type(titles) is dict:
+                if param in titles:
+                    local_titles[param] = titles[param]
 
-        param_names = list(self.params.keys())
-        for i in range(len(param_names)):
-            if self.params[param_names[i]]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                inds_chemcomp += [i]
-            if self.params[param_names[i]]['type'] == 'CLOUD PARAMETERS':
-                inds_clouds += [i]
-            if self.params[param_names[i]]['type'] == 'SCATTERING PARAMETERS':
-                inds_scatt += [i]
-            if self.params[param_names[i]]['type'] == 'MOON PARAMETERS':
-                inds_moon += [i]
-            if self.params[param_names[i]]['type'] == 'PHYSICAL PARAMETERS':
-                inds_physparam += [i]
-            # Adjust retrieved abundances for the line absorbers
-            if self.params[param_names[i]]['type'] == 'TEMPERATURE PARAMETERS':
-                inds_pt += [i]
-                #Plotting for the special upper limit prior case
-                if self.priors[i] == 'THU':
-                    local_equal_weighted_post[:,i] = local_equal_weighted_post[:,i]**3
-                    local_titles[i] = r'sqrt$_3(' + local_titles[i] + '$)$'
-                    if not local_truths[i] is None:
-                        local_truths[i] = local_truths[i]**3
-                else:
-                    pass
+        # Unit conversions for plotting if units=None retrieval units are plotted
+        # if units=input the units in the input.ini file are plotted
+        retrieval_unit =  {i:self.params[i]['unit'] for i in params}
+        if units is 'input':
+            local_units = {i:self.params[i]['input_unit'] for i in params}
+        else:
+            local_units = retrieval_unit.copy()
+            if type(units) is dict:
+                for param in params:
+                    if param in units:
+                        local_units[param] = units[param]
+
+        # Add the units to the titles
+        for param in params:
+            if not f"{local_units[param]:latex}" == '$\\mathrm{}$':
+                unit = '\\left['+f"{local_units[param]:latex}"[1:-1]+'\\right]'
+            else:
+                unit = ''
+            if type(unit_titles) is dict:
+                if param in unit_titles:
+                    unit = '\\left['+unit_titles[param][1:-1]+'\\right]'
+            local_titles[param] = local_titles[param][:-1]+unit+'$'
+
+        # Convert the units of the posterior and the true value
+        for param in params:
+            local_post[param]   = self.units.unit_conv(param,retrieval_unit[param],local_units[param],local_post[param],printing=False)
+            local_truths[param] = self.units.unit_conv(param,retrieval_unit[param],local_units[param],local_truths[param],printing=False)
 
         # Adust the local copy of the posteriors according to the users desires
-        local_equal_weighted_post, local_truths, local_titles = self.Scale_Posteriors(local_equal_weighted_post,
-                            local_truths, local_titles, log_pressures=log_pressures, log_mass=log_mass,
-                            log_abundances=log_abundances, log_particle_radii=log_particle_radii)
+        local_post, local_truths, local_titles = self.Scale_Posteriors(local_post, local_truths, local_titles, params,
+                                                                        log_pressures=log_pressures, log_mass=log_mass,
+                                                                        log_abundances=log_abundances, log_particle_radii=log_particle_radii)
 
-        # add all wanted parameters to the corner plot
-        inds = []
-        if plot_pt:
-            inds += [i for i in range(len(param_names)) if i in inds_pt]
-        if plot_physparam:
-            inds += [i for i in range(len(param_names)) if i in inds_physparam]
-        if plot_chemcomp:
-            inds += [i for i in range(len(param_names)) if i in inds_chemcomp]
-        if plot_clouds:
-            inds += [i for i in range(len(param_names)) if i in inds_clouds]
-        if plot_scatt:
-            inds += [i for i in range(len(param_names)) if i in inds_scatt]
-        if plot_moon:
-            inds += [i for i in range(len(param_names)) if i in inds_moon]
-
-        def none_test(input,inds):
-            try:
-                return [input[i] for i in inds]
-            except:
-                return None
+        # Check if there were ULU posteriors
+        ULU = [param for param in params if self.params[param]['prior_type'] == 'ULU']
 
         # If wanted add the bond albedo and the equilibrium temperature to the plot
         if plot_bond is not None:
-            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20,fit_BB=BB_fit_range, plot=True)
-            local_equal_weighted_post = np.append(local_equal_weighted_post, self.ret_opaque_T,axis=1)
-            local_equal_weighted_post = np.append(local_equal_weighted_post, self.A_Bond_ret,axis=1)
-            local_truths += [T_equ_true,A_Bond_true]
-            inds += [-2,-1]
-            local_titles += [r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$']
-
-
-        if not titles is None:
-            local_titles=titles
+            params += ['Teq','A_b']
+            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20, plot=False)
+            local_post['Teq'], local_post['A_b'] = self.ret_opaque_T.copy(), self.A_Bond_ret.copy()
+            local_truths['Teq'], local_truths['A_b'] = T_equ_true, A_Bond_true
+            local_titles['Teq'], local_truths['A_b'] = '$\mathrm{T_{eq,\,Planet}\left[\mathrm{K}\\right]}$', '$\mathrm{A_{B,\,Planet}}$'
 
         if plot_corner:
-            fig, axs = rp_posteriors.Corner(local_equal_weighted_post[:,inds],[local_titles[ind] for ind in inds],dimension = np.size(inds),truths=none_test(local_truths,inds),
-                                quantiles1d=quantiles1d,units=none_test(units,inds),bins=bins,color=color,add_table=add_table,color_truth=color_truth,ULU=ULU,ULU_lim=ULU_lim)
-            # Save the figure or retrun the figure object
+            fig, axs = rp_posteriors.Corner(params,local_post,local_titles,local_truths,quantiles1d=quantiles1d,bins=bins,color=color,
+                                            add_table=add_table,color_truth=color_truth,ULU=ULU if ULU != [] else None,ULU_lim=ULU_lim)
             if save:
                 plt.savefig(self.results_directory+'Plots/plot_corner.pdf', bbox_inches='tight')
-            return fig, axs
+            else:
+                return fig, axs
         else:
             if not os.path.exists(self.results_directory + 'Plots/Posteriors/'):
                 os.makedirs(self.results_directory + 'Plots/Posteriors/')
-            for i in inds:
-                fig, axs = rp_posteriors.Posterior(local_equal_weighted_post[:,i],local_titles[i],truth=none_test(local_truths,[i]),
-                                    quantiles1d=quantiles1d,units=none_test(units,[i]),bins=bins,color=color,ULU=(i in ULU),ULU_lim=ULU_lim)
+            for param in params:
+                fig, axs = rp_posteriors.Posterior(local_post[param],local_titles[param],local_truths[param],
+                                    quantiles1d=quantiles1d,bins=bins,color=color,ULU=(param in ULU),ULU_lim=ULU_lim)
                 if save:
-                    plt.savefig(self.results_directory+'Plots/Posteriors/'+list(self.params.keys())[i]+'.pdf', bbox_inches='tight')
-                plt.close()
+                    plt.savefig(self.results_directory+'/Plots/Posteriors/'+param+'.pdf', bbox_inches='tight')
+                else:
+                    return fig, axs
 
 
 
@@ -719,9 +666,11 @@ class retrieval_plotting(r_globals.globals):
 
 
 
+
+
     def PT_Envelope(self, save=False, plot_residual = False, skip=1, plot_clouds = False, x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
-                    legend_n_col = 2, legend_loc = 'best',n_processes=50,true_cloud_top=None,figsize=(6.4, 4.8),h_cover=0.45,reevaluate_PT = False):
+                    legend_n_col = 2, legend_loc = 'best',n_processes=50,true_cloud_top=[None,None],figsize=(6.4, 4.8),h_cover=0.45,reevaluate_PT = False,x_unit=None,y_unit=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -729,12 +678,34 @@ class retrieval_plotting(r_globals.globals):
 
         self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
 
+        # Unit conversions for the x and y scales of the graph
+        retrieval_units = {'x_unit':u.K, 'y_unit':u.bar}
+        local_units = {'x_unit':retrieval_units['x_unit'] if x_unit is None else x_unit,
+                       'y_unit':retrieval_units['y_unit'] if y_unit is None else y_unit}
+        unit_titles = {i:'$\\left['+f"{local_units[i]:latex}"[1:-1]+'\\right]$' for i in local_units}
+
+        # Convert the units of the P-T profile posteriors and the true value
+        local_pressure_extrapol    = self.units.unit_conv('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.pressure_extrapol,printing=False)
+        local_temperature_extrapol = self.units.unit_conv('Temperature',retrieval_units['x_unit'],local_units['x_unit'],self.temperature_extrapol,printing=False)
+        local_pressure    = self.units.unit_conv('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.pressure,printing=False)
+        local_temperature = self.units.unit_conv('Temperature',retrieval_units['x_unit'],local_units['x_unit'],self.temperature,printing=False)
+        local_input_pressure    = self.units.unit_conv('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.input_pressure,printing=False)
+        local_input_temperature = self.units.unit_conv('Temperature',retrieval_units['x_unit'],local_units['x_unit'],self.input_temperature,printing=False)
+        if self.settings['clouds'] == 'opaque':
+            local_pressure_cloud_top    = self.units.unit_conv('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.pressure_cloud_top,printing=False)
+            local_temperature_cloud_top = self.units.unit_conv('Temperature',retrieval_units['x_unit'],local_units['x_unit'],self.temperature_cloud_top,printing=False)
+        try:
+            local_true_pressure_cloud_top    = self.units.unit_conv('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.true_pressure_cloud_top,printing=False)
+            local_true_temperature_cloud_top = self.units.unit_conv('Temperature',retrieval_units['x_unit'],local_units['x_unit'],self.true_temperature_cloud_top,printing=False)
+        except:
+            local_true_temperature_cloud_top,local_true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
+
         # find the quantiles for the different pressures and temperatures
-        p_layers_quantiles = [np.nanquantile(self.pressure_extrapol,q,axis=0) for q in quantiles]
+        p_layers_quantiles = [np.nanquantile(local_pressure_extrapol,q,axis=0) for q in quantiles]
         if plot_residual:
-            T_layers_quantiles = [np.nanquantile(self.temperature_extrapol,q,axis=0)-np.nanquantile(self.temperature_extrapol,0.5,axis=0) for q in quantiles]
+            T_layers_quantiles = [np.nanquantile(local_temperature_extrapol,q,axis=0)-np.nanquantile(local_temperature_extrapol,0.5,axis=0) for q in quantiles]
         else:
-            T_layers_quantiles = [np.nanquantile(self.temperature_extrapol,q,axis=0) for q in quantiles]
+            T_layers_quantiles = [np.nanquantile(local_temperature_extrapol,q,axis=0) for q in quantiles]
 
         # Merge the P-T profile quantiles with the surface pressure if retrieved
         p_max = 1e6
@@ -743,18 +714,18 @@ class retrieval_plotting(r_globals.globals):
         if not self.settings['clouds'] == 'opaque':
 
             if plot_residual:
-                mean_S_T = np.median(self.temperature[:,-1])
+                mean_S_T = np.median(local_temperature[:,-1])
             else:
                 mean_S_T = 0
 
             # Define limits and make a 2d histogram of the surface pressures and temperatures
-            t_lim = [np.min(self.temperature[:,-1])-mean_S_T,np.max(self.temperature[:,-1])-mean_S_T]
+            t_lim = [np.min(local_temperature[:,-1])-mean_S_T,np.max(local_temperature[:,-1])-mean_S_T]
             t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(self.pressure[:,-1])),np.max(np.log10(self.pressure[:,-1]))]
+            p_lim = [np.min(np.log10(local_pressure[:,-1])),np.max(np.log10(local_pressure[:,-1]))]
             p_range = p_lim[1]-p_lim[0]
 
             # Calculate Contours for the surface pressure
-            Z,X,Y=np.histogram2d(self.temperature[:,-1]-mean_S_T,np.log10(self.pressure[:,-1]),bins=100,
+            Z,X,Y=np.histogram2d(local_temperature[:,-1]-mean_S_T,np.log10(local_pressure[:,-1]),bins=100,
                             range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
             Z = sp.ndimage.filters.gaussian_filter(Z, [7,7], mode='reflect')
             color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
@@ -791,7 +762,7 @@ class retrieval_plotting(r_globals.globals):
             
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
-            cloud_top_quantiles = [np.quantile(self.pressure_cloud_top,q) for q in quantiles]
+            cloud_top_quantiles = [np.quantile(local_pressure_cloud_top,q) for q in quantiles]
 
         # Generate colorlevels for the different quantiles
         color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
@@ -831,52 +802,48 @@ class retrieval_plotting(r_globals.globals):
 
         # Plotting the true/input profile (interpolation for smoothing)
         if plot_residual:
-            y = np.nanquantile(self.temperature_extrapol,0.5,axis=0)
-            x = np.nanquantile(self.pressure_extrapol,0.5,axis=0)
-            yinterp = np.interp(self.input_pressure, x, y)
-            smooth_T_true = sp.ndimage.filters.gaussian_filter1d(self.input_temperature-yinterp,sigma = 5)
-            smooth_T_true[np.where(self.input_pressure>p_max)]=np.nan
+            y = np.nanquantile(local_temperature_extrapol,0.5,axis=0)
+            x = np.nanquantile(local_pressure_extrapol,0.5,axis=0)
+            yinterp = np.interp(local_input_pressure, x, y)
+            smooth_T_true = sp.ndimage.filters.gaussian_filter1d(local_input_temperature-yinterp,sigma = 5)
+            smooth_T_true[np.where(local_input_pressure>p_max)]=np.nan
 
             # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
             if np.isnan(smooth_T_true[-10]):
                 num_nan = np.count_nonzero(np.isnan(smooth_T_true))
-                ax.semilogy(smooth_T_true[:-num_nan-30],self.input_pressure[:-num_nan-30],color ='black', label = 'P-T Profile')
-                ax.semilogy(smooth_T_true[-num_nan-30:],self.input_pressure[-num_nan-30:],color ='black', ls = ':')
+                ax.semilogy(smooth_T_true[:-num_nan-30],local_input_pressure[:-num_nan-30],color ='black', label = 'P-T Profile')
+                ax.semilogy(smooth_T_true[-num_nan-30:],local_input_pressure[-num_nan-30:],color ='black', ls = ':')
             else:
-                ax.semilogy(smooth_T_true,self.input_pressure,color ='black', label = 'P-T Profile')
+                ax.semilogy(smooth_T_true,local_input_pressure,color ='black', label = 'P-T Profile')
 
                 # Plotting the true/input surface temperature/pressure
-                ax.plot(self.input_temperature[-1]-yinterp[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+                ax.plot(local_input_temperature[-1]-yinterp[-1],local_input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
 
             # If wanted: plotting the true/input cloud top temperature/pressure
             try:
-                if true_cloud_top is not None:
-                    self.true_temperature_cloud_top,self.true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
-                ind_ct = (np.argmin(np.abs(np.log10(self.true_pressure_cloud_top)-np.log10(self.input_pressure))))
-                ax.plot(smooth_T_true[ind_ct],self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
+                ind_ct = (np.argmin(np.abs(np.log10(local_true_pressure_cloud_top)-np.log10(local_input_pressure))))
+                ax.plot(smooth_T_true[ind_ct],local_true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
             except:
                 pass
         else:
-            ax.semilogy(self.input_temperature,self.input_pressure,color ='black', label = 'P-T Profile')
+            ax.semilogy(local_input_temperature,local_input_pressure,color ='black', label = 'P-T Profile')
 
             # Plotting the true/input surface temperature/pressure
-            ax.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+            ax.plot(local_input_temperature[-1],local_input_pressure[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
 
             # If wanted: plotting the true/input cloud top temperature/pressure
             try:
-                if true_cloud_top is not None:
-                    self.true_temperature_cloud_top,self.true_pressure_cloud_top = true_cloud_top[1],true_cloud_top[0]
-                ax.plot(self.true_temperature_cloud_top,self.true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
+                ax.plot(local_true_temperature_cloud_top,local_true_pressure_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
             except:
                 pass
 
         # If it is a single plot show the axes titles
         if ax_arg is None:
             if plot_residual:
-                ax.set_xlabel('Difference to Retrieved Median [K]')
+                ax.set_xlabel('Difference to Retrieved Median '+unit_titles['x_unit'])
             else:
-                ax.set_xlabel('Temperature [K]')
-            ax.set_ylabel('Pressure [bar]')
+                ax.set_xlabel('Temperature '+unit_titles['x_unit'])
+            ax.set_ylabel('Pressure '+unit_titles['y_unit'])
         
         # Set the limits for the plot axes
         ax.set_xlim(x_lim)
@@ -890,30 +857,30 @@ class retrieval_plotting(r_globals.globals):
         # Plotting the cloud top temperature/pressure
         if self.settings['clouds'] == 'opaque':
             # Define the plot titles
-            ax2_xlabel = r'$T^\mathrm{cloud}_\mathrm{top}\,\,\left[\mathrm{K}\right]$'
-            ax2_ylabel = r'$P^\mathrm{cloud}_\mathrm{top}\,\,\left[\mathrm{bar}\right]$'
+            ax2_xlabel = '$T^\mathrm{cloud}_\mathrm{top}$ '+unit_titles['x_unit']
+            ax2_ylabel = '$P^\mathrm{cloud}_\mathrm{top}$ '+unit_titles['y_unit']
 
             # Define limits and make a 2d histogram of the cloud top pressures and temperatures
-            t_lim = [np.min(self.temperature_cloud_top),np.max(self.temperature_cloud_top)]
+            t_lim = [np.min(local_temperature_cloud_top),np.max(local_temperature_cloud_top)]
             t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(self.pressure_cloud_top)),np.max(np.log10(self.pressure_cloud_top))]
+            p_lim = [np.min(np.log10(local_pressure_cloud_top)),np.max(np.log10(local_pressure_cloud_top))]
             p_range = p_lim[1]-p_lim[0]
-            Z,X,Y=np.histogram2d(self.temperature_cloud_top[:,0],np.log10(self.pressure_cloud_top)[:,0],bins=bins_inlay,
+            Z,X,Y=np.histogram2d(local_temperature_cloud_top[:,0],np.log10(local_pressure_cloud_top)[:,0],bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
 
         else:
             # Define the plot titles
-            ax2_xlabel = r'$\mathrm{T_0}\,\,\left[\mathrm{K}\right]$'
-            ax2_ylabel = r'$\mathrm{P_0}\,\,\left[\mathrm{bar}\right]$'
+            ax2_xlabel = '$\mathrm{T_0}$ '+unit_titles['x_unit']
+            ax2_ylabel = '$\mathrm{P_0}$ '+unit_titles['y_unit']
 
             # Define limits and make a 2d histogram of the surface pressures and temperatures
-            t_lim = [np.min(self.temperature[:,-1]),np.max(self.temperature[:,-1])]
+            t_lim = [np.min(local_temperature[:,-1]),np.max(local_temperature[:,-1])]
             t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(self.pressure[:,-1])),np.max(np.log10(self.pressure[:,-1]))]
+            p_lim = [np.min(np.log10(local_pressure[:,-1])),np.max(np.log10(local_pressure[:,-1]))]
             p_range = p_lim[1]-p_lim[0]
 
             # Use previously defined limits to calculate a 2d histogram of the surface pressures and temperatures
-            Z,X,Y=np.histogram2d(self.temperature[:,-1],np.log10(self.pressure[:,-1]),bins=bins_inlay,
+            Z,X,Y=np.histogram2d(local_temperature[:,-1],np.log10(local_pressure[:,-1]),bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
         
         Z = sp.ndimage.filters.gaussian_filter(Z, [0.75,0.75], mode='reflect')
@@ -923,9 +890,9 @@ class retrieval_plotting(r_globals.globals):
         contour = ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
         # plot the true values that were used to generate the input spectrum
-        ax2.plot(self.input_temperature[-1],self.input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
+        ax2.plot(local_input_temperature[-1],local_input_pressure[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
         try:
-            ax2.plot(self.true_temperature_cloud_top,(self.true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
+            ax2.plot(local_true_temperature_cloud_top,(local_true_pressure_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
         except:
             pass
         
@@ -1096,7 +1063,7 @@ class retrieval_plotting(r_globals.globals):
     def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
                     noise_title = 'Observation Noise', legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False,
-                    split_instruments=False,single_instrument=None,log_x=False,log_y=False):
+                    split_instruments=False,single_instrument=None,log_x=False,log_y=False,x_unit=None,y_unit=None):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
@@ -1105,20 +1072,35 @@ class retrieval_plotting(r_globals.globals):
         # Load or calculate the spectra
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
 
+        # Unit conversions for the x and y scales of the graph
+        retrieval_units = {'x_unit':self.units.retrieval_units['wavelength'], 'y_unit':self.units.retrieval_units['flux']}
+        local_units = {'x_unit':retrieval_units['x_unit'] if x_unit is None else x_unit,
+                       'y_unit':retrieval_units['y_unit'] if y_unit is None else y_unit}
+        unit_titles = {i:'$\\left['+f"{local_units[i]:latex}"[1:-1]+'\\right]$' for i in local_units}
+
+        # Convert the fluxes to the desired units
+        local_instrument = self.instrument.copy()
+        for instrument in local_instrument:
+            conv_data = self.units.unit_spectrum_conv('spec',[retrieval_units['x_unit'],retrieval_units['y_unit']],[local_units['x_unit'],local_units['y_unit']],
+                                            np.array([self.instrument[instrument]['wl'],self.instrument[instrument]['flux'],self.instrument[instrument]['error']]).T,printing=False)
+            local_instrument[instrument]['wl'], local_instrument[instrument]['flux'], local_instrument[instrument]['error'] = conv_data[:, 0], conv_data[:, 1], conv_data[:, 2]
+        local_wavelength, local_fluxes = self.units.unit_spectrum_cube([retrieval_units['x_unit'],retrieval_units['y_unit']],[local_units['x_unit'],local_units['y_unit']],
+                                        self.wavelength,self.retrieved_fluxes)
+        
         # If provided select instruments to plot
-        if (not single_instrument is None) and (not single_instrument in self.input_flux.keys()):
-            print(single_instrument + ' is not a valid instrument. Valid instruments:', list(self.input_flux.keys()))
+        if (not single_instrument is None) and (not single_instrument in local_instrument.keys()):
+            print(single_instrument + ' is not a valid instrument. Valid instruments:', list(local_instrument.keys()))
             sys.exit()
-        intruments = self.input_flux.keys() if single_instrument is None else [single_instrument]
+        intruments = local_instrument.keys() if single_instrument is None else [single_instrument]
         save_name = '' if single_instrument is None else single_instrument[8:]
 
         # Define factors depening on wether residual is plotted or not
         fac_input = 1 if plot_residual else 0
-        fac_resid = {inst:(100/self.input_flux[inst] if plot_residual else 1) for inst in intruments}
+        fac_resid = {inst:(100/local_instrument[inst]['flux'] if plot_residual else 1) for inst in intruments}
 
         # Find the quantiles for the different spectra
-        median_all_wl = np.quantile(self.retrieved_fluxes,0.5,axis=0)
-        quantiles_all_wl = [np.quantile(self.retrieved_fluxes,q,axis=0) for q in quantiles]
+        median_all_wl = np.quantile(local_fluxes,0.5,axis=0)
+        quantiles_all_wl = [np.quantile(local_fluxes,q,axis=0) for q in quantiles]
         
         # Generate colorlevels for the different quantiles
         color_levels, level_thresholds, N_levels = rp_col.color_levels(color,quantiles)
@@ -1130,17 +1112,17 @@ class retrieval_plotting(r_globals.globals):
         if split_instruments or plot_residual:
             for inst in intruments:
                 # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
-                if not np.array([(np.round(self.input_wavelength[inst],10)==np.round(self.wavelength,10))]).all():
-                    inst_median[inst] = (spectres.spectres(self.input_wavelength[inst],self.wavelength,median_all_wl)-self.input_flux[inst]*fac_input)*fac_resid[inst]
-                    inst_quantiles[inst] = [(spectres.spectres(self.input_wavelength[inst],self.wavelength,quantiles_all_wl[q])-self.input_flux[inst]*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
+                if not np.array([(np.round(local_instrument[inst]['wl'],10)==np.round(local_wavelength,10))]).all():
+                    inst_median[inst] = (spectres.spectres(local_instrument[inst]['wl'],local_wavelength,median_all_wl)-local_instrument[inst]['flux']*fac_input)*fac_resid[inst]
+                    inst_quantiles[inst] = [(spectres.spectres(local_instrument[inst]['wl'],local_wavelength,quantiles_all_wl[q])-local_instrument[inst]['flux']*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
                 else:
-                    inst_median[inst] = (median_all_wl-self.input_flux[inst]*fac_input)*fac_resid[inst]
-                    inst_quantiles[inst] = [(quantiles_all_wl[q]-self.input_flux[inst]*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
-                inst_wls[inst] = self.input_wavelength[inst]
+                    inst_median[inst] = (median_all_wl-local_instrument[inst]['flux']*fac_input)*fac_resid[inst]
+                    inst_quantiles[inst] = [(quantiles_all_wl[q]-local_instrument[inst]['flux']*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
+                inst_wls[inst] = local_instrument[inst]['wl']
         else:
             inst_median['all_wl'] = median_all_wl
             inst_quantiles['all_wl'] = quantiles_all_wl
-            inst_wls['all_wl'] = self.wavelength
+            inst_wls['all_wl'] = local_wavelength
 
         # Start of the plotting
         ax_arg = ax
@@ -1162,31 +1144,30 @@ class retrieval_plotting(r_globals.globals):
                     ax.fill(np.append(inst_wls[inst],np.flip(inst_wls[inst])),
                             np.append(inst_quantiles[inst][i],np.flip(inst_quantiles[inst][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
 
-            ax.plot(inst_wls[inst],spectres.spectres(inst_wls[inst],self.wavelength,self.true_flux),'r-',zorder=3)
-
         # Plotting the input spectrum
         for inst in intruments:
             # Plot the noise for the input spectrum
             if plot_noise:
-                ax.fill(np.append(self.input_wavelength[inst],np.flip(self.input_wavelength[inst])),np.append((self.input_flux[inst]*abs(fac_input-1)+self.input_error[inst])*fac_resid[inst],
-                        np.flip((self.input_flux[inst]*abs(fac_input-1)-self.input_error[inst])*fac_resid[inst])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True,zorder=0)
+                ax.fill(np.append(local_instrument[inst]['wl'],np.flip(local_instrument[inst]['wl'])),np.append((local_instrument[inst]['flux']*abs(fac_input-1)+local_instrument[inst]['error'])*fac_resid[inst],
+                        np.flip((local_instrument[inst]['flux']*abs(fac_input-1)-local_instrument[inst]['error'])*fac_resid[inst])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True,zorder=0)
 
             # Plotting the input spectra either as line or datapoints
             if plot_true_spectrum:
                 label = None if plot_residual else 'Input Spectrum'
                 ls = ':' if plot_residual else '-'
                 lw = 2 if median_only else 1.5
-                ax.plot(self.input_wavelength[inst],self.input_flux[inst]*abs(fac_input-1),color = 'black',ls=ls,label=label,lw=lw,zorder=2)
+                ax.plot(local_instrument[inst]['wl'],local_instrument[inst]['flux']*abs(fac_input-1),color = 'black',ls=ls,label=label,lw=lw,zorder=2)
             if plot_datapoints:
-                ax.errorbar(self.input_wavelength[inst],self.input_flux[inst]*abs(fac_input-1),yerr=self.input_error[inst],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum',zorder=2)
+                ax.errorbar(local_instrument[inst]['wl'],local_instrument[inst]['flux']*abs(fac_input-1),yerr=local_instrument[inst]['error'],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum',zorder=2)
 
         # If it is a single plot show the axes titles
         if ax_arg is None:
             if plot_residual:
                 ax.set_ylabel(r'Residual $\left[\%\right]$')
             else:
-                ax.set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
-            ax.set_xlabel(r'Wavelength [$\mu$m]')
+                #ax.set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
+                ax.set_ylabel('Flux at 10 pc '+unit_titles['y_unit'])
+            ax.set_xlabel('Wavelength '+unit_titles['x_unit'])
 
         # Set the limits for the plot axes and the scaling
         if log_x:
@@ -1268,42 +1249,25 @@ class retrieval_plotting(r_globals.globals):
 
 
     def Plot_Ret_Bond_Albedo(self, L_star, sigma_L_star, sep_planet, sigma_sep_planet, A_Bond_true = None, T_equ_true= None,
-                            skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,fit_BB=None,
+                            skip=1, quantiles1d=[0.16, 0.5, 0.84], bins=50, save=False, plot=True, n_processes=50,
                             titles = [r'$\mathrm{L_{Star}}$',r'$\mathrm{a_{Planet}}$',r'$\mathrm{T_{eq,\,Planet}}$',r'$\mathrm{A_{B,\,Planet}}$'],
                             units = [r'$\left[\mathrm{L}_\odot\right]$',r'$\left[\mathrm{AU}\right]$',r'$\left[\mathrm{K}\right]$',''],reevaluate_PT = False,reevaluate_spectra=False):
 
         self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
-
-        # Find the temperature at which the atmosphere becomes opaque
-        # Either By fitting a BB Spectrum
-        if fit_BB is not None:
-            self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
-
-            #def blackbody_lam(lam, T):
-            #    from scipy.constants import h,k,c
-            #    lam = 1e-6 * lam # convert the wavelenth to meters
-            #    flux = 2*np.pi*h*c**2 / (lam**5 * (np.exp(h*c / (lam*k*T)) - 1)) # calculate the BB flux
-            #    return flux
+        self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
             
-            def blackbody_lam(x, T):
-                from scipy.constants import h,k,c
-                lam = self.wavelength
-                lam = 1e-6 * lam # convert the wavelenth to meters
-                flux = 2*np.pi*h*c**2 / (lam**5 * (np.exp(h*c / (lam*k*T)) - 1)) # calculate the BB flux
-                return [np.sum(flux)]
+        def blackbody_lam(x, T):
+            lam = self.wavelength
+            lam = 1e-6 * lam
+            flux = 2*np.pi*sp.constants.h*sp.constants.c**2 / (lam**5 * (np.exp(sp.constants.h*sp.constants.c / (lam*sp.constants.k*T)) - 1)) # calculate the BB flux
+            return [np.sum(flux)]
 
-            ind_r = [i for i in range(len(list(self.params.keys()))) if list(self.params.keys())[i]=='R_pl'][0]
-            self.ret_opaque_T = np.zeros((np.size(self.retrieved_fluxes[:,0]),1))
-            
-            #for inst in self.input_flux.keys():
-            #    inds = np.where((self.input_wavelength[inst]>=fit_BB[0]) & (self.input_wavelength[inst]<=fit_BB[1]))[0]
-            #    if len(inds) != 0:
-            #        factor = 1e7/1e6/(self.nc.c/self.input_wavelength[inst]*1e4)*1e6*self.input_wavelength[inst]*1e-6*(self.truths[ind_r]*self.nc.r_earth)**2/(self.knowns['d_syst']['value']*self.nc.pc)**2
-            #        T_equ_true,cov = sp.optimize.curve_fit(blackbody_lam, self.input_wavelength[inst][inds], self.input_flux[inst][inds]/factor[inds],p0=[200])
+        ind_r = [i for i in range(len(list(self.params.keys()))) if list(self.params.keys())[i]=='R_pl'][0]
+        self.ret_opaque_T = np.zeros((np.size(self.retrieved_fluxes[:,0]),1))
 
-            for i in range(np.size(self.retrieved_fluxes[:,0])):
-                factor = 1e7/1e6/(self.nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r]*self.nc.r_earth)**2/(self.knowns['d_syst']['value']*self.nc.pc)**2
-                self.ret_opaque_T[i,0], cov = sp.optimize.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
+        for i in range(np.size(self.retrieved_fluxes[:,0])):
+            factor = 1e7/1e6/(self.nc.c/self.wavelength*1e4)*1e6*self.wavelength*1e-6*(self.equal_weighted_post[i,ind_r])**2/(self.knowns['d_syst']['value'])**2
+            self.ret_opaque_T[i,0], cov = sp.optimize.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
 
         # Or by sampling a specific layer in the atmosphere
         else:
@@ -1332,7 +1296,7 @@ class retrieval_plotting(r_globals.globals):
         if plot:
             # Generate the corner plot
             data = np.hstack([L_star_data,sep_planet_data,self.ret_opaque_T,self.A_Bond_ret])
-            fig, axs = rp_posteriors.Corner(data,titles,truths=[L_star,sep_planet,T_equ_true,A_Bond_true],units=units,bins=bins,quantiles1d=quantiles1d)
+            fig, axs = rp_posteriors.Corner(data,titles,[L_star,sep_planet,T_equ_true,A_Bond_true],bins=bins,quantiles1d=quantiles1d)
 
             # Save the figure or retrun the figure object
             if save:
@@ -1353,7 +1317,7 @@ class retrieval_plotting(r_globals.globals):
     """
 
 
-
+    # TO DO: Add multiple instrument handling
     def Emission_Contribution(self, skip=1, n_processes=50,reevaluate_PT = False,reevaluate_spectra=False):
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
         self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
@@ -1389,12 +1353,12 @@ class retrieval_plotting(r_globals.globals):
         plt.savefig(self.results_directory+'Plots/Mean_Emission_Contribution.pdf')
 
 
-
+    # TO DO: Add multiple instrument handling
     def Emission_Contribution_Wlen(self, skip=1, n_processes=50,color = 'k',true_ct=5e-2,reevaluate_PT = False,reevaluate_spectra=False):
         self.get_spectra(skip=skip,n_processes=n_processes,reevaluate_spectra=reevaluate_spectra)
         self.get_pt(skip=skip,n_processes=n_processes,reevaluate_PT=reevaluate_PT)
         p = np.linspace(np.log10(self.pressure_extrapol[0,0]),4,25)
-        X, Y = np.meshgrid(self.input_wavelength, 10**p)
+        X, Y = np.meshgrid(self.instrument, 10**p)
  
         local_retrieved_em_contr = (self.retrieved_em_contr.copy())
         local_retrieved_em_contr = local_retrieved_em_contr[:,::2,:] + local_retrieved_em_contr[:,1::2,:]

@@ -8,8 +8,9 @@ import os
 import numpy as np
 import configparser
 from retrieval_support import retrieval_priors as priors
+from retrieval_support import retrieval_units as units
 import scipy.ndimage as sci
-
+import astropy.units as u
 
 __author__ = "Alei, Konrad, Molliere, Quanz"
 __copyright__ = "Copyright 2022, Alei, Konrad, Molliere, Quanz"
@@ -85,6 +86,10 @@ class globals:
         self.rt = __import__('petitRADTRANS')
         self.nc = self.rt.nat_cst
 
+        # Create a units object to enable unit conversions
+        self.units = units.units_util(self.rt.nat_cst)
+
+
 
     def read_var(self):
         '''
@@ -92,20 +97,64 @@ class globals:
         dictionaries: settings, params, knowns.
         '''
 
-        for section in self.config_file.sections():
-            for (key, val) in self.config_file.items(section):
-                if 'settings' in key:
-                    self.settings[key[9:]] = val
-                # check if the first element is a letter (the priors)
-                elif val[:1].upper().isupper():
-                    param = {'prior': val,
-                             'type': section}
-                    self.params[key] = param
-                else:
-                    known = {'value': float(val),
-                             'type': section}
-                    self.knowns[key] = known
+        # Check if there are units defined by the user and add these to the unis
+        if 'USER DEFINED UNITS' in self.config_file.sections():
+            for (key, val) in self.config_file.items('USER DEFINED UNITS'):
+                self.units.custom_unit(key,u.Quantity(val))
 
+        # Read the sections of the config file
+        for section in self.config_file.sections():
+            if section != 'USER DEFINED UNITS':
+                for (key, val) in self.config_file.items(section):
+                    if 'settings' in key:
+                        self.settings[key[9:]] = val
+
+                    # Check if the first element is a letter (the priors)
+                    elif val[0].upper().isupper():
+                        # Extract the units from the input string. If none are
+                        # provided the standard input units are assumed.
+                        input_unit, val = self.units.unit_extract(key,val)
+
+                        # Extract the input values
+                        input_prior = [u.Quantity(val[i]).value for i in range(1,3)]
+                        input_truth = u.Quantity(val[4]).value if val[3] == 'T' else None
+                        
+                        # Convert the input to retrieval units
+                        conv_unit = self.units.return_units(key,self.units.retrieval_units)
+                        conv_truth, conv_prior = self.units.unit_conv(key,input_unit,conv_unit,input_truth,prior_type=val[0],input_prior=input_prior)
+                        
+                        # Store the retrieved parameters
+                        param = {'prior_type': val[0],
+                                'prior': conv_prior,
+                                'input_prior': input_prior,
+                                'truth': conv_truth,
+                                'input_truth': input_truth,
+                                'unit': conv_unit,
+                                'input_unit': input_unit,
+                                'type': section}
+                        self.params[key] = param
+                    
+                    # The parameters that are fixed during the retrieval
+                    else:
+                        # Extract the units from the input string. If none are
+                        # provided the standard input units are assumed.
+                        input_unit, val = self.units.unit_extract(key,val)
+
+                        # Extract the input values
+                        input_truth = u.Quantity(val[0]).value
+
+                        # Convert the input to retrieval units
+                        conv_unit = self.units.return_units(key,self.units.retrieval_units)
+                        conv_truth = self.units.unit_conv(key,input_unit,conv_unit,input_truth)
+
+                        # Store the knowns
+                        known = {'value': conv_truth,
+                                'input_value': input_truth,
+                                'unit': conv_unit,
+                                'input_unit': input_unit,
+                                'type': section}
+                        self.knowns[key] = known
+        
 
     def check_temp_params(self):
         '''
@@ -135,41 +184,57 @@ class globals:
             sys.exit('Unknown PT parametrization.')
 
         if not all(elem in input_pt for elem in pt_params):
-                sys.exit(
-                    'Missing one or more PT parameters/knowns. Make sure these exist:' + str(pt_params))
+            sys.exit('Missing one or more PT parameters/knowns. Make sure these exist:' + str(pt_params))
 
 
-    def read_data(self,retrieval = True):
+    def read_data(self,retrieval=True,result_dir=None):
         """
         Reads the input data, trims to the wavelength range of interest
         and converts the units to CGS.
         """
 
-        self.dwlen = {}
-        self.dflux = {}
-        self.dferr = {}
-        self.dwlbins = {}
-        self.instrument =[]
-        
+        self.instrument = {}
+
         for name in self.config_file['INPUT FILES'].keys():
-            dat_obs = np.genfromtxt(self.config_file.get('INPUT FILES', name))
 
-            # trim the spectrum to the desired wl
-            dat_obs = dat_obs[dat_obs[:, 0] >= float(
-                self.config_file.get('LAMBDA RANGE', 'WMIN'))]
-            dat_obs = dat_obs[dat_obs[:, 0] <= float(
-                self.config_file.get('LAMBDA RANGE', 'WMAX'))]
-            self.dwlen[name] = dat_obs[:, 0] * 1e-4  # MICRON TO CM
-            self.dflux[name] = dat_obs[:, 1]  # *10000000 ### SI TO CGS
-            self.dferr[name] = dat_obs[:, 2]  # *10000000
+            input_string = self.config_file.get('INPUT FILES', name)
+            
+            # Case handling for the retrieval plotting
+            if not retrieval:
+                if os.path.isfile(result_dir+'/input_'+input_string.split('/')[-1].split(' ')[0]):
+                    input_string = result_dir+'/input_'+input_string.split('/')[-1]
+                else:
+                    input_string = result_dir+ '/input_spectrum.txt '+ ' '.join(input_string.split('/')[-1].split(' ')[1:])
 
-            self.instrument.append(name)
-            self.dwlbins[name] = np.zeros_like(self.dwlen[name])
-            self.dwlbins[name][:-1] = np.diff(self.dwlen[name])
-            self.dwlbins[name][-1] = self.dwlbins[name][-2]
+            # Extract the Units from the config file and load the data. If non are provided the standard units are assumed.
+            input_unit_wl, input_unit_flux, spectrum_dir = self.units.unit_spectrum_extract(input_string)
+            input_data = np.genfromtxt(spectrum_dir)
 
+            # Trim the spectra to the desired wl
+            input_data = input_data[input_data[:, 0] >= (self.knowns['WMIN']['value']*self.knowns['WMIN']['unit']).to(input_unit_wl).value]
+            input_data = input_data[input_data[:, 0] <= (self.knowns['WMAX']['value']*self.knowns['WMAX']['unit']).to(input_unit_wl).value]
+
+            # Convert the Units to retrieval units
+            conv_unit_wl = self.units.return_units('wavelength',self.units.retrieval_units)
+            conv_unit_flux = self.units.return_units('flux',self.units.retrieval_units)
+            conv_data = self.units.unit_spectrum_conv(name,[input_unit_wl,input_unit_flux],[conv_unit_wl,conv_unit_flux],input_data)
+
+            # Store the spectra for each instrument
+            self.instrument[name] = {'wl':conv_data[:, 0],
+                                    'flux':conv_data[:, 1],
+                                    'error':conv_data[:, 2],
+                                    'input_wl':input_data[:, 0],
+                                    'input_flux':input_data[:, 1],
+                                    'input_error':input_data[:, 2],
+                                    'unit_wl':conv_unit_wl,
+                                    'unit_flux':conv_unit_flux,
+                                    'input_unit_wl':input_unit_wl,
+                                    'input_unit_flux':input_unit_flux,}
+
+            # If we are running retrievals copy the input spectra
             if retrieval:
-                os.system('cp '+ self.config_file.get('INPUT FILES', name) + ' ' + self.prefix + '/input_'+self.config_file.get('INPUT FILES', name).split('/')[-1])
+                os.system('cp '+ spectrum_dir + ' ' + self.prefix + '/input_'+spectrum_dir.split('/')[-1])
+
 
 
     def init_rt(self):
@@ -293,20 +358,19 @@ class globals:
         """
 
         for par in self.params.keys():
-            prior = self.params[par]['prior'].split(' ')
+            prior = self.params[par]['prior']
             key = list(self.params.keys()).index(par)
 
             switcher = {
-                'U': priors.UniformPrior(ccube[key], float(prior[1]), float(prior[2])),
-                'LU': np.power(10., priors.UniformPrior(ccube[key], float(prior[1]), float(prior[2]))),
-                'ULU': 1 - np.power(10., priors.UniformPrior(ccube[key], float(prior[1]), float(prior[2]))),
-                'FU': np.power(priors.UniformPrior(ccube[key], float(prior[1]), float(prior[2])), 4),
-                'THU': np.power(priors.UniformPrior(ccube[key], float(prior[1]), float(prior[2])), 1/3),
-                'G': priors.GaussianPrior(ccube[key], float(prior[1]), float(prior[2])).astype('float64'),
-                'LG': np.power(10., priors.GaussianPrior(ccube[key], float(prior[1]), float(prior[2]))),
+                'U': priors.UniformPrior(ccube[key], prior[0], prior[1]),
+                'LU': np.power(10., priors.UniformPrior(ccube[key], prior[0], prior[1])),
+                'ULU': 1 - np.power(10., priors.UniformPrior(ccube[key], prior[0], prior[1])),
+                'FU': np.power(priors.UniformPrior(ccube[key], prior[0], prior[1]), 4),
+                'G': priors.GaussianPrior(ccube[key], prior[0], prior[1]).astype('float64'),
+                'LG': np.power(10., priors.GaussianPrior(ccube[key], prior[0], prior[1])),
             }
 
-            pr = switcher.get(prior[0])
+            pr = switcher.get(self.params[par]['prior_type'])
             if pr is None:
                 priors.InvalidPrior(par)
             ccube[key] = pr
@@ -324,8 +388,8 @@ class globals:
         # retrieved parameters to them
         self.get_param_sample(cube)
 
-        # Scaling the distances to m/cm
-        self.L_scale()
+        # Test if all the length scales are provided
+        self.Length_scales_test()
 
         # Test and Potential conversion of P0
         self.P0_test()
@@ -377,17 +441,17 @@ class globals:
                      
         # Calculate total log-likelihood (sum over instruments)
         log_likelihood = 0.
-        for inst in self.instrument:
+        for inst in self.instrument.keys():
             # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
-            if not np.array([(np.round(self.dwlen[inst],10)==np.round(self.nc.c/self.rt_object.freq,10))]).all():
-                flux_temp = spectres.spectres(self.dwlen[inst],
-                                                self.nc.c/self.rt_object.freq,
+            if not np.array([(np.round(self.instrument[inst]['wl'],10)==np.round(self.nc.c/self.rt_object.freq*1e4,10))]).all():
+                flux_temp = spectres.spectres(self.instrument[inst]['wl'],
+                                                self.nc.c/self.rt_object.freq*1e4,
                                                 self.rt_object.flux)
                 
                 # Rebin and add the moon Flux if present
                 if self.settings['moon'] == 'True':
-                    flux_temp = flux_temp + spectres.spectres(self.dwlen[inst],
-                                                    self.nc.c/self.rt_object.freq,
+                    flux_temp = flux_temp + spectres.spectres(self.instrument[inst]['wl'],
+                                                    self.nc.c/self.rt_object.freq*1e4,
                                                     self.moon_flux)
 
             # If no rebin is required
@@ -400,8 +464,8 @@ class globals:
 
             # Calculate log-likelihood
             log_likelihood += -0.5 * np.sum(((flux_temp -
-                                            self.dflux[inst]) /
-                                            self.dferr[inst])**2.)
+                                            self.instrument[inst]['flux']) /
+                                            self.instrument[inst]['error'])**2.)
 
         return log_likelihood
 
@@ -465,31 +529,25 @@ class globals:
                 self.moon_vars[r_params[par]] = cube[par]
 
 
-    def L_scale(self):
+    def Length_scales_test(self):
         '''
         Function to scale lengths check form pc
         and earth radii to cm and m
         '''
 
-        # Scaling the distance to m
-        try:
-            self.phys_vars['d_syst'] = self.phys_vars['d_syst'] * self.nc.pc / 100
-        except:
+        # Check if distance to system is provided
+        if not 'd_syst' in self.phys_vars:
             print("ERROR! Distance from the star is missing!")
             sys.exit()
         
-        # Scaling the radius to cm
-        try:
-            self.phys_vars['R_pl'] = self.phys_vars['R_pl'] * self.nc.r_earth
-        except:
+        # Check if radius of the planet is provided
+        if not 'R_pl' in self.phys_vars:
             print("ERROR! Planetary radius is missing!")
             sys.exit()
 
-        # Scaling the moon radius to cm
+        # Check if radius of the moon is provided
         if self.settings['moon'] == 'True':
-            try:
-                self.moon_vars['R_m'] = self.moon_vars['R_m'] * self.nc.r_earth
-            except:
+            if not 'R_m' in self.phys_vars:
                 print("ERROR! Moon radius is missing!")
                 sys.exit()
 
@@ -504,13 +562,13 @@ class globals:
         # Case dependant setting of the surface pressure
         if self.settings['clouds'] == 'opaque':
             # Choose a surface pressure below the lower cloud deck
-            if not (('log_P0' in self.phys_vars.keys()) or ('P0' in self.phys_vars.keys())):
+            if not (('log_P0' in self.phys_vars) or ('P0' in self.phys_vars)):
                 self.phys_vars['log_P0'] = 4
             else:
-                if (('log_P0' in self.knowns.keys()) or ('P0' in self.knowns.keys())):
+                if (('log_P0' in self.knowns) or ('P0' in self.knowns)):
                     if ind is not None:
                         if ind == 0:
-                            if 'P0' in self.knowns.keys():
+                            if 'P0' in self.knowns:
                                 self.phys_vars['log_P0'] = np.log10(self.knowns['P0']['value'])
                             else:
                                 self.phys_vars['log_P0'] = self.knowns['log_P0']['value']
@@ -522,8 +580,8 @@ class globals:
                     print("ERROR! For opaque cloud models the surface pressure P0 is not retrievable!")
                     sys.exit()
         else:
-            if 'log_P0' not in self.phys_vars.keys():
-                if 'P0' in self.phys_vars.keys():
+            if not 'log_P0' in self.phys_vars:
+                if 'P0' in self.phys_vars:
                     self.phys_vars['log_P0'] = np.log10(self.phys_vars['P0'])
                 else:
                     print("ERROR! Either log_P0 or P0 is needed!")
@@ -542,10 +600,7 @@ class globals:
             if 'log_g' in self.phys_vars.keys():
                 self.phys_vars['g'] = 10**self.phys_vars['log_g']
             else:
-                try:
-                    self.phys_vars['M_pl'] = self.phys_vars['M_pl'] * self.nc.m_earth
-                except:
-                    print("ERROR! Planetary mass is missing!")
+                if not 'M_pl' in self.phys_vars:
                     sys.exit()
                 self.phys_vars['g'] = self.nc.G*self.phys_vars['M_pl'] / (self.phys_vars['R_pl'])**2
 
@@ -610,7 +665,7 @@ class globals:
             self.rt_object.calc_flux(self.temp, self.abundances, self.phys_vars['g'],
                             self.MMW,radius=self.cloud_radii,sigma_lnorm=self.cloud_lnorm,
                             geometry=self.settings['geometry'],Tstar= self.scat_vars['stellar_temp'],
-                            Rstar=self.scat_vars['stellar_radius']*self.nc.r_sun, semimajoraxis=self.scat_vars['semimajoraxis']*self.nc.AU,
+                            Rstar=self.scat_vars['stellar_radius'], semimajoraxis=self.scat_vars['semimajoraxis'],   #*self.nc.r_sun*self.nc.AU
                             add_cloud_scat_as_abs = add_cloud_scat_as_abs,contribution = em_contr)
         sys.stdout = old_stdout
 
