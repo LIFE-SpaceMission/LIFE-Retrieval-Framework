@@ -4,18 +4,20 @@ __maintainer__ = "Björn S. Konrad"
 __email__ = "konradb@phys.ethz.ch"
 __status__ = "Development"
 
-# Standard Libraries
+# -----------------------------------------------------------------------------
+# IMPORTS
+# -----------------------------------------------------------------------------
+
 import numpy as np
 
 
+# -----------------------------------------------------------------------------
+# DEFINITIONS
+# -----------------------------------------------------------------------------
+
+def logistic_function(x, L, k, hm):
+    return L / (1 + np.exp(-k * (x - hm)))
 
 
-
-
-def Logistic_Function(x,L,k,hm):
-    return L/(1+np.exp(-k*(x-hm)))
-
-
-
-def Inverse_Logistic_Function(y,L,k,hm):
-    return hm-np.log(L/y-1)/k
+def inverse_logistic_function(y, L, k, hm):
+    return hm - np.log(L / y - 1) / k
