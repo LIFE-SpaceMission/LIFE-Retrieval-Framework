@@ -141,7 +141,7 @@ class retrieval_plotting(r_globals.globals):
 
             # Define standard titles for any other parameters 
             else:
-                self.params[key]['title'] = key
+                self.params[key]['title'] = '$\\mathrm{'+str(key)+'}$'
                 self.params_names[key]=key
 
             # Storing the truths if provided
@@ -647,6 +647,7 @@ class retrieval_plotting(r_globals.globals):
             for param in params:
                 fig, axs = rp_posteriors.Posterior(local_post[param],local_titles[param],local_truths[param],
                                     quantiles1d=quantiles1d,bins=bins,color=color,ULU=(param in ULU),ULU_lim=ULU_lim)
+
                 if save:
                     plt.savefig(self.results_directory+'/Plots/Posteriors/'+param+'.pdf', bbox_inches='tight')
                 else:
@@ -966,11 +967,11 @@ class retrieval_plotting(r_globals.globals):
             patch_labels = quantiles_title
             
         # Add the legend
-        if case_identifier=='': 
-            lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Venus Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
+        if case_identifier=='':
+            lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
                             handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
         else:
-            lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles+[' ','Venus Truth:']+handles,[' ',' ']+patch_labels+[' ',' ']+labels,\
+            lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ',' ']+patch_labels+[' ',' ']+labels,\
                             handler_map={str:  rp_hndl.Handles(), rp_hndl.MulticolorPatch:  rp_hndl.MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
 
         # Save or pass back the figure

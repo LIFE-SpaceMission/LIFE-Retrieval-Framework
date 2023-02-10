@@ -79,7 +79,7 @@ class globals:
         self.settings['clouds']='transparent'
         self.settings['moon']=False
         self.settings['scattering']=False
-
+        self.settings['extra_lines'] =''
         # Import PRt
         sys.path.append(self.path_prt)
         os.environ['pRT_input_data_path'] = self.path_opacity
@@ -246,7 +246,10 @@ class globals:
         if self.settings['resolution'] != '1000':
             string = '_R_' + str(self.settings['resolution'])
         speciesres = []
-
+        # add extra linelists (only if you need to read multiple files for
+        # the same linelist (e.g. UV O3 linelists)
+        for extra in self.settings['extra_lines'].split(','):
+            speciesres.append(extra.strip() + string)
         # Line absorbers
         for key in self.params.keys():
             if self.params[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
@@ -256,7 +259,7 @@ class globals:
                 speciesres.append(key+string)
 
         # check if lines are there (trick with resolution)
-        species = [s.split('_')[0] for s in speciesres]
+        species = list(set([s.split('_')[0] for s in speciesres]))
         line_species = os.listdir(self.path_opacity + '/opacities/lines/corr_k/')
         used_line_species = (list(set(speciesres) & set(line_species)))
         tot_mols =[s.split('_')[0] for s in used_line_species]
@@ -322,7 +325,6 @@ class globals:
         print('Used cloud species:\t\t' + str(used_cloud_species))
         print('Used species *in general*:\t' + str(self.tot_mols))
         print()
-
         # Read in the molecular weights database
         self.MMW_Storage = {}
         reader = np.loadtxt(self.path_opacity + "/opa_input_files/Molecular_Weights.txt",dtype='str')
