@@ -34,7 +34,7 @@ def Corner(params,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quantiles2d=[
     # Start of plotting routine
     fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
     fig.subplots_adjust(hspace=0.0,wspace=0.0)
-    fs = 18
+    fs = 24
     
     # Iterate over the equal weighted posteriors of all retrieved parameters.
     # Diagonal histogram plots
@@ -80,6 +80,7 @@ def Corner(params,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quantiles2d=[
                     axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
             else:
                 if add_table:
+                    print(param,truths[param], round)
                     table.append([str(np.round(truths[param],int(-np.floor(round-0.5)))),
                             str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                             str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
