@@ -3,11 +3,7 @@ import sys
 # import the trequired codes from the terrestrial retrieval package
 sys.path.append("/home/konradb/Documents/Terrestrial_Retrieval/")
 import retrieval_plotting as rp
-import retrieval_plotting_grid as rpg
-from retrieval_plotting_support import retrieval_plotting_adjust_config as rp_config
 
-import matplotlib.pyplot as plt
-import numpy as np
 import astropy.units as u
 
 
@@ -74,7 +70,7 @@ results.Flux_Error(skip =1,                                                     
                     noise_title = 'Photon Noise',                                           #Title for the noise
                     legend_loc = 'upper center',                                            #Position of the legend
                     split_instruments=True,                                                 #Rebin the flux to the individual instruments
-                    single_instrument=None,                                                 #Plot a single instrument 'instrument_name'             
+                    single_instrument=None,                                                 #Plot a single instrument 'instrument_name'
                     x_unit=u.micron,                                                        #Astropy units for the x-coordinate
                     y_unit=u.photon/u.m**2/u.s/u.micron)                                    #Astropy units for the y-coordinate
                     
