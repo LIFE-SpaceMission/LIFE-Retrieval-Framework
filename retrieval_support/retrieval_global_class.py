@@ -67,7 +67,7 @@ class globals:
            with open(self.path_prt + '/petitRADTRANS/path.txt', 'w+') as input_data:
                 input_data.write("#\n" + self.path_opacity)
 
-        self.log_top_pressure=-6
+        self.log_top_pressure=-5 #-6
         self.config_file = config
         self.params = OrderedDict()
         self.knowns = OrderedDict()
@@ -117,8 +117,11 @@ class globals:
 
                         # Extract the input values
                         input_prior = [u.Quantity(val[i]).value for i in range(1,3)]
-                        input_truth = u.Quantity(val[4]).value if val[3] == 'T' else None
-                        
+                        #try:
+                        input_truth = u.Quantity(val[4]).value if (len(val)>=5 and val[3] == 'T') else None
+                        #except:
+                        #    input_truth = None
+
                         # Convert the input to retrieval units
                         conv_unit = self.units.return_units(key,self.units.retrieval_units)
                         conv_truth, conv_prior = self.units.unit_conv(key,input_unit,conv_unit,input_truth,prior_type=val[0],input_prior=input_prior)
@@ -168,7 +171,7 @@ class globals:
         # check if all parameters are there:
         if self.settings['parametrization'] == 'polynomial':
             pt_params = ['a_'+str(i) for i in range(len(input_pt)-1)]
-        elif self.settings['parametrization'] == 'vae_pt':
+        elif 'vae_pt' in self.settings['parametrization']:
             pt_params = ['z_'+str(i+1) for i in range(len([input_pt[i] for i in range(len(input_pt)) if not 'settings' in input_pt[i]])-2)]
         elif self.settings['parametrization'] == 'guillot':
             pt_params = ['log_delta', 'log_gamma','t_int', 't_equ', 'log_p_trans', 'alpha']
@@ -307,11 +310,12 @@ class globals:
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
-            #try:
-            self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'],
-                                                flow_file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['flow_net'])
-            #except:
-            #    self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/'+self.settings['vae_net'])                
+            self.vae_pt = vae.VAE_PT_Model_Flow(os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/Flow/'+self.settings['vae_net'],)
+        if self.settings['parametrization'] == 'vae_pt_flow':
+            from retrieval_support import retrieval_pt_vae as vae
+            print('flow')
+            self.vae_pt = vae.VAE_PT_Model_Flow(os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/Flow/'+self.settings['vae_net'],
+                                                flow_path = os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/Flow/flow-state-dict.pt')
 
         # PROTECTION FROM BAD INPUTS
         self.tot_mols = list(set(tot_mols))
@@ -695,7 +699,7 @@ class globals:
             self.temp = np.polyval(np.array([self.temp_vars['a_'+str(len(self.temp_vars)-1-i)]
                                             for i in range(len(self.temp_vars))]), np.log10(self.press))
 
-        elif self.settings['parametrization'] == 'vae_pt':
+        elif 'vae_pt' in self.settings['parametrization']:
             if log_ground_pressure is None:
                 self.press = np.logspace(log_top_pressure,self.phys_vars['log_P0'], layers, base=10)
             else:

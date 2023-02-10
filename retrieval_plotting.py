@@ -66,11 +66,12 @@ class retrieval_plotting(r_globals.globals):
         # if the vae_pt is selected initialize the pt profile model
         if self.settings['parametrization'] == 'vae_pt':
             from retrieval_support import retrieval_pt_vae as vae
-            try:
-                self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/retrieval_support/vae_pt_models/'+self.settings['vae_net'],
-                                                flow_file_path=os.path.dirname(os.path.realpath(__file__))+'/retrieval_support/vae_pt_models/'+self.settings['flow_net'])
-            except:
-                self.vae_pt = vae.VAE_PT_Model(file_path=os.path.dirname(os.path.realpath(__file__))+'/retrieval_support/vae_pt_models/'+self.settings['vae_net'])        
+            self.vae_pt = vae.VAE_PT_Model_Flow(os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/Flow/'+self.settings['vae_net'],)
+        if self.settings['parametrization'] == 'vae_pt_flow':
+            from retrieval_support import retrieval_pt_vae as vae
+            print('flow')
+            self.vae_pt = vae.VAE_PT_Model_Flow(os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/Flow/'+self.settings['vae_net'],
+                                                flow_path = os.path.dirname(os.path.realpath(__file__))+'/vae_pt_models/Flow/flow-state-dict.pt')    
                 
         # Read the retrieval results from the chain files
         # self.n_params is the number of retrieved parameters
