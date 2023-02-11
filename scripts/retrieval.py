@@ -30,8 +30,8 @@ if __name__ == "__main__":
 
     # Run MultiNest
     result = solve(
-        LogLikelihood=g.LogLike,
-        Prior=g.Priors,
+        LogLikelihood=g.log_likelihood,
+        Prior=g.priors,
         n_dims=len(g.params),
         outputfiles_basename=g.prefix,
         n_live_points=600,  # TODO: Make this a parameter configurable

@@ -98,13 +98,14 @@ class globals:
         self.knowns = OrderedDict()
 
         # Initialization of the standard settings
-        self.settings = {}
-        self.settings["directlight"] = False
-        self.settings["CIA"] = False
-        self.settings["clouds"] = "transparent"
-        self.settings["moon"] = False
-        self.settings["scattering"] = False
-        self.settings["extra_lines"] = ""
+        self.settings = {
+            "directlight": False,
+            "CIA": False,
+            "clouds": "transparent",
+            "moon": False,
+            "scattering": False,
+            "extra_lines": "",
+        }
         # Import PRt
         sys.path.append(self.path_prt)
         os.environ["pRT_input_data_path"] = self.path_opacity
@@ -120,7 +121,7 @@ class globals:
         dictionaries: settings, params, knowns.
         """
 
-        # Check if there are units defined by the user and add these to the unis
+        # Check if there are used-defined units and add these to the units
         if "USER DEFINED UNITS" in self.config_file.sections():
             for key, val in self.config_file.items("USER DEFINED UNITS"):
                 self.units.custom_unit(key, u.Quantity(val))
@@ -224,7 +225,7 @@ class globals:
                         [
                             input_pt[i]
                             for i in range(len(input_pt))
-                            if not "settings" in input_pt[i]
+                            if "settings" not in input_pt[i]
                         ]
                     )
                     - 2
@@ -240,7 +241,14 @@ class globals:
                 "alpha",
             ]
         elif self.settings["parametrization"] == "madhuseager":
-            pt_params = ["T0", "log_P1", "log_P2", "log_P3", "alpha1", "alpha2"]
+            pt_params = [
+                "T0",
+                "log_P1",
+                "log_P2",
+                "log_P3",
+                "alpha1",
+                "alpha2",
+            ]
         elif self.settings["parametrization"] == "mod_madhuseager":
             pt_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
         elif self.settings["parametrization"] == "isothermal":
@@ -251,9 +259,10 @@ class globals:
             sys.exit("Unknown PT parametrization.")
 
         if not all(elem in input_pt for elem in pt_params):
-            sys.exit(
-                "Missing one or more PT parameters/knowns. Make sure these exist:"
-                + str(pt_params)
+            missing_params = [_ for _ in pt_params if _ not in input_pt]
+            raise RuntimeError(
+                "Missing one or more PT parameters/knowns. "
+                "Make sure these exist:" + str(missing_params)
             )
 
     def read_data(self, retrieval=True, result_dir=None):
@@ -523,12 +532,13 @@ class globals:
         with open("%sparams.json" % self.prefix, "w") as f:
             json.dump(list(self.params.keys()), f, indent=2)
 
-    def Priors(self, cube):
-        ccube = cube.copy()
+    def priors(self, cube):
         """
         Converts the unity cube to prior cube by recognizing the names
         of the Parameters and giving them identificators.
         """
+
+        ccube = cube.copy()
 
         for par in self.params.keys():
             prior = self.params[par]["prior"]
@@ -560,7 +570,7 @@ class globals:
             ccube[key] = pr
         return ccube
 
-    def LogLike(self, cube):
+    def log_likelihood(self, cube):
         """
         Calculates the log(likelihood) of the forward model generated
         with parameters and known variables.
@@ -572,7 +582,7 @@ class globals:
         self.get_param_sample(cube)
 
         # Test if all the length scales are provided
-        self.Length_scales_test()
+        self.length_scales_test()
 
         # Test and Potential conversion of P0
         self.P0_test()
@@ -580,7 +590,8 @@ class globals:
         # Test/derivation of surface gravity
         self.g_test()
 
-        # Check: Return -inf if pressures for madhuseager models are not nonotonically increasing.
+        # Check: Return -inf if pressures for madhuseager models are not
+        # monotonically increasing.
         if self.settings["parametrization"] == "madhuseager":
             if (
                 not self.log_top_pressure
@@ -636,7 +647,8 @@ class globals:
         # Calculate total log-likelihood (sum over instruments)
         log_likelihood = 0.0
         for inst in self.instrument.keys():
-            # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
+            # Rebin the spectrum according to the input spectrum if wavelengths
+            # differ strongly
             if not np.array(
                 [
                     (
@@ -757,27 +769,24 @@ class globals:
             elif self.params[r_params[par]]["type"] == "MOON PARAMETERS":
                 self.moon_vars[r_params[par]] = cube[par]
 
-    def Length_scales_test(self):
+    def length_scales_test(self):
         """
         Function to scale lengths check form pc
         and earth radii to cm and m
         """
 
         # Check if distance to system is provided
-        if not "d_syst" in self.phys_vars:
-            print("ERROR! Distance from the star is missing!")
-            sys.exit()
+        if "d_syst" not in self.phys_vars:
+            raise RuntimeError("ERROR! Distance from the star is missing!")
 
         # Check if radius of the planet is provided
-        if not "R_pl" in self.phys_vars:
-            print("ERROR! Planetary radius is missing!")
-            sys.exit()
+        if "R_pl" not in self.phys_vars:
+            raise RuntimeError("ERROR! Planetary radius is missing!")
 
         # Check if radius of the moon is provided
         if self.settings["moon"] == "True":
-            if not "R_m" in self.phys_vars:
-                print("ERROR! Moon radius is missing!")
-                sys.exit()
+            if "R_m" not in self.phys_vars:
+                raise RuntimeError("ERROR! Moon radius is missing!")
 
     def P0_test(self, ind=None):
         """
@@ -808,12 +817,13 @@ class globals:
                     else:
                         self.phys_vars["log_P0"] = 4
                 else:
-                    print(
-                        "ERROR! For opaque cloud models the surface pressure P0 is not retrievable!"
+                    raise RuntimeError(
+                        "ERROR! For opaque cloud models, the surface pressure "
+                        "P0 is not retrievable!"
                     )
-                    sys.exit()
+
         else:
-            if not "log_P0" in self.phys_vars:
+            if "log_P0" not in self.phys_vars:
                 if "P0" in self.phys_vars:
                     self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
                 else:
@@ -827,12 +837,13 @@ class globals:
         the correct format for petit radtrans
         """
 
-        # Calculate the surface gravity g given M_Pl and R_pl or log_g. If in knowns already, skip
+        # Calculate the surface gravity g given M_Pl and R_pl or log_g.
+        # If in knowns already, skip
         if "g" not in self.phys_vars.keys():
             if "log_g" in self.phys_vars.keys():
                 self.phys_vars["g"] = 10 ** self.phys_vars["log_g"]
             else:
-                if not "M_pl" in self.phys_vars:
+                if "M_pl" not in self.phys_vars:
                     sys.exit()
                 self.phys_vars["g"] = (
                     self.nc.G
@@ -855,7 +866,7 @@ class globals:
                 add_cloud_scat_as_abs = True
                 self.abundances[name] = np.zeros_like(self.press)
                 for cloud in self.cloud_vars.keys():
-                    # Calculate the bottom pressure from the thickness parameter
+                    # Calculate bottom pressure from the thickness parameter
                     self.cloud_vars[cloud]["bottom_pressure"] = (
                         self.cloud_vars[cloud]["top_pressure"]
                         + self.cloud_vars[cloud]["thickness"]
@@ -876,7 +887,9 @@ class globals:
                         self.cloud_radii[name] = self.cloud_vars[cloud][
                             "particle_radius"
                         ]
-                        self.cloud_lnorm = self.cloud_vars[cloud]["sigma_lnorm"]
+                        self.cloud_lnorm = self.cloud_vars[cloud][
+                            "sigma_lnorm"
+                        ]
             else:
                 self.abundances[name.split("_")[0]] = (
                     np.ones_like(self.press) * self.chem_vars[name]
@@ -1128,7 +1141,9 @@ class globals:
                         self.press[i], P2, T2, self.temp_vars["alpha2"], beta2
                     )
 
-            # self.temp = sci.gaussian_filter1d(self.temp, 20.0, mode = 'nearest')
+            # self.temp = sci.gaussian_filter1d(
+            #     self.temp, 20.0, mode = 'nearest'
+            # )
 
         elif self.settings["parametrization"] == "input":
             self.press, self.temp = np.loadtxt(
@@ -1136,14 +1151,15 @@ class globals:
             )
 
         else:
-            sys.exit("Unknown pt setting.")
+            raise ValueError("Unknown PT setting!")
 
         return
 
     def calc_MMW(self):
         """
-        Calculates the mean molecular weight for the modeled atmosphere, by summing
-        the molecular weights for each gas weighted by their abundance.
+        Calculates the mean molecular weight for the modeled atmosphere
+        by summing the molecular weights for each gas weighted by their
+        abundance.
         """
 
         self.MMW = 0.0
