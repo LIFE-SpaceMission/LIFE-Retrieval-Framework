@@ -1,15 +1,25 @@
-'''
+"""
 PRIORS.py
 
 Here, the unity cube is converted to prior cube by using either an
 uninformative, uniform prior, or a Gaussian prior.
 The variable cube has length equal to the number of parameters to be
 retrieved; the indexing follows the order of the params global list.
-'''
+"""
+
+# -----------------------------------------------------------------------------
+# IMPORTS
+# -----------------------------------------------------------------------------
+
 import scipy.stats as stat
-import numpy as np
-import sys
-def UniformPrior(r, x1, x2):
+
+
+# -----------------------------------------------------------------------------
+# DEFINITIONS
+# -----------------------------------------------------------------------------
+
+
+def uniform_prior(r, x1, x2):
     """
     Scales a random number generated in a uniform prior between 0
     and 1 to the respective value corresponding to a uniform prior
@@ -29,7 +39,8 @@ def UniformPrior(r, x1, x2):
     """
     return x1 + r * (x2 - x1)
 
-def GaussianPrior(r, mu, sigma):
+
+def gaussian_prior(r, mu, sigma):
     """
     Scales a random number generated in a uniform prior between 0
     and 1 to the respective value corresponding to a gaussian prior
@@ -50,13 +61,22 @@ def GaussianPrior(r, mu, sigma):
     # if r < 1e-16 or (1.0 - r) < 1e-16:
     #    return -1.0e32
     # else:
-    #return -((r - mu) / sigma)**2 / 2
-    return stat.norm.ppf(r)*sigma +mu
+    # return -((r - mu) / sigma)**2 / 2
+    return stat.norm.ppf(r) * sigma + mu
 
 
-def InvalidPrior(par):
-    print('ERROR! ',par,'does not have a valid prior. Please, choose a valid prior. Exiting the run...')
-    sys.exit(0)
+def invalid_prior(par):
+    # Note: If you are exiting the run with an error, you should not use
+    # `sys.exit(0)` because that will produce a return code of 0, which
+    # usually means "success" or "no errors". In any case, raising a
+    # `ValueError` is probably the best way to go here, because it will
+    # give the user a clear error message and traceback, and will also
+    # exit the run with a non-zero return code.
+
+    raise ValueError(
+        f"{par} does not have a valid prior. Please! choose a valid prior! "
+        f"Exiting the run..."
+    )
 
 
 # def FillPriors(r, str):
@@ -107,9 +127,17 @@ def InvalidPrior(par):
 #     elif str == 'P0':
 #         return UniformPrior(r, 0.5,2)**4
 #     elif str == 'R_pl':
-#         return GaussianPrior(r, float(g.knowns['R_pl_initial']) ,float(g.knowns['dR_pl_initial']))
+#         return GaussianPrior(
+#             r,
+#             float(g.knowns['R_pl_initial']),
+#             float(g.knowns['dR_pl_initial'])
+#         )
 #     elif str == 'M_pl':
-#         return 10**GaussianPrior(r, float(g.knowns['log_Mmedian_pl']) ,float(g.knowns['d_log_Mmedian_pl']))
+#         return 10**GaussianPrior(
+#             r,
+#             float(g.knowns['log_Mmedian_pl']),
+#             float(g.knowns['d_log_Mmedian_pl']),
+#         )
 #     elif str == 'd_syst':
 #             return UniformPrior(r, 0, 100000)
 #     elif str in g.opacities: #All the folders in the opacity lines folder

@@ -2714,7 +2714,7 @@ class retrieval_plotting(r_globals.globals):
                 # Try to Fit each model to the retrieved data
                 try:
                     params_F, cov_F = sp.optimize.curve_fit(
-                        r_post.Model_Flat,
+                        r_post.model_flat,
                         (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                         binned_data[0],
                     )
@@ -2723,7 +2723,7 @@ class retrieval_plotting(r_globals.globals):
                             params_F,
                             (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                             binned_data[0],
-                            r_post.Model_Flat,
+                            r_post.model_flat,
                         )
                     )
                 except:
@@ -2731,7 +2731,7 @@ class retrieval_plotting(r_globals.globals):
 
                 try:
                     params_SS, cov_SS = sp.optimize.curve_fit(
-                        r_post.Model_SoftStep,
+                        r_post.model_softstep,
                         (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                         binned_data[0],
                         p0=p0_SS,
@@ -2741,7 +2741,7 @@ class retrieval_plotting(r_globals.globals):
                             params_SS,
                             (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                             binned_data[0],
-                            r_post.Model_SoftStep,
+                            r_post.model_softstep,
                         )
                     )
                 except:
@@ -2749,7 +2749,7 @@ class retrieval_plotting(r_globals.globals):
 
                 try:
                     params_SSG, cov_SSG = sp.optimize.curve_fit(
-                        r_post.Model_SoftStepG,
+                        r_post.model_softstep_g,
                         (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                         binned_data[0],
                         p0=p0_SSG,
@@ -2759,16 +2759,16 @@ class retrieval_plotting(r_globals.globals):
                             params_SSG,
                             (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                             binned_data[0],
-                            r_post.Model_SoftStepG,
+                            r_post.model_softstep_g,
                         )
                     )
-                    line_SSG = r_post.Model_SoftStepG(x_bins, *params_SSG)
+                    line_SSG = r_post.model_softstep_g(x_bins,,
                 except:
                     model_likelihood.append(-np.inf)
 
                 try:
                     params_G, cov_G = sp.optimize.curve_fit(
-                        r_post.Model_Gauss,
+                        r_post.model_gauss,
                         (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                         binned_data[0],
                         p0=p0_Gauss,
@@ -2778,7 +2778,7 @@ class retrieval_plotting(r_globals.globals):
                             params_G,
                             (binned_data[1][:-1] + binned_data[1][1:]) / 2,
                             binned_data[0],
-                            r_post.Model_Gauss,
+                            r_post.model_gauss,
                         )
                     )
                 except:
@@ -2796,9 +2796,7 @@ class retrieval_plotting(r_globals.globals):
                         model_likelihood[3] = -np.inf
                 if model_likelihood[1] != -np.inf:
                     if (
-                        r_post.Model_SoftStep(
-                            self.best_post_limit[param][1], *params_SS
-                        )
+                        r_post.model_softstep(self.best_post_limit[param][1],,
                         >= params_SS[-1] / 10
                     ):
                         model_likelihood[1] = -np.inf
@@ -2846,28 +2844,28 @@ class retrieval_plotting(r_globals.globals):
                     if best_fit == 0:
                         plt.plot(
                             x_bins,
-                            r_post.Model_Flat(x_bins, *params_F),
+                            r_post.model_flat(x_bins, ),
                             "g-",
                             lw=5,
                         )
                     if best_fit == 1:
                         plt.plot(
                             x_bins,
-                            r_post.Model_SoftStep(x_bins, *params_SS),
+                            r_post.model_softstep(x_bins,,,
                             "r-",
                             lw=5,
                         )
                     if best_fit == 2:
                         plt.plot(
                             x_bins,
-                            r_post.Model_SoftStepG(x_bins, *params_SSG),
+                            r_post.model_softstep_g(x_bins,,,
                             "b-",
                             lw=5,
                         )
                     if best_fit == 3:
                         plt.plot(
                             x_bins,
-                            r_post.Model_Gauss(x_bins, *params_G),
+                            r_post.model_gauss(x_bins,,,
                             "m-",
                             lw=5,
                         )

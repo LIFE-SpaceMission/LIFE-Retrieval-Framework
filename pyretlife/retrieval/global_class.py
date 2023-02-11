@@ -1,14 +1,5 @@
+# TODO: Is this really necessary?
 from __future__ import absolute_import, unicode_literals, print_function
-import spectres as spectres
-from collections import OrderedDict
-import warnings
-import json
-import sys
-import numpy as np
-import configparser
-from pyretlife.retrieval import priors as priors, units as units
-import scipy.ndimage as sci
-import astropy.units as u
 
 __author__ = "Alei, Konrad, Molliere, Quanz"
 __copyright__ = "Copyright 2022, Alei, Konrad, Molliere, Quanz"
@@ -16,12 +7,43 @@ __maintainer__ = ",Björn S. Konrad, Eleonora Alei"
 __email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
 __status__ = "Development"
 
-import os
+# -----------------------------------------------------------------------------
+# IMPORTS
+# -----------------------------------------------------------------------------
 
+from collections import OrderedDict
+
+import configparser
+import json
+import os
+import sys
+import warnings
+
+import astropy.units as u
+import numpy as np
+import scipy.ndimage as sci
+import spectres as spectres
+
+from pyretlife.retrieval import priors as priors, units as units
+
+# TODO:
+#   This should not go into the module (i.e., the place from which we import
+#   functions), but into the script (where we use them).
+#   Reason: We do not want any "invisble" side effects when we call `import`.
 os.environ["OMP_NUM_THREADS"] = "1"
 warnings.simplefilter("ignore")
 
 
+# -----------------------------------------------------------------------------
+# DEFINITIONS
+# -----------------------------------------------------------------------------
+
+
+# TODO:
+#   This *definitely* needs to be renamed! `globals` is a Python keyword (it's
+#   the function that returns all global variables), and defining a class with
+#   this name could have all sorts of bad unintended side effects.
+#   Suggestion: Just name this `RetrievalConfiguration` or something like that.
 class globals:
     def __init__(self, input_file="config.ini", retrieval=True):
         """
@@ -90,7 +112,7 @@ class globals:
         self.nc = self.rt.nat_cst
 
         # Create a units object to enable unit conversions
-        self.units = units.units_util(self.rt.nat_cst)
+        self.units = units.UnitsUtil(self.rt.nat_cst)
 
     def read_var(self):
         """
@@ -262,7 +284,8 @@ class globals:
                         + " ".join(input_string.split("/")[-1].split(" ")[1:])
                     )
 
-            # Extract the Units from the config file and load the data. If non are provided the standard units are assumed.
+            # Extract the Units from the config file and load the data.
+            # If non are provided the standard units are assumed.
             (
                 input_unit_wl,
                 input_unit_flux,
@@ -512,28 +535,28 @@ class globals:
             key = list(self.params.keys()).index(par)
 
             switcher = {
-                "U": priors.UniformPrior(ccube[key], prior[0], prior[1]),
+                "U": priors.uniform_prior(ccube[key], prior[0], prior[1]),
                 "LU": np.power(
-                    10.0, priors.UniformPrior(ccube[key], prior[0], prior[1])
+                    10.0, priors.uniform_prior(ccube[key], prior[0], prior[1])
                 ),
                 "ULU": 1
                 - np.power(
-                    10.0, priors.UniformPrior(ccube[key], prior[0], prior[1])
+                    10.0, priors.uniform_prior(ccube[key], prior[0], prior[1])
                 ),
                 "FU": np.power(
-                    priors.UniformPrior(ccube[key], prior[0], prior[1]), 4
+                    priors.uniform_prior(ccube[key], prior[0], prior[1]), 4
                 ),
-                "G": priors.GaussianPrior(
+                "G": priors.gaussian_prior(
                     ccube[key], prior[0], prior[1]
                 ).astype("float64"),
                 "LG": np.power(
-                    10.0, priors.GaussianPrior(ccube[key], prior[0], prior[1])
+                    10.0, priors.gaussian_prior(ccube[key], prior[0], prior[1])
                 ),
             }
 
             pr = switcher.get(self.params[par]["prior_type"])
             if pr is None:
-                priors.InvalidPrior(par)
+                priors.invalid_prior(par)
             ccube[key] = pr
         return ccube
 

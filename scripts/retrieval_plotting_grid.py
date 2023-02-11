@@ -4001,7 +4001,7 @@ class grid_plotting:
 
         if model[0] == "SS":
             HM = -model[1][1] / model[1][0]
-            s = r_post.Inv_Model_SoftStep(
+            s = r_post.inv_model_softstep(
                 0.16 * model[1][-1], model[1][0], model[1][1], model[1][2]
             )
             plt.plot(
@@ -4047,13 +4047,13 @@ class grid_plotting:
             )
 
         if model[0] == "SSG":
-            line = r_post.Model_SoftStepG(x, *list(model[1]))
+            line = r_post.model_softstep_g(x,,
             ind = np.argmax(line)
             x_up = x[np.where(x > x[ind])]
             xp = x_up[
                 np.argmin(
                     np.abs(
-                        r_post.Model_SoftStepG(x_up, *model[1])
+                        r_post.model_softstep_g(x_up,,
                         - 1 / 2 * np.max(line)
                     )
                 )
@@ -4062,7 +4062,7 @@ class grid_plotting:
             xm = x_down[
                 np.argmin(
                     np.abs(
-                        r_post.Model_SoftStepG(x_down, *model[1])
+                        r_post.model_softstep_g(x_down,,
                         - (np.max(line) / 2 + model[1][2] / 2)
                     )
                 )
@@ -4155,7 +4155,7 @@ class grid_plotting:
 
         if model[0] == "USS":
             HM = -model[1][1] / model[1][0]
-            s = r_post.Inv_Model_SoftStep(
+            s = r_post.inv_model_softstep(
                 0.16 * model[1][-1], model[1][0], model[1][1], model[1][2]
             )
             plt.plot(
