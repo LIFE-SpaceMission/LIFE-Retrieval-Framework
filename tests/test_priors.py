@@ -15,7 +15,7 @@ from pyretlife.priors import GaussianPrior, UniformPrior
 # TESTS
 # -----------------------------------------------------------------------------
 
-def test_uniform_prior() -> None:
+def test__uniform_prior() -> None:
     """
     Test `UniformPrior`.
     """
@@ -38,7 +38,7 @@ def test_uniform_prior() -> None:
     assert np.all(samples <= 42)
 
 
-def test_gaussian_prior() -> None:
+def test__gaussian_prior() -> None:
     """
     Test `GaussianPrior`.
     """
