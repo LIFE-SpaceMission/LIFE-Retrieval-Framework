@@ -6,10 +6,31 @@ The main program of the retrieval suite.
 # IMPORTS
 # -----------------------------------------------------------------------------
 
+from argparse import ArgumentParser, Namespace
+
+# from pprint import pprint
+
 import os
 
 from pyretlife.retrieval import global_class as rp_globals
 from pymultinest.solve import solve
+
+# from pyretlife.config import read_config_file, check_if_configs_match
+
+
+# -----------------------------------------------------------------------------
+# DEFINITIONS
+# -----------------------------------------------------------------------------
+
+def get_cli_arguments() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the configuration file.",
+    )
+    args = parser.parse_args()
+    return args
 
 
 # -----------------------------------------------------------------------------
@@ -19,6 +40,17 @@ from pymultinest.solve import solve
 if __name__ == "__main__":
     # Set the number of threads to 1
     os.environ["OMP_NUM_THREADS"] = "1"
+
+    """
+    # Read the command line arguments
+    args = get_cli_arguments()
+
+    # Read in the configuration
+    config = read_config_file(file_path=args.config)
+    if not check_if_configs_match(config=config):
+        raise RuntimeError("Config exists and does not match!")
+    pprint(config)
+    """
 
     # Read the configuration file
     g = rp_globals.globals()
