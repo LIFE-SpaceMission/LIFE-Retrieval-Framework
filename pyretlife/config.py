@@ -1,6 +1,8 @@
 """
 Read in configuration files.
 """
+import os
+import sys
 
 # -----------------------------------------------------------------------------
 # IMPORTS
@@ -8,7 +10,7 @@ Read in configuration files.
 
 from configparser import ConfigParser
 from pathlib import Path
-from typing import Union
+from typing import Union, Tuple
 
 import hashlib
 import yaml
@@ -125,4 +127,93 @@ def fix_types_for_ini_config(config: dict) -> dict:
 
 
 def validate_config(config: dict) -> None:
+    check_temperature_parameters(config)
     pass
+
+
+def read_paths(file_path: Union[Path, str]) -> Tuple[Path, Path, Path]:
+    dict_paths = read_config_file(file_path)
+    f = open(Path(dict_paths["path_prt"]) / "petitRADTRANS/path.txt", "r")
+    orig_path = f.read()
+    # LEGACY (for older versions of pRT)
+    if not orig_path == "#\n" + dict_paths["path_opacity"]:
+        with open(
+            Path(dict_paths["path_prt"]) / "petitRADTRANS/path.txt", "w+"
+        ) as input_data:
+            input_data.write("#\n" + dict_paths["path_opacity"])
+
+    # For new versions of pRT
+    os.environ["pRT_input_data_path"] = dict_paths["path_opacity"]
+    sys.path.append(dict_paths["path_prt"])
+
+    return (
+        Path(dict_paths["path_prt"]),
+        Path(dict_paths["path_opacity"]),
+        Path(dict_paths["path_prt"]),
+    )
+
+
+def check_temperature_parameters(config: dict) -> None:
+    """
+    This function checks if all temperature variables necessary
+    for the given parametrization are provided by the user. If not,
+    it stops the run.
+    """
+
+    input_pt = list(config["TEMPERATURE PARAMETERS"].keys())
+
+    # check if all parameters are there:
+    if (
+        config["TEMPERATURE PARAMETERS"]["settings_parametrization"]
+        == "polynomial"
+    ):
+        pt_params = ["a_" + str(i) for i in range(len(input_pt) - 1)]
+    elif "vae_pt" in config["TEMPERATURE PARAMETERS"]["parametrization"]:
+        pt_params = [
+            "z_" + str(i + 1)
+            for i in range(
+                len(
+                    [
+                        input_pt[i]
+                        for i in range(len(input_pt))
+                        if "settings" not in input_pt[i]
+                    ]
+                )
+                - 2
+            )
+        ]
+    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "guillot":
+        pt_params = [
+            "log_delta",
+            "log_gamma",
+            "t_int",
+            "t_equ",
+            "log_p_trans",
+            "alpha",
+        ]
+    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "madhuseager":
+        pt_params = [
+            "T0",
+            "log_P1",
+            "log_P2",
+            "log_P3",
+            "alpha1",
+            "alpha2",
+        ]
+    elif (
+        config["TEMPERATURE PARAMETERS"]["parametrization"] == "mod_madhuseager"
+    ):
+        pt_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
+    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "isothermal":
+        pt_params = ["T_eq"]
+    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "input":
+        pt_params = ["input_path"]
+    else:
+        raise RuntimeError("Unknown PT parametrization.")
+
+    if not all(elem in input_pt for elem in pt_params):
+        missing_params = [_ for _ in pt_params if _ not in input_pt]
+        raise RuntimeError(
+            "Missing one or more PT parameters/knowns. "
+            "Make sure these exist:" + str(missing_params)
+        )

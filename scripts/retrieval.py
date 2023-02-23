@@ -10,7 +10,7 @@ from argparse import ArgumentParser, Namespace
 
 # from pprint import pprint
 
-import os
+import os,warnings
 
 from pyretlife.retrieval import global_class as rp_globals
 from pymultinest.solve import solve
@@ -40,7 +40,7 @@ def get_cli_arguments() -> Namespace:
 if __name__ == "__main__":
     # Set the number of threads to 1
     os.environ["OMP_NUM_THREADS"] = "1"
-
+    warnings.simplefilter("ignore")
     """
     # Read the command line arguments
     args = get_cli_arguments()
