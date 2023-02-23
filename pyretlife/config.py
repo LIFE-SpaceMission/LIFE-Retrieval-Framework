@@ -132,20 +132,50 @@ def validate_config(config: dict) -> None:
 
 
 def read_paths(file_path: Union[Path, str]) -> Tuple[Path, Path, Path]:
+    """
+    Read the contents of a paths file (in *.txt format) that contains
+    the paths to the petitRADTRANS package, the opacity data, and the
+    path to the MultiNest installation.
+
+    Args:
+        file_path: The path to the paths file.
+
+    Returns:
+        A 3-tuple with the the paths to: (1) petitRADTRANS, (2) the
+        opacity data, and (3) the MultiNest installation.
+    """
+
+    # TODO: You are calling this function twice, once directly in the
+    #   `__init__` of the `RetrievalObject` class, and now also in the
+    #   `read_paths` function, which you call from the `__init__` of
+    #   the `RetrievalObject` class.
+    #   Maybe try to refactor it in a way that you only call it once?
+    #   I assumed that the input of the `read_path` function is the
+    #   global configuration file which does not change between the
+    #   retrievals? You could even consider using environment variables
+    #   for the paths, and then you don't need to read the paths file.
     dict_paths = read_config_file(file_path)
-    f = open(Path(dict_paths["path_prt"]) / "petitRADTRANS/path.txt", "r")
-    orig_path = f.read()
+
+    # TODO: Please don't ever use `open()` without a context manager (i.e.,
+    #   the `with` part), because then you might not close the file properly.
+    file_path = Path(dict_paths["path_prt"]) / "petitRADTRANS" / "path.txt"
+    with open(file_path, "r") as path_file:
+        orig_path = path_file.read()
+
+    # TODO: Document what this is doing (and why).
     # LEGACY (for older versions of pRT)
-    if not orig_path == "#\n" + dict_paths["path_opacity"]:
-        with open(
-            Path(dict_paths["path_prt"]) / "petitRADTRANS/path.txt", "w+"
-        ) as input_data:
+    if orig_path != "#\n" + dict_paths["path_opacity"]:
+        with open(file_path, "w+") as input_data:
             input_data.write("#\n" + dict_paths["path_opacity"])
 
+    # TODO: As mentioned in the main class, don't change the state of the
+    #   system in a function that is only called "read ...".
     # For new versions of pRT
     os.environ["pRT_input_data_path"] = dict_paths["path_opacity"]
     sys.path.append(dict_paths["path_prt"])
 
+    # FIXME: You are returning the path to the petitRADTRANS package twice.
+    #   The last return value should be the path to the MultiNest installation.
     return (
         Path(dict_paths["path_prt"]),
         Path(dict_paths["path_opacity"]),
@@ -160,6 +190,28 @@ def check_temperature_parameters(config: dict) -> None:
     it stops the run.
     """
 
+    # TODO: I would recommend to restructure the configuration of the
+    #   temperature parameters in a more general and structured way,
+    #   for example something like this:
+    #   ```
+    #   TEMPERATURE PARAMETERS:
+    #     parametrization: polynomial
+    #     parameters:
+    #       a_4 = U 2 5 T 3.67756393
+    #       a_3 = U 0 100 T 40.08733884
+    #       a_2 = U 0 300 T 136.42147966
+    #       a_1 = U 0 500 T 182.6557084
+    #       a_0 = U 0 600 T 292.92802205
+    #     extra_parameters:
+    #       dim_z: dimensionality of the latent space
+    #       file_path: /path/to/learned/PT/model
+    #       ...
+    #       (other parameters that are specific to the parametrization)
+    #  ```
+    #  This would make it easier to check if all the necessary parameters
+    #  for the given parametrization are provided, and it would also make
+    #  it easier to add new parametrizations in the future.
+
     input_pt = list(config["TEMPERATURE PARAMETERS"].keys())
 
     # check if all parameters are there:
@@ -167,9 +219,9 @@ def check_temperature_parameters(config: dict) -> None:
         config["TEMPERATURE PARAMETERS"]["settings_parametrization"]
         == "polynomial"
     ):
-        pt_params = ["a_" + str(i) for i in range(len(input_pt) - 1)]
+        required_params = ["a_" + str(i) for i in range(len(input_pt) - 1)]
     elif "vae_pt" in config["TEMPERATURE PARAMETERS"]["parametrization"]:
-        pt_params = [
+        required_params = [
             "z_" + str(i + 1)
             for i in range(
                 len(
@@ -183,7 +235,7 @@ def check_temperature_parameters(config: dict) -> None:
             )
         ]
     elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "guillot":
-        pt_params = [
+        required_params = [
             "log_delta",
             "log_gamma",
             "t_int",
@@ -192,7 +244,7 @@ def check_temperature_parameters(config: dict) -> None:
             "alpha",
         ]
     elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "madhuseager":
-        pt_params = [
+        required_params = [
             "T0",
             "log_P1",
             "log_P2",
@@ -201,18 +253,19 @@ def check_temperature_parameters(config: dict) -> None:
             "alpha2",
         ]
     elif (
-        config["TEMPERATURE PARAMETERS"]["parametrization"] == "mod_madhuseager"
+        config["TEMPERATURE PARAMETERS"]["parametrization"]
+        == "mod_madhuseager"
     ):
-        pt_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
+        required_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
     elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "isothermal":
-        pt_params = ["T_eq"]
+        required_params = ["T_eq"]
     elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "input":
-        pt_params = ["input_path"]
+        required_params = ["input_path"]
     else:
         raise RuntimeError("Unknown PT parametrization.")
 
-    if not all(elem in input_pt for elem in pt_params):
-        missing_params = [_ for _ in pt_params if _ not in input_pt]
+    if not all(elem in input_pt for elem in required_params):
+        missing_params = [_ for _ in required_params if _ not in input_pt]
         raise RuntimeError(
             "Missing one or more PT parameters/knowns. "
             "Make sure these exist:" + str(missing_params)
