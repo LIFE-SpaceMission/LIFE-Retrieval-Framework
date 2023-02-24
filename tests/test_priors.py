@@ -7,13 +7,51 @@ Unit tests for priors.py.
 # -----------------------------------------------------------------------------
 
 import numpy as np
+import pytest
 
-from pyretlife.priors import GaussianPrior, UniformPrior
+from pyretlife.priors import (
+    get_prior_from_string,
+    GaussianPrior,
+    UniformPrior,
+)
 
 
 # -----------------------------------------------------------------------------
 # TESTS
 # -----------------------------------------------------------------------------
+
+
+def test__get_prior_from_string() -> None:
+    """
+    Test `get_prior_from_string`.
+    """
+
+    # Case 1: Invalid prior string
+    for invalid_string in [
+        "Z -2 2 T 0",  # Invalid prior type
+        "G -2 2 T invalid",  # Invalid ground truth
+        "U -2 2",  # Missing ground truth
+        "U -2 2 T",  # Missing ground truth
+        "U -2 2 T 0 1",  # Too many arguments
+    ]:
+        with pytest.raises(ValueError) as value_error:
+            get_prior_from_string(invalid_string)
+        assert "Invalid prior string:" in str(value_error.value)
+
+    # Case 2: Uniform prior
+    prior = get_prior_from_string("U -2 2 T 0")
+    assert isinstance(prior, UniformPrior)
+    assert prior.lower == -2
+    assert prior.upper == 2
+    assert prior.ground_truth == 0
+
+    # Case 3: Gaussian prior
+    prior = get_prior_from_string("G -2 2 T None")
+    assert isinstance(prior, GaussianPrior)
+    assert prior.mean == -2
+    assert prior.std == 2
+    assert prior.ground_truth is None
+
 
 def test__uniform_prior() -> None:
     """
@@ -36,6 +74,11 @@ def test__uniform_prior() -> None:
     samples = np.array([uniform_prior.sample() for _ in range(10_000)])
     assert np.all(samples >= 23)
     assert np.all(samples <= 42)
+
+    # Case 3: Ground truth is outside the prior range
+    with pytest.raises(ValueError) as value_error:
+        UniformPrior(lower=23, upper=42, ground_truth=100)
+    assert "The ground truth is outside the prior range!" in str(value_error)
 
 
 def test__gaussian_prior() -> None:
