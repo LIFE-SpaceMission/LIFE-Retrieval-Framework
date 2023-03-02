@@ -3,7 +3,7 @@ Read in configuration files.
 """
 import os
 import sys
-
+import glob
 # -----------------------------------------------------------------------------
 # IMPORTS
 # -----------------------------------------------------------------------------
@@ -22,49 +22,9 @@ from deepdiff import DeepDiff
 # DEFINITIONS
 # -----------------------------------------------------------------------------
 
-
-def read_config_from_ini(file_path: Union[Path, str]) -> dict:
-    """
-    Read a configuration from an *.ini file.
-
-    Args:
-        file_path: Path to a *.ini file with the configuration.
-
-    Returns:
-        The configuration as a dictionary.
-    """
-
-    config_parser = ConfigParser(inline_comment_prefixes=("#",))
-    config_parser.optionxform = str
-
-    config_parser.read(filenames=file_path, encoding=None)
-
-    config = {}
-    for section in config_parser.sections():
-        config[section] = {k: v for k, v in config_parser[section].items()}
-
-    return config
-
-
-def read_config_from_yaml(file_path: Union[Path, str]) -> dict:
-    """
-    Read a configuration from a *.yaml file.
-
-    Args:
-        file_path: Path to a *.yaml file with the configuration.
-
-    Returns:
-        The configuration as a dictionary.
-    """
-
-    with open(file_path, "r") as yaml_file:
-        config = yaml.safe_load(yaml_file)
-    return config
-
-
 def read_config_file(file_path: Union[Path, str]) -> dict:
     """
-    Read a configuration from a file.
+    Read a configuration from a YAML file.
 
     Args:
         file_path: Path to a file with the configuration.
@@ -75,17 +35,17 @@ def read_config_file(file_path: Union[Path, str]) -> dict:
 
     file_path = Path(file_path)
 
-    if file_path.suffix == ".ini":
-        return read_config_from_ini(file_path)
-    elif file_path.suffix == ".yaml":
-        return read_config_from_yaml(file_path)
+    if file_path.suffix == ".yaml":
+        with open(file_path, "r") as yaml_file:
+            config = yaml.safe_load(yaml_file)
+        return config
     else:
-        raise ValueError(f"Unknown file extension: {file_path.suffix}")
+        raise ValueError(f"Unknown file extension: {file_path.suffix}. Please convert it to a .yaml file.")
 
 
 def check_if_configs_match(config: dict) -> bool:
     # Expected location of a config file; check if it exists
-    retrieval_dir = Path(config["PREFIX"]["settings_prefix"])
+    retrieval_dir = Path(config["RUN SETTINGS"]["output_folder"])
     if not retrieval_dir.exists():
         return True
 
@@ -122,13 +82,60 @@ def convert_ini_to_yaml(file_path: Union[Path, str]) -> None:
     pass
 
 
-def fix_types_for_ini_config(config: dict) -> dict:
-    pass
-
 
 def validate_config(config: dict) -> None:
     check_temperature_parameters(config)
     pass
+
+
+def get_check_opacity_path() -> Path:
+    """
+    The get_check_opacity_path function checks that the PYRETLIFE_OPACITY_PATH environment variable is set.
+    If it is not, an error message is printed and the program exits. If it is set, then a Path object pointing to
+    the opacity folder in this directory will be returned.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+
+        The path to the opacity folder
+
+    """
+
+    input_opacity_path = os.environ.get("PYRETLIFE_OPACITY_PATH")
+    if input_opacity_path is None:
+        raise RuntimeError("PYRETLIFE_OPACITY_PATH not set!")
+    if not Path(input_opacity_path).exists():
+        raise RuntimeError("PYRETLIFE_OPACITY_PATH set, but folder does not exist!")
+    if len(glob.glob(input_opacity_path +"/opacities/*"))==0:
+        raise RuntimeError("PYRETLIFE_OPACITY_PATH set, but folder is not valid.")
+    return Path(input_opacity_path)
+
+def get_check_pRT_path() -> Path:
+    """
+    The get_check_pRT_path function checks that the PYRETLIFE_PRT_PATH environment variable is set, and if so,
+    checks that it points to a valid folder. If all these conditions are met, then the function returns a Path object
+    pointing to this folder.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+
+        The path to the petitradtrans folder
+    """
+
+    input_pRT_path = os.environ.get("PYRETLIFE_PRT_PATH")
+    if input_pRT_path is None:
+        raise RuntimeError("PYRETLIFE_PRT_PATH not set!")
+    if not Path(input_pRT_path).exists():
+        raise RuntimeError("PYRETLIFE_PRT_PATH set, but folder does not exist!")
+    if len(glob.glob(input_pRT_path +"/petitRADTRANS/*"))==0:
+        raise RuntimeError("PYRETLIFE_PRT_PATH set, but folder is not valid.")
+    return Path(input_pRT_path)
 
 
 def read_paths(file_path: Union[Path, str]) -> Tuple[Path, Path, Path]:

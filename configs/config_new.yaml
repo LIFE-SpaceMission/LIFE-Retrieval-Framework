@@ -1,0 +1,184 @@
+
+GROUND TRUTH DATA:
+  input_profile: /net/ipa-gate/export/ipa/quanz/user_accounts/konradb/Retrieval_Inputs/Timmy/PT_Timmy_2.txt
+  data_files:
+    - /net/ipa-gate/export/ipa/quanz/user_accounts/konradb/Retrieval_Inputs/Timmy/Earth_Timmy_R200_ph_SN_10_2.txt
+
+RUN SETTINGS:
+  wavelength_range: [3,20]
+  output_folder: . #TO BE REMOVED?
+  live_points: 600
+  include_scattering:
+    Rayleigh: True
+    thermal: True
+    direct_light: True
+    clouds: False
+  include_CIA: True
+  include_moon: False
+  parameterization: polynomial
+  vae_net: decoder.onx
+  top_log_pressure: -6.
+  n_layers: 100
+
+TEMPERATURE PARAMETERS:
+  a_4:
+    prior:
+      kind: uniform
+      prior_specs:
+        lower: 2.
+        upper: 5.
+    truth: 3.67756393
+  a_3:
+    prior:
+      kind: uniform
+      prior_specs:
+        lower: 0.
+        upper: 100.
+    truth: 136.42147966
+  a_2:
+    prior:
+      kind: uniform
+      prior_specs:
+        lower: 0.
+        upper: 300.
+    truth: 182.6557084
+  a_1:
+    prior:
+      kind: uniform
+      prior_specs:
+        lower: 0.
+        upper: 100.
+    truth: 136.42147966
+  a_0:
+    prior:
+      kind: uniform
+      prior_specs:
+        lower: 0.
+        upper: 600.
+    truth: 292.92802205
+
+PHYSICAL PARAMETERS:
+  P0:
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -2
+        log_upper: 2
+    truth: 1.0294
+  d_syst:
+    truth: 10.
+  R_pl:
+    prior:
+      kind: gaussian
+      prior_specs:
+        mean: 1
+        sigma: 0.2
+    truth: 1.
+    unit: Rearth
+  M_pl:
+    prior:
+      kind: log-gaussian
+      prior_specs:
+        log_mean: 0
+        log_sigma: 0.4
+    truth: 1.
+
+CHEMICAL COMPOSITION PARAMETERS:
+  settings:
+    resolution: 200
+    mmw_inert: 28.
+  N2:
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -2
+        log_upper: 0
+      truth: 0.78
+  O2:
+    lines:
+      - O2_main_HN16_HH_Chubb
+      - O2_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -2
+        log_upper: 0
+      truth: 0.20
+  CO2:
+    lines:
+      - CO2_main_HN20_air_C25
+      - CO2_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -15
+        log_upper: 0
+      truth: 0.004
+  CH4:
+    lines:
+      - CH4_main_HN20_air_C25
+      - CH4_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -15
+        log_upper: 0
+      truth: 0.0000017
+  H2O:
+    lines:
+      - H2O_main_HN20_air_C25
+      - H2O_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -15
+        log_upper: 0
+      truth: 0.001
+  O3:
+    lines:
+      - O3_main_HN20_air_C25
+      - O3_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -15
+        log_upper: 0
+      truth: 0.0000003
+  CO:
+    lines:
+      - CO_main_HN20_air_C25
+      - CO_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -15
+        log_upper: 0
+      truth: 0.000000125
+  N2O:
+    lines:
+      - N2O_main_HN20_air_C25
+      - N2O_UV
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -15
+        log_upper: 0
+      truth: 0.00000032
+
+SCATTERING PARAMETERS: #read when necessary
+  reflectance:
+    truth: 0.1
+  emissivity:
+    truth: 1.
+  stellar_temperature:
+    truth: 5778.
+  stellar_radius:
+    truth: 1.
+  semimajor_axis:
+    truth: 1.
+
+CLOUD PARAMETERS:
+  composition: transparent #shouldn't be necessary if we use True/False in scattering
+
+USER-DEFINED UNITS:
+  R_sun: 1m
