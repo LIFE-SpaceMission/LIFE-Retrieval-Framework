@@ -9,6 +9,7 @@ __maintainer__ = "Björn S. Konrad, Eleonora Alei"
 __email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
 __status__ = "Development"
 
+import importlib
 # -----------------------------------------------------------------------------
 # IMPORTS
 # -----------------------------------------------------------------------------
@@ -18,7 +19,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from pyretlife.retrieval import units as units
-from config import read_config_file, read_paths, check_if_configs_match
+from config import read_config_file, check_if_configs_match
 
 
 # -----------------------------------------------------------------------------
@@ -49,8 +50,7 @@ class RetrievalObject:
 
     def __init__(
         self,
-        config_file_path: Path = Path("config.ini"),
-        paths_file_path: Path = Path("paths.yaml"),
+        config_file,
         run_retrieval: bool = True,
     ):
         """
@@ -62,32 +62,14 @@ class RetrievalObject:
         # Store constructor arguments
         self.run_retrieval = run_retrieval
 
-        # Read the config file and check if the run is not overwritten
-        self.config = read_config_file(config_file_path)
-        check_if_configs_match(self.config)
-
-        # Read the paths file
-        # TODO: You should decide if this function only reads in the paths
-        #   file or if it also does things like setting environment variables
-        #   or appending to the `sys.path`. In this case, you should rename
-        #   the function to something like `read_paths_and_set_environment`.
-        self.path_prt, self.path_opacity, self.path_multinest = read_paths(
-            paths_file_path
-        )
-
-        # TODO: See above. General rule: "explicit is better than implicit",
-        #   meaning, for example, that if you have a function "read_paths",
-        #   it should only read in the paths and not do anything else, like
-        #   modifying the `sys.path` or setting environment variables.
-        # should I do it again? It has been done already in read_paths
-        # sys.path.append(self.path_prt)
-        # os.environ["pRT_input_data_path"] = self.path_opacity
+        # Store the config_file
+        self.config = config_file
 
         # TODO: I don't even know what you are doing here, but calling
         #   `__import__` is not a good idea. If anything, you should use
         #   `importlib.import_module`.
         #   Also, `rt` and `nc` are not very descriptive names.
-        self.rt = __import__("petitRADTRANS")
+        self.rt = importlib.import_module("petitRADTRANS")
         self.nc = self.rt.nat_cst
 
         # TODO: These things need documentation.
@@ -101,4 +83,17 @@ class RetrievalObject:
 
     def populate_dictionaries(self):
         # old read_var function
-        pass
+        self.Knowns={}
+        self.Parameters={}
+        self.Settings={}
+
+        for section in self.config.keys():
+            for subsection in self.config[section].keys():
+                if type(self.config[section][subsection]) is dict:
+                    if "prior" in self.config[section][subsection].keys():
+                        self.Parameters[subsection] = self.config[section][subsection]
+                    elif "truth" in self.config[section][subsection].keys():
+                        self.Knowns[subsection] = self.config[section][subsection]
+                    else:
+                        self.Settings[subsection] = self.config[section][subsection]
+

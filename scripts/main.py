@@ -7,15 +7,11 @@ The main program of the retrieval suite.
 # -----------------------------------------------------------------------------
 
 from argparse import ArgumentParser, Namespace
+import os,warnings, sys
 
-from pprint import pprint
-
-import os,warnings
-
-from pyretlife.retrieval import global_class as rp_globals
 # from pymultinest.solve import solve
-
-from pyretlife.config import read_config_file, check_if_configs_match,get_check_opacity_path,get_check_pRT_path
+from pyretlife import RetrievalObject
+from pyretlife.config import read_config_file, check_if_configs_match,get_check_opacity_path,get_check_prt_path,set_prt_opacity, validate_config
 
 
 # -----------------------------------------------------------------------------
@@ -45,28 +41,43 @@ if __name__ == "__main__":
 
     # Get and check the goodness of the environmental variables
     input_opacity_path=get_check_opacity_path()
-    input_prt_path = get_check_pRT_path()
-
+    input_prt_path = get_check_prt_path()
+    sys.path.append(str(input_prt_path))
+    # WORKS BUT COMMENTED TO NOT OVERWRITE THINGS WHILE BUILDING THE CODE
+    # set_prt_opacity(input_prt_path,input_opacity_path)
 
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
 
+    # Load standard configurations (hard-coded)
+
     # Read in the configuration and check if there is already one in the file
     config = read_config_file(file_path=args.config)
+
+    # Check if configuration file exists and if it matches
     if not check_if_configs_match(config=config):
         raise RuntimeError("Config exists and does not match!")
-    pprint(config)
+
 
     # Validate the config file: does it have all we need?
+    # TODO: It already includes the old check_temp_pars. More checks are necessary
+    validate_config(config)
 
+    # Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
+
+
+    # Initializes a RetrievalObject (the pyret_ship)
+    pyret_ship = RetrievalObject.RetrievalObject(config_file= config, run_retrieval=True)
 
     # Read the configuration file
-    # g = rp_globals.globals()
-    # g.read_var()
+    # TODO: old g.read_var()
+
+
+
+
+
     # g.read_data()
-    # g.check_temp_params()
     # g.init_rt()
-    # g.print_params()
 
     # # Run MultiNest
     # result = solve(

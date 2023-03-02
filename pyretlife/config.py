@@ -44,6 +44,17 @@ def read_config_file(file_path: Union[Path, str]) -> dict:
 
 
 def check_if_configs_match(config: dict) -> bool:
+    """
+    The check_if_configs_match function checks if the config file in the retrieval directory
+    matches the input.yaml file that was used to run a previous simulation. If they match,
+    the function returns True; otherwise, it returns False.
+
+    Args:
+        config [dict]: The configuration dictionary
+
+    Returns
+        True if the files are the same, False if they are different.
+    """
     # Expected location of a config file; check if it exists
     retrieval_dir = Path(config["RUN SETTINGS"]["output_folder"])
     if not retrieval_dir.exists():
@@ -57,7 +68,7 @@ def check_if_configs_match(config: dict) -> bool:
 
     return not DeepDiff(
         config,
-        read_config_from_yaml(config_file),
+        read_config_file(config_file),
         ignore_order=True,
     )
 
@@ -94,14 +105,10 @@ def get_check_opacity_path() -> Path:
     If it is not, an error message is printed and the program exits. If it is set, then a Path object pointing to
     the opacity folder in this directory will be returned.
 
-    Parameters
-    ----------
-
-    Returns
-    -------
-
+    Args:
+        None
+    Returns:
         The path to the opacity folder
-
     """
 
     input_opacity_path = os.environ.get("PYRETLIFE_OPACITY_PATH")
@@ -113,19 +120,17 @@ def get_check_opacity_path() -> Path:
         raise RuntimeError("PYRETLIFE_OPACITY_PATH set, but folder is not valid.")
     return Path(input_opacity_path)
 
-def get_check_pRT_path() -> Path:
+def get_check_prt_path() -> Path:
     """
     The get_check_pRT_path function checks that the PYRETLIFE_PRT_PATH environment variable is set, and if so,
     checks that it points to a valid folder. If all these conditions are met, then the function returns a Path object
     pointing to this folder.
 
-    Parameters
-    ----------
+    Args:
+        None
+    Returns:
+        The path to the petitRADTRANS folder
 
-    Returns
-    -------
-
-        The path to the petitradtrans folder
     """
 
     input_pRT_path = os.environ.get("PYRETLIFE_PRT_PATH")
@@ -138,57 +143,19 @@ def get_check_pRT_path() -> Path:
     return Path(input_pRT_path)
 
 
-def read_paths(file_path: Union[Path, str]) -> Tuple[Path, Path, Path]:
-    """
-    Read the contents of a paths file (in *.txt format) that contains
-    the paths to the petitRADTRANS package, the opacity data, and the
-    path to the MultiNest installation.
+def set_prt_opacity(input_prt_path,input_opacity_path) -> None:
 
-    Args:
-        file_path: The path to the paths file.
-
-    Returns:
-        A 3-tuple with the the paths to: (1) petitRADTRANS, (2) the
-        opacity data, and (3) the MultiNest installation.
-    """
-
-    # TODO: You are calling this function twice, once directly in the
-    #   `__init__` of the `RetrievalObject` class, and now also in the
-    #   `read_paths` function, which you call from the `__init__` of
-    #   the `RetrievalObject` class.
-    #   Maybe try to refactor it in a way that you only call it once?
-    #   I assumed that the input of the `read_path` function is the
-    #   global configuration file which does not change between the
-    #   retrievals? You could even consider using environment variables
-    #   for the paths, and then you don't need to read the paths file.
-    dict_paths = read_config_file(file_path)
-
-    # TODO: Please don't ever use `open()` without a context manager (i.e.,
-    #   the `with` part), because then you might not close the file properly.
-    file_path = Path(dict_paths["path_prt"]) / "petitRADTRANS" / "path.txt"
+    file_path = Path(input_prt_path) / "petitRADTRANS" / "path.txt"
     with open(file_path, "r") as path_file:
         orig_path = path_file.read()
 
-    # TODO: Document what this is doing (and why).
-    # LEGACY (for older versions of pRT)
-    if orig_path != "#\n" + dict_paths["path_opacity"]:
+    #LEGACY: for older versions of petitRADTRANS
+    if orig_path != "#\n" + str(input_opacity_path):
         with open(file_path, "w+") as input_data:
-            input_data.write("#\n" + dict_paths["path_opacity"])
+            input_data.write("#\n" + input_opacity_path)
 
-    # TODO: As mentioned in the main class, don't change the state of the
-    #   system in a function that is only called "read ...".
     # For new versions of pRT
-    os.environ["pRT_input_data_path"] = dict_paths["path_opacity"]
-    sys.path.append(dict_paths["path_prt"])
-
-    # FIXME: You are returning the path to the petitRADTRANS package twice.
-    #   The last return value should be the path to the MultiNest installation.
-    return (
-        Path(dict_paths["path_prt"]),
-        Path(dict_paths["path_opacity"]),
-        Path(dict_paths["path_prt"]),
-    )
-
+    os.environ["pRT_input_data_path"] = input_opacity_path
 
 def check_temperature_parameters(config: dict) -> None:
     """
