@@ -53,12 +53,14 @@ if __name__ == "__main__":
 
     # Read in the configuration and check if there is already one in the file
     config = read_config_file(file_path=args.config)
-
+    print(config)
     # Check if configuration file exists and if it matches
     if not check_if_configs_match(config=config):
         raise RuntimeError("Config exists and does not match!")
 
-
+    # Populate the config file
+    Knowns, Parameters, Settings = populate_dictionaries(config)
+    import ipdb;ipdb.set_trace()
     # Validate the config file: does it have all we need?
     # TODO: It already includes the old check_temp_pars. More checks are necessary
     validate_config(config)

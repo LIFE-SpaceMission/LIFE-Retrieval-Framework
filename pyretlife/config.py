@@ -157,6 +157,24 @@ def set_prt_opacity(input_prt_path,input_opacity_path) -> None:
     # For new versions of pRT
     os.environ["pRT_input_data_path"] = input_opacity_path
 
+
+def populate_dictionaries(config: dict) -> Tuple[dict, dict, dict]:
+    # old read_var function
+    Knowns={}
+    Parameters={}
+    Settings={}
+
+    for section in config.keys():
+        for subsection in config[section].keys():
+            if type(config[section][subsection]) is dict:
+                if "prior" in config[section][subsection].keys():
+                    Parameters[subsection] = config[section][subsection]
+                elif "truth" in self.config[section][subsection].keys():
+                    Knowns[subsection] = config[section][subsection]
+                else:
+                    Settings[subsection] = config[section][subsection]
+    return Knowns, Parameters, Settings
+
 def check_temperature_parameters(config: dict) -> None:
     """
     This function checks if all temperature variables necessary

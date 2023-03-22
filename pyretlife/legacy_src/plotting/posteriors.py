@@ -10,7 +10,7 @@ import numpy as np
 import scipy as sp
 
 # Import additional external files
-from pyretlife.plotting import colors as rp_col
+from pyretlife.legacy_src.plotting import colors as rp_col
 
 
 # Routine for generating corner plots

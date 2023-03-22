@@ -1,49 +1,39 @@
-# TODO: Is this really necessary?
-from __future__ import absolute_import, unicode_literals, print_function
 
-__author__ = "Alei, Konrad, Molliere, Quanz"
-__copyright__ = "Copyright 2022, Alei, Konrad, Molliere, Quanz"
-__maintainer__ = ",Björn S. Konrad, Eleonora Alei"
-__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
-__status__ = "Development"
+# from __future__ import absolute_import, unicode_literals, print_function
+#
+# __author__ = "Alei, Konrad, Molliere, Quanz"
+# __copyright__ = "Copyright 2022, Alei, Konrad, Molliere, Quanz"
+# __maintainer__ = ",Björn S. Konrad, Eleonora Alei"
+# __email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
+# __status__ = "Development"
 
 # -----------------------------------------------------------------------------
 # IMPORTS
 # -----------------------------------------------------------------------------
 
-from collections import OrderedDict
+# from collections import OrderedDict
+#
+# import configparser
+# import json
+# import os
+# import sys
+# import warnings
+#
+# import astropy.units as u
+# import numpy as np
+# import scipy.ndimage as sci
+# import spectres as spectres
+#
+# from pyretlife.retrieval import priors as priors, units as units
 
-import configparser
-import json
-import os
-import sys
-import warnings
-
-import astropy.units as u
-import numpy as np
-import scipy.ndimage as sci
-import spectres as spectres
-
-from pyretlife.retrieval import priors as priors, units as units
-
-# TODO:
-#   This should not go into the module (i.e., the place from which we import
-#   functions), but into the script (where we use them).
-#   Reason: We do not want any "invisble" side effects when we call `import`.
-os.environ["OMP_NUM_THREADS"] = "1"
-warnings.simplefilter("ignore")
+# os.environ["OMP_NUM_THREADS"] = "1"
+# warnings.simplefilter("ignore")
 
 
 # -----------------------------------------------------------------------------
 # DEFINITIONS
 # -----------------------------------------------------------------------------
 
-
-# TODO:
-#   This *definitely* needs to be renamed! `globals` is a Python keyword (it's
-#   the function that returns all global variables), and defining a class with
-#   this name could have all sorts of bad unintended side effects.
-#   Suggestion: Just name this `RetrievalConfiguration` or something like that.
 class globals:
     def __init__(self, input_file="config.ini", retrieval=True):
         """
@@ -52,14 +42,14 @@ class globals:
         unintentionally.
         """
 
-        config = configparser.ConfigParser(inline_comment_prefixes=("#",))
-        config.optionxform = str
-        config.read(input_file, encoding=None)
-
-        self.path_prt = config.get("PATHS", "settings_pRT")
-        self.path_opacity = config.get("PATHS", "settings_opacity_database")
-        self.path_multinest = config.get("PATHS", "settings_multinest")
-        sys.path.append(self.path_multinest)
+        # config = configparser.ConfigParser(inline_comment_prefixes=("#",))
+        # config.optionxform = str
+        # config.read(input_file, encoding=None)
+        #
+        # self.path_prt = config.get("PATHS", "settings_pRT")
+        # self.path_opacity = config.get("PATHS", "settings_opacity_database")
+        # self.path_multinest = config.get("PATHS", "settings_multinest")
+        # sys.path.append(self.path_multinest)
 
         # If we are running a retrieval create the run directory and check that
         # we are not overwriting an existing run
@@ -86,11 +76,11 @@ class globals:
         f = open(self.path_prt + "/petitRADTRANS/path.txt", "r")
         orig_path = f.read()
 
-        if not orig_path == "#\n" + self.path_opacity:
-            with open(
-                self.path_prt + "/petitRADTRANS/path.txt", "w+"
-            ) as input_data:
-                input_data.write("#\n" + self.path_opacity)
+        # if not orig_path == "#\n" + self.path_opacity:
+        #     with open(
+        #         self.path_prt + "/petitRADTRANS/path.txt", "w+"
+        #     ) as input_data:
+        #         input_data.write("#\n" + self.path_opacity)
 
         self.log_top_pressure = -5  # -6
         self.config_file = config
@@ -107,8 +97,8 @@ class globals:
             "extra_lines": "",
         }
         # Import PRt
-        sys.path.append(self.path_prt)
-        os.environ["pRT_input_data_path"] = self.path_opacity
+        # sys.path.append(self.path_prt)
+        # os.environ["pRT_input_data_path"] = self.path_opacity
         self.rt = __import__("petitRADTRANS")
         self.nc = self.rt.nat_cst
 

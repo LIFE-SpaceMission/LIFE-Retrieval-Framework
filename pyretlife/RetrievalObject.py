@@ -19,7 +19,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from pyretlife.retrieval import units as units
-from config import read_config_file, check_if_configs_match
+from pyretlife.config import read_config_file, check_if_configs_match
 
 
 # -----------------------------------------------------------------------------
