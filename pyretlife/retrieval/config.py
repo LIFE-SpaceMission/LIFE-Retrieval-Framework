@@ -13,6 +13,7 @@ import astropy.units as u
 from pathlib import Path
 from typing import Union, Tuple
 
+import hashlib
 import yaml
 
 from deepdiff import DeepDiff
@@ -230,4 +231,3 @@ def set_prt_opacity(input_prt_path,input_opacity_path) -> None:
 
     # For new versions of pRT
     os.environ["pRT_input_data_path"] = input_opacity_path
-

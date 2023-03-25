@@ -1,4 +1,4 @@
-# TODO: Is this really necessary?
+
 # from __future__ import absolute_import, unicode_literals, print_function
 #
 # __author__ = "Alei, Konrad, Molliere, Quanz"
@@ -6,11 +6,11 @@
 # __maintainer__ = ",Björn S. Konrad, Eleonora Alei"
 # __email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
 # __status__ = "Development"
-#
-# # -----------------------------------------------------------------------------
-# # IMPORTS
-# # -----------------------------------------------------------------------------
-#
+
+# -----------------------------------------------------------------------------
+# IMPORTS
+# -----------------------------------------------------------------------------
+
 # from collections import OrderedDict
 #
 # import configparser
@@ -25,95 +25,85 @@
 # import spectres as spectres
 #
 # from pyretlife.retrieval import priors as priors, units as units
-#
-# # TODO:
-# #   This should not go into the module (i.e., the place from which we import
-# #   functions), but into the script (where we use them).
-# #   Reason: We do not want any "invisble" side effects when we call `import`.
+
 # os.environ["OMP_NUM_THREADS"] = "1"
 # warnings.simplefilter("ignore")
-#
-#
-# # -----------------------------------------------------------------------------
-# # DEFINITIONS
-# # -----------------------------------------------------------------------------
-#
-#
-# # TODO:
-# #   This *definitely* needs to be renamed! `globals` is a Python keyword (it's
-# #   the function that returns all global variables), and defining a class with
-# #   this name could have all sorts of bad unintended side effects.
-# #   Suggestion: Just name this `RetrievalConfiguration` or something like that.
-# class globals:
-#     def __init__(self, input_file="config.ini", retrieval=True):
-#         """
-#         This function reads the config.ini file and initializes all
-#         the variables. It also ensures that the run is not rewritten
-#         unintentionally.
-#         """
-#
-#         config = configparser.ConfigParser(inline_comment_prefixes=("#",))
-#         config.optionxform = str
-#         config.read(input_file, encoding=None)
-#
-#         self.path_prt = config.get("PATHS", "settings_pRT")
-#         self.path_opacity = config.get("PATHS", "settings_opacity_database")
-#         self.path_multinest = config.get("PATHS", "settings_multinest")
-#         sys.path.append(self.path_multinest)
 
-        # # If we are running a retrieval create the run directory and check that
-        # # we are not overwriting an existing run
-        # if retrieval:
-        #     self.prefix = config.get("PREFIX", "settings_prefix") + "/"
-        #     if os.path.isdir(self.prefix):
-        #         if "input.ini" in os.listdir(self.prefix):
-        #             st = os.system(
-        #                 "diff config.ini " + self.prefix + "input.ini"
-        #             )
-        #
-        #             # Protecting from unintentional rewriting
-        #             if st == 256:
-        #                 sys.exit(
-        #                     "ERROR! same prefix but different input files. "
-        #                 )
-        #     else:
-        #         try:
-        #             os.mkdir(self.prefix)
-        #         except OSError:
-        #             pass
-        #         os.system("cp config.ini " + self.prefix + "input.ini")
 
-        # f = open(self.path_prt + "/petitRADTRANS/path.txt", "r")
-        # orig_path = f.read()
+# -----------------------------------------------------------------------------
+# DEFINITIONS
+# -----------------------------------------------------------------------------
+
+class globals:
+    def __init__(self, input_file="config.ini", retrieval=True):
+        """
+        This function reads the config.ini file and initializes all
+        the variables. It also ensures that the run is not rewritten
+        unintentionally.
+        """
+
+        # config = configparser.ConfigParser(inline_comment_prefixes=("#",))
+        # config.optionxform = str
+        # config.read(input_file, encoding=None)
         #
+        # self.path_prt = config.get("PATHS", "settings_pRT")
+        # self.path_opacity = config.get("PATHS", "settings_opacity_database")
+        # self.path_multinest = config.get("PATHS", "settings_multinest")
+        # sys.path.append(self.path_multinest)
+
+        # If we are running a retrieval create the run directory and check that
+        # we are not overwriting an existing run
+        if retrieval:
+            self.prefix = config.get("PREFIX", "settings_prefix") + "/"
+            if os.path.isdir(self.prefix):
+                if "input.ini" in os.listdir(self.prefix):
+                    st = os.system(
+                        "diff config.ini " + self.prefix + "input.ini"
+                    )
+
+                    # Protecting from unintentional rewriting
+                    if st == 256:
+                        sys.exit(
+                            "ERROR! same prefix but different input files. "
+                        )
+            else:
+                try:
+                    os.mkdir(self.prefix)
+                except OSError:
+                    pass
+                os.system("cp config.ini " + self.prefix + "input.ini")
+
+        f = open(self.path_prt + "/petitRADTRANS/path.txt", "r")
+        orig_path = f.read()
+
         # if not orig_path == "#\n" + self.path_opacity:
         #     with open(
         #         self.path_prt + "/petitRADTRANS/path.txt", "w+"
         #     ) as input_data:
         #         input_data.write("#\n" + self.path_opacity)
 
-        # self.log_top_pressure = -5  # -6
-        # self.config_file = config
-        # self.params = OrderedDict()
-        # self.knowns = OrderedDict()
+        self.log_top_pressure = -5  # -6
+        self.config_file = config
+        self.params = OrderedDict()
+        self.knowns = OrderedDict()
 
         # Initialization of the standard settings
-        # self.settings = {
-        #     "directlight": False,
-        #     "CIA": False,
-        #     "clouds": "transparent",
-        #     "moon": False,
-        #     "scattering": False,
-        #     "extra_lines": "",
-        # }
+        self.settings = {
+            "directlight": False,
+            "CIA": False,
+            "clouds": "transparent",
+            "moon": False,
+            "scattering": False,
+            "extra_lines": "",
+        }
         # Import PRt
         # sys.path.append(self.path_prt)
         # os.environ["pRT_input_data_path"] = self.path_opacity
-        # self.rt = __import__("petitRADTRANS")
-        # self.nc = self.rt.nat_cst
+        self.rt = __import__("petitRADTRANS")
+        self.nc = self.rt.nat_cst
 
         # Create a units object to enable unit conversions
-        # self.units = units.UnitsUtil(self.rt.nat_cst)
+        self.units = units.UnitsUtil(self.rt.nat_cst)
 
     def read_var(self):
         """
@@ -122,9 +112,9 @@
         """
 
         # Check if there are used-defined units and add these to the units
-        # if "USER DEFINED UNITS" in self.config_file.sections():
-        #     for key, val in self.config_file.items("USER DEFINED UNITS"):
-        #         self.units.custom_unit(key, u.Quantity(val))
+        if "USER DEFINED UNITS" in self.config_file.sections():
+            for key, val in self.config_file.items("USER DEFINED UNITS"):
+                self.units.custom_unit(key, u.Quantity(val))
 
         # Read the sections of the config file
         for section in self.config_file.sections():
@@ -205,144 +195,144 @@
                         }
                         self.knowns[key] = known
 
-    # def check_temp_params(self):
-    #     """
-    #     This function checks if all temperature variables necessary
-    #     for the given parametrization are provided by the user. If not,
-    #     it stops the run.
-    #     """
-    #
-    #     input_pt = list(self.config_file["TEMPERATURE PARAMETERS"].keys())
-    #
-    #     # check if all parameters are there:
-    #     if self.settings["parametrization"] == "polynomial":
-    #         pt_params = ["a_" + str(i) for i in range(len(input_pt) - 1)]
-    #     elif "vae_pt" in self.settings["parametrization"]:
-    #         pt_params = [
-    #             "z_" + str(i + 1)
-    #             for i in range(
-    #                 len(
-    #                     [
-    #                         input_pt[i]
-    #                         for i in range(len(input_pt))
-    #                         if "settings" not in input_pt[i]
-    #                     ]
-    #                 )
-    #                 - 2
-    #             )
-    #         ]
-    #     elif self.settings["parametrization"] == "guillot":
-    #         pt_params = [
-    #             "log_delta",
-    #             "log_gamma",
-    #             "t_int",
-    #             "t_equ",
-    #             "log_p_trans",
-    #             "alpha",
-    #         ]
-    #     elif self.settings["parametrization"] == "madhuseager":
-    #         pt_params = [
-    #             "T0",
-    #             "log_P1",
-    #             "log_P2",
-    #             "log_P3",
-    #             "alpha1",
-    #             "alpha2",
-    #         ]
-    #     elif self.settings["parametrization"] == "mod_madhuseager":
-    #         pt_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
-    #     elif self.settings["parametrization"] == "isothermal":
-    #         pt_params = ["T_eq"]
-    #     elif self.settings["parametrization"] == "input":
-    #         pt_params = ["input_path"]
-    #     else:
-    #         sys.exit("Unknown PT parametrization.")
-    #
-    #     if not all(elem in input_pt for elem in pt_params):
-    #         missing_params = [_ for _ in pt_params if _ not in input_pt]
-    #         raise RuntimeError(
-    #             "Missing one or more PT parameters/knowns. "
-    #             "Make sure these exist:" + str(missing_params)
-    #         )
+    def check_temp_params(self):
+        """
+        This function checks if all temperature variables necessary
+        for the given parametrization are provided by the user. If not,
+        it stops the run.
+        """
 
-    # def read_data(self, retrieval=True, result_dir=None):
+        input_pt = list(self.config_file["TEMPERATURE PARAMETERS"].keys())
+
+        # check if all parameters are there:
+        if self.settings["parametrization"] == "polynomial":
+            pt_params = ["a_" + str(i) for i in range(len(input_pt) - 1)]
+        elif "vae_pt" in self.settings["parametrization"]:
+            pt_params = [
+                "z_" + str(i + 1)
+                for i in range(
+                    len(
+                        [
+                            input_pt[i]
+                            for i in range(len(input_pt))
+                            if "settings" not in input_pt[i]
+                        ]
+                    )
+                    - 2
+                )
+            ]
+        elif self.settings["parametrization"] == "guillot":
+            pt_params = [
+                "log_delta",
+                "log_gamma",
+                "t_int",
+                "t_equ",
+                "log_p_trans",
+                "alpha",
+            ]
+        elif self.settings["parametrization"] == "madhuseager":
+            pt_params = [
+                "T0",
+                "log_P1",
+                "log_P2",
+                "log_P3",
+                "alpha1",
+                "alpha2",
+            ]
+        elif self.settings["parametrization"] == "mod_madhuseager":
+            pt_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
+        elif self.settings["parametrization"] == "isothermal":
+            pt_params = ["T_eq"]
+        elif self.settings["parametrization"] == "input":
+            pt_params = ["input_path"]
+        else:
+            sys.exit("Unknown PT parametrization.")
+
+        if not all(elem in input_pt for elem in pt_params):
+            missing_params = [_ for _ in pt_params if _ not in input_pt]
+            raise RuntimeError(
+                "Missing one or more PT parameters/knowns. "
+                "Make sure these exist:" + str(missing_params)
+            )
+
+    def read_data(self, retrieval=True, result_dir=None):
         """
         Reads the input data, trims to the wavelength range of interest
         and converts the units to CGS.
         """
 
-        # self.instrument = {}
-        #
-        # for name in self.config_file["INPUT FILES"].keys():
-        #     input_string = self.config_file.get("INPUT FILES", name)
-        #
-        #     # Case handling for the retrieval plotting
-        #     if not retrieval:
-        #         if os.path.isfile(
-        #             result_dir
-        #             + "/input_"
-        #             + input_string.split("/")[-1].split(" ")[0]
-        #         ):
-        #             input_string = (
-        #                 result_dir + "/input_" + input_string.split("/")[-1]
-        #             )
-        #         else:
-        #             input_string = (
-        #                 result_dir
-        #                 + "/input_spectrum.txt "
-        #                 + " ".join(input_string.split("/")[-1].split(" ")[1:])
-        #             )
+        self.instrument = {}
+
+        for name in self.config_file["INPUT FILES"].keys():
+            input_string = self.config_file.get("INPUT FILES", name)
+
+            # Case handling for the retrieval plotting
+            if not retrieval:
+                if os.path.isfile(
+                    result_dir
+                    + "/input_"
+                    + input_string.split("/")[-1].split(" ")[0]
+                ):
+                    input_string = (
+                        result_dir + "/input_" + input_string.split("/")[-1]
+                    )
+                else:
+                    input_string = (
+                        result_dir
+                        + "/input_spectrum.txt "
+                        + " ".join(input_string.split("/")[-1].split(" ")[1:])
+                    )
 
             # Extract the Units from the config file and load the data.
             # If non are provided the standard units are assumed.
-            # (
-            #     input_unit_wl,
-            #     input_unit_flux,
-            #     spectrum_dir,
-            # ) = self.units.unit_spectrum_extract(input_string)
-            # input_data = np.genfromtxt(spectrum_dir)
+            (
+                input_unit_wl,
+                input_unit_flux,
+                spectrum_dir,
+            ) = self.units.unit_spectrum_extract(input_string)
+            input_data = np.genfromtxt(spectrum_dir)
 
             # Trim the spectra to the desired wl
-            # input_data = input_data[
-            #     input_data[:, 0]
-            #     >= (self.knowns["WMIN"]["value"] * self.knowns["WMIN"]["unit"])
-            #     .to(input_unit_wl)
-            #     .value
-            # ]
-            # input_data = input_data[
-            #     input_data[:, 0]
-            #     <= (self.knowns["WMAX"]["value"] * self.knowns["WMAX"]["unit"])
-            #     .to(input_unit_wl)
-            #     .value
-            # ]
+            input_data = input_data[
+                input_data[:, 0]
+                >= (self.knowns["WMIN"]["value"] * self.knowns["WMIN"]["unit"])
+                .to(input_unit_wl)
+                .value
+            ]
+            input_data = input_data[
+                input_data[:, 0]
+                <= (self.knowns["WMAX"]["value"] * self.knowns["WMAX"]["unit"])
+                .to(input_unit_wl)
+                .value
+            ]
 
             # Convert the Units to retrieval units
-            # conv_unit_wl = self.units.return_units(
-            #     "wavelength", self.units.retrieval_units
-            # )
-            # conv_unit_flux = self.units.return_units(
-            #     "flux", self.units.retrieval_units
-            # )
-            # conv_data = self.units.unit_spectrum_conv(
-            #     name,
-            #     [input_unit_wl, input_unit_flux],
-            #     [conv_unit_wl, conv_unit_flux],
-            #     input_data,
-            # )
+            conv_unit_wl = self.units.return_units(
+                "wavelength", self.units.retrieval_units
+            )
+            conv_unit_flux = self.units.return_units(
+                "flux", self.units.retrieval_units
+            )
+            conv_data = self.units.unit_spectrum_conv(
+                name,
+                [input_unit_wl, input_unit_flux],
+                [conv_unit_wl, conv_unit_flux],
+                input_data,
+            )
 
             # Store the spectra for each instrument
-            # self.instrument[name] = {
-            #     "wl": conv_data[:, 0],
-            #     "flux": conv_data[:, 1],
-            #     "error": conv_data[:, 2],
-            #     "input_wl": input_data[:, 0],
-            #     "input_flux": input_data[:, 1],
-            #     "input_error": input_data[:, 2],
-            #     "unit_wl": conv_unit_wl,
-            #     "unit_flux": conv_unit_flux,
-            #     "input_unit_wl": input_unit_wl,
-            #     "input_unit_flux": input_unit_flux,
-            # }
+            self.instrument[name] = {
+                "wl": conv_data[:, 0],
+                "flux": conv_data[:, 1],
+                "error": conv_data[:, 2],
+                "input_wl": input_data[:, 0],
+                "input_flux": input_data[:, 1],
+                "input_error": input_data[:, 2],
+                "unit_wl": conv_unit_wl,
+                "unit_flux": conv_unit_flux,
+                "input_unit_wl": input_unit_wl,
+                "input_unit_flux": input_unit_flux,
+            }
 
             # If we are running retrievals copy the input spectra
             if retrieval:
@@ -471,7 +461,7 @@
 
         # if the vae_pt is selected initialize the pt profile model
         if self.settings["parametrization"] == "vae_pt":
-            from pyretlife.legacy_src import pt_vae as vae
+            from pyretlife.retrieval import pt_vae as vae
 
             self.vae_pt = vae.VAE_PT_Model_Flow(
                 os.path.dirname(os.path.realpath(__file__))
@@ -479,7 +469,7 @@
                 + self.settings["vae_net"],
             )
         if self.settings["parametrization"] == "vae_pt_flow":
-            from pyretlife.legacy_src import pt_vae as vae
+            from pyretlife.retrieval import pt_vae as vae
 
             print("flow")
             self.vae_pt = vae.VAE_PT_Model_Flow(

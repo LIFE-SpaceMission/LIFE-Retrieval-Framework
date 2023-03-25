@@ -93,7 +93,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -2
         log_upper: 0
-      truth: 0.78
+    truth: 0.78
   O2:
     lines:
       - O2_main_HN16_HH_Chubb
@@ -103,7 +103,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -2
         log_upper: 0
-      truth: 0.20
+    truth: 0.20
   CO2:
     lines:
       - CO2_main_HN20_air_C25
@@ -113,7 +113,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-      truth: 0.004
+    truth: 0.004
   CH4:
     lines:
       - CH4_main_HN20_air_C25
@@ -123,7 +123,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-      truth: 0.0000017
+    truth: 0.0000017
   H2O:
     lines:
       - H2O_main_HN20_air_C25
@@ -133,7 +133,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-      truth: 0.001
+    truth: 0.001
   O3:
     lines:
       - O3_main_HN20_air_C25
@@ -143,7 +143,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-      truth: 0.0000003
+    truth: 0.0000003
   CO:
     lines:
       - CO_main_HN20_air_C25
@@ -153,7 +153,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-      truth: 0.000000125
+    truth: 0.000000125
   N2O:
     lines:
       - N2O_main_HN20_air_C25
@@ -163,7 +163,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-      truth: 0.00000032
+    truth: 0.00000032
 
 SCATTERING PARAMETERS: #read when necessary
   reflectance:
