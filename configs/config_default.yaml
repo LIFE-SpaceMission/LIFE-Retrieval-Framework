@@ -1,0 +1,13 @@
+
+RUN SETTINGS:
+  wavelength_range: [3,20]
+  include_scattering:
+    Rayleigh: False
+    thermal: False
+    direct_light: False
+    clouds: False
+  include_CIA: False
+  include_moon: False
+  resolution: 1000
+  n_layers: 100
+  top_log_pressure: -6

@@ -10,8 +10,8 @@ from argparse import ArgumentParser, Namespace
 import os,warnings, sys
 
 # from pymultinest.solve import solve
-from pyretlife import RetrievalObject
-from pyretlife.config import read_config_file, check_if_configs_match,get_check_opacity_path,get_check_prt_path,set_prt_opacity, validate_config
+from pyretlife.retrieval.config import get_check_opacity_path,get_check_prt_path
+from pyretlife.retrieval import RetrievalObject
 
 
 # -----------------------------------------------------------------------------
@@ -49,30 +49,23 @@ if __name__ == "__main__":
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
 
-    # Load standard configurations (hard-coded)
 
-    # Read in the configuration and check if there is already one in the file
-    config = read_config_file(file_path=args.config)
+    # Initializes a RetrievalObject (the pyret_ship)
+    pyret_ship = RetrievalObject.RetrievalObject(run_retrieval=True)
+    pyret_ship.load_configuration(config_file= args.config)
+    pyret_ship.unit_conversion()
 
-    # Check if configuration file exists and if it matches
-    if not check_if_configs_match(config=config):
-        raise RuntimeError("Config exists and does not match!")
+
+
+
 
 
     # Validate the config file: does it have all we need?
     # TODO: It already includes the old check_temp_pars. More checks are necessary
-    validate_config(config)
+    #validate_config(config)
 
     # Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
-
-
-    # Initializes a RetrievalObject (the pyret_ship)
-    pyret_ship = RetrievalObject.RetrievalObject(config_file= config, run_retrieval=True)
-
-    # Read the configuration file
-    # TODO: old g.read_var()
-
-
+    pyret_ship.saving_inputs_to_folder()
 
 
 

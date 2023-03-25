@@ -15,8 +15,8 @@ import matplotlib.patheffects as PathEffects
 
 # Import additional external files
 import retrieval_plotting as rp
-from pyretlife.retrieval import posteriors as r_post
-from pyretlife.plotting import handlerbase as rp_hndl
+from pyretlife.legacy_src import posteriors as r_post
+from pyretlife.legacy_src.plotting import handlerbase as rp_hndl
 import numpy as np
 import scipy as sp
 

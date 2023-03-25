@@ -2,20 +2,22 @@
 Read in configuration files.
 """
 import os
-import sys
 import glob
+import numpy as np
+
+import astropy.units as u
 # -----------------------------------------------------------------------------
 # IMPORTS
 # -----------------------------------------------------------------------------
 
-from configparser import ConfigParser
 from pathlib import Path
 from typing import Union, Tuple
 
-import hashlib
 import yaml
 
 from deepdiff import DeepDiff
+
+from pyretlife.retrieval.UnitsUtil import UnitsUtil
 
 
 # -----------------------------------------------------------------------------
@@ -73,30 +75,108 @@ def check_if_configs_match(config: dict) -> bool:
     )
 
 
-def compute_hash_of_config_file(file_path: Union[Path, str]) -> str:
-    """
-    Compute the hash of a configuration file.
+# def compute_hash_of_config_file(file_path: Union[Path, str]) -> str:
+#     """
+#     Compute the hash of a configuration file.
+#
+#     Args:
+#         file_path: Path to a file with the configuration.
+#
+#     Returns:
+#         The hash of the configuration file.
+#     """
+#
+#     file_path = Path(file_path)
+#     with open(file_path, "rb") as f:
+#         return hashlib.sha256(f.read()).hexdigest()
 
-    Args:
-        file_path: Path to a file with the configuration.
-
-    Returns:
-        The hash of the configuration file.
-    """
-
-    file_path = Path(file_path)
-    with open(file_path, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
+#
+# def convert_ini_to_yaml(file_path: Union[Path, str]) -> None:
+#     pass
 
 
-def convert_ini_to_yaml(file_path: Union[Path, str]) -> None:
-    pass
+def make_output_folder(folder_path: Union[Path, str]) -> None:
+    folder_path=Path(folder_path)
+    if not os.path.isdir(folder_path):
+        os.mkdir(folder_path)
 
 
 
-def validate_config(config: dict) -> None:
-    check_temperature_parameters(config)
-    pass
+def populate_dictionaries(config:dict, Knowns:dict, Parameters: dict, Settings: dict, Units: UnitsUtil) -> Tuple[dict,dict,dict,UnitsUtil]:
+
+    for section in config.keys():
+        if section !='USER-DEFINED UNITS':
+            for subsection in config[section].keys():
+
+                if type(config[section][subsection]) is dict and "prior" in config[section][subsection].keys():
+
+                        Parameters[subsection] = config[section][subsection]
+
+                elif type(config[section][subsection]) is dict and "truth" in config[section][subsection].keys():
+
+                        Knowns[subsection] = config[section][subsection]
+                else:
+
+                        Settings[subsection] = config[section][subsection]
+
+        else:
+            for key in config["USER-DEFINED UNITS"]:
+                Units.custom_unit(key, u.Quantity(config['USER-DEFINED UNITS'][key]))
+
+    return Knowns, Parameters, Settings, Units
+
+
+def load_data(Settings:dict, Units:UnitsUtil,retrieval:bool = True) -> dict:
+
+    result_dir=Settings['output_folder']
+    Instrument={}
+    for data_file in Settings['data_files'].keys():
+        input_string=Settings['data_files'][data_file]['path']
+        # Case handling for the retrieval plotting
+        if not retrieval:
+            if os.path.isfile(
+                    result_dir
+                    + "/input_"
+                    + input_string.split("/")[-1].split(" ")[0]
+            ):
+                input_string = (
+                        result_dir + "/input_" + input_string.split("/")[-1]
+                )
+            else:
+                input_string = (
+                        result_dir
+                        + "/input_spectrum.txt "
+                        + " ".join(input_string.split("/")[-1].split(" ")[1:])
+                )
+
+        input_data = np.genfromtxt(input_string)
+
+        # retrieve units
+        if 'unit' in Settings['data_files'][data_file].keys():
+                input_unit_wavelength = u.Unit(Settings['data_files'][data_file]['unit'].split(",")[0])
+                input_unit_flux = u.Unit(Settings['data_files'][data_file]['unit'].split(",")[1])
+        else:
+            input_unit_wavelength = Units.return_units("wavelength", Units.std_input_units)
+            input_unit_flux = Units.return_units("flux", Units.std_input_units)
+
+        # trim spectrum
+        input_data = input_data[
+            input_data[:, 0]
+            >= (Settings['wavelength_range'][0] * Units.return_units("WMIN", Units.std_input_units))
+            .to(input_unit_wavelength)
+            .value
+            ]
+        input_data = input_data[
+            input_data[:, 0]
+            <= (Settings['wavelength_range'][1] * Units.return_units("WMAX", Units.std_input_units))
+            .to(input_unit_wavelength)
+            .value
+            ]
+        Instrument[data_file] = {'input_data': input_data,
+                                 "input_unit_wavelength": input_unit_wavelength,
+                                 "input_unit_flux": input_unit_flux,
+                                 }
+    return Instrument
 
 
 def get_check_opacity_path() -> Path:
@@ -104,9 +184,6 @@ def get_check_opacity_path() -> Path:
     The get_check_opacity_path function checks that the PYRETLIFE_OPACITY_PATH environment variable is set.
     If it is not, an error message is printed and the program exits. If it is set, then a Path object pointing to
     the opacity folder in this directory will be returned.
-
-    Args:
-        None
     Returns:
         The path to the opacity folder
     """
@@ -125,9 +202,6 @@ def get_check_prt_path() -> Path:
     The get_check_pRT_path function checks that the PYRETLIFE_PRT_PATH environment variable is set, and if so,
     checks that it points to a valid folder. If all these conditions are met, then the function returns a Path object
     pointing to this folder.
-
-    Args:
-        None
     Returns:
         The path to the petitRADTRANS folder
 
@@ -157,90 +231,3 @@ def set_prt_opacity(input_prt_path,input_opacity_path) -> None:
     # For new versions of pRT
     os.environ["pRT_input_data_path"] = input_opacity_path
 
-def check_temperature_parameters(config: dict) -> None:
-    """
-    This function checks if all temperature variables necessary
-    for the given parametrization are provided by the user. If not,
-    it stops the run.
-    """
-
-    # TODO: I would recommend to restructure the configuration of the
-    #   temperature parameters in a more general and structured way,
-    #   for example something like this:
-    #   ```
-    #   TEMPERATURE PARAMETERS:
-    #     parametrization: polynomial
-    #     parameters:
-    #       a_4 = U 2 5 T 3.67756393
-    #       a_3 = U 0 100 T 40.08733884
-    #       a_2 = U 0 300 T 136.42147966
-    #       a_1 = U 0 500 T 182.6557084
-    #       a_0 = U 0 600 T 292.92802205
-    #     extra_parameters:
-    #       dim_z: dimensionality of the latent space
-    #       file_path: /path/to/learned/PT/model
-    #       ...
-    #       (other parameters that are specific to the parametrization)
-    #  ```
-    #  This would make it easier to check if all the necessary parameters
-    #  for the given parametrization are provided, and it would also make
-    #  it easier to add new parametrizations in the future.
-
-    input_pt = list(config["TEMPERATURE PARAMETERS"].keys())
-
-    # check if all parameters are there:
-    if (
-        config["TEMPERATURE PARAMETERS"]["settings_parametrization"]
-        == "polynomial"
-    ):
-        required_params = ["a_" + str(i) for i in range(len(input_pt) - 1)]
-    elif "vae_pt" in config["TEMPERATURE PARAMETERS"]["parametrization"]:
-        required_params = [
-            "z_" + str(i + 1)
-            for i in range(
-                len(
-                    [
-                        input_pt[i]
-                        for i in range(len(input_pt))
-                        if "settings" not in input_pt[i]
-                    ]
-                )
-                - 2
-            )
-        ]
-    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "guillot":
-        required_params = [
-            "log_delta",
-            "log_gamma",
-            "t_int",
-            "t_equ",
-            "log_p_trans",
-            "alpha",
-        ]
-    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "madhuseager":
-        required_params = [
-            "T0",
-            "log_P1",
-            "log_P2",
-            "log_P3",
-            "alpha1",
-            "alpha2",
-        ]
-    elif (
-        config["TEMPERATURE PARAMETERS"]["parametrization"]
-        == "mod_madhuseager"
-    ):
-        required_params = ["T0", "log_P1", "log_P2", "alpha1", "alpha2"]
-    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "isothermal":
-        required_params = ["T_eq"]
-    elif config["TEMPERATURE PARAMETERS"]["parametrization"] == "input":
-        required_params = ["input_path"]
-    else:
-        raise RuntimeError("Unknown PT parametrization.")
-
-    if not all(elem in input_pt for elem in required_params):
-        missing_params = [_ for _ in required_params if _ not in input_pt]
-        raise RuntimeError(
-            "Missing one or more PT parameters/knowns. "
-            "Make sure these exist:" + str(missing_params)
-        )

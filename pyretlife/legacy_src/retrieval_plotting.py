@@ -15,8 +15,8 @@ import time as t
 import astropy.units as u
 
 # Import additional external files
-from pyretlife.retrieval import global_class as r_globals, posteriors as r_post
-from pyretlife.plotting import (
+from pyretlife.legacy_src import global_class as r_globals, posteriors as r_post
+from pyretlife.legacy_src.plotting import (
     colors as rp_col,
     handlerbase as rp_hndl,
     inlay as rp_inlay,
@@ -62,8 +62,6 @@ class retrieval_plotting(r_globals.globals):
 
         # if the vae_pt is selected initialize the pt profile model
         if self.settings["parametrization"] == "vae_pt":
-            from pyretlife.retrieval import pt_vae as vae
-
             self.vae_pt = vae.VAE_PT_Model_Flow(
                 os.path.dirname(os.path.realpath(__file__))
                 + "/vae_pt_models/Flow/"

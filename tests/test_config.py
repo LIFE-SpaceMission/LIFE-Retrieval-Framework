@@ -13,7 +13,7 @@ from configparser import ConfigParser
 import pytest
 import yaml
 
-from pyretlife.config import read_config_from_ini, read_config_from_yaml
+from pyretlife.retrieval.config import read_config_from_ini, read_config_from_yaml
 
 
 # -----------------------------------------------------------------------------

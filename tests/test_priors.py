@@ -9,7 +9,7 @@ Unit tests for priors.py.
 import numpy as np
 import pytest
 
-from pyretlife.priors import (
+from pyretlife.retrieval.priors import (
     get_prior_from_string,
     GaussianPrior,
     UniformPrior,

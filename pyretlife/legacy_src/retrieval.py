@@ -12,7 +12,7 @@ from argparse import ArgumentParser, Namespace
 
 import os,warnings
 
-from pyretlife.retrieval import global_class as rp_globals
+from pyretlife.legacy_src import global_class as rp_globals
 from pymultinest.solve import solve
 
 # from pyretlife.config import read_config_file, check_if_configs_match

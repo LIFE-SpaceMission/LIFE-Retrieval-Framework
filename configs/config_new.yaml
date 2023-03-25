@@ -1,26 +1,28 @@
 
 GROUND TRUTH DATA:
-  input_profile: /net/ipa-gate/export/ipa/quanz/user_accounts/konradb/Retrieval_Inputs/Timmy/PT_Timmy_2.txt
+  input_profile: template_retrieval/inputs/Modern_Earth_pt_massfractions.csv
   data_files:
-    - /net/ipa-gate/export/ipa/quanz/user_accounts/konradb/Retrieval_Inputs/Timmy/Earth_Timmy_R200_ph_SN_10_2.txt
+    # TODO how to implement specific units in this case?
+    LIFE:
+      path: template_retrieval/inputs/Rugheimer_ModernEarth_cloudfree_R50_SNR10.txt
+      unit: micron, erg s-1 Hz-1 m-2
+
 
 RUN SETTINGS:
-  wavelength_range: [3,20]
-  output_folder: . #TO BE REMOVED?
-  live_points: 600
+  wavelength_range: [4,18.5]
+  output_folder: ../template_retrieval
   include_scattering:
     Rayleigh: True
     thermal: True
     direct_light: True
     clouds: False
   include_CIA: True
-  include_moon: False
-  parameterization: polynomial
-  vae_net: decoder.onx
-  top_log_pressure: -6.
-  n_layers: 100
+  resolution: 200
+  n_layers: 200
 
 TEMPERATURE PARAMETERS:
+  parameterization: polynomial
+#  vae_net: decoder.onx
   a_4:
     prior:
       kind: uniform
@@ -84,9 +86,7 @@ PHYSICAL PARAMETERS:
     truth: 1.
 
 CHEMICAL COMPOSITION PARAMETERS:
-  settings:
-    resolution: 200
-    mmw_inert: 28.
+  mmw_inert: 28.
   N2:
     prior:
       kind: log-uniform
@@ -178,7 +178,42 @@ SCATTERING PARAMETERS: #read when necessary
     truth: 1.
 
 CLOUD PARAMETERS:
-  composition: transparent #shouldn't be necessary if we use True/False in scattering
+  settings_clouds: transparent
+  H2SO484(c)_am:
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -7
+        log_upper: -1
+    truth: 8e-6
+  H2SO484(c)_am_top_pressure:
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -6
+        log_upper: 3
+    truth: 5e-2
+  H2SO484(c)_am_thickness:
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -6
+        log_upper: 2
+    truth: 1.45
+  H2SO484(c)_am_particle_radius:
+    prior:
+      kind: log-uniform
+      prior_specs:
+        log_lower: -8
+        log_upper: 3
+    truth: 5e-5
+  H2SO484(c)_am_sigma_lnorm:
+    prior:
+      kind: uniform
+      prior_specs:
+        log_lower: 1
+        log_upper: 5
+    truth: 1.95
 
 USER-DEFINED UNITS:
-  R_sun: 1m
+  test: 1m
