@@ -10,16 +10,26 @@ __email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
 __status__ = "Development"
 
 import importlib
+
 # -----------------------------------------------------------------------------
 # IMPORTS
 # -----------------------------------------------------------------------------
 
 from pathlib import Path
-
+import os
 from pyretlife.retrieval import UnitsUtil as units
-from pyretlife.retrieval.config import read_config_file, check_if_configs_match,populate_dictionaries,make_output_folder,load_data
+from pyretlife.retrieval.config import (
+    read_config_file,
+    check_if_configs_match,
+    populate_dictionaries,
+    make_output_folder,
+    load_data,
+)
 from pyretlife.retrieval.config_validation import validate_config
-from pyretlife.retrieval.unit_conversions import convert_spectrum
+from pyretlife.retrieval.unit_conversions import (
+    convert_spectrum,
+    convert_knowns_and_parameters,
+)
 import pyretlife.retrieval.nat_cst as nc
 
 
@@ -62,19 +72,20 @@ class RetrievalObject:
         # Store constructor arguments
         self.run_retrieval = run_retrieval
 
-        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
+        # self.petitRADTRANS = importlib.import_module("petitRADTRANS")
 
         self.knowns = {}
         self.parameters = {}
         self.settings = {}
-        self.instrument={}
+        self.instrument = {}
         # Create a units object to enable unit conversions
         self.units = units.UnitsUtil(nc)
 
-    def load_configuration(self, config_file:str):
-
+    def load_configuration(self, config_file: str):
         # Load standard configurations (hard-coded)
-        self.config_default = read_config_file(file_path=Path("configs/config_default.yaml"))
+        self.config_default = read_config_file(
+            file_path=Path("configs/config_default.yaml")
+        )
         # Read in the configuration and check if there is already one in the file
         self.config = read_config_file(file_path=Path(config_file))
 
@@ -83,28 +94,52 @@ class RetrievalObject:
             raise RuntimeError("Config exists and does not match!")
 
         # Save config into the four dictionaries
-        self.knowns,self.parameters,self.settings,self.units = populate_dictionaries(self.config_default, self.knowns,self.parameters,self.settings,self.units)
-        self.knowns, self.parameters, self.settings, self.units = populate_dictionaries(self.config,  self.knowns,self.parameters,self.settings,self.units)
-        self.instrument=load_data(self.settings,self.units)
+        (
+            self.knowns,
+            self.parameters,
+            self.settings,
+            self.units,
+        ) = populate_dictionaries(
+            self.config_default,
+            self.knowns,
+            self.parameters,
+            self.settings,
+            self.units,
+        )
+        (
+            self.knowns,
+            self.parameters,
+            self.settings,
+            self.units,
+        ) = populate_dictionaries(
+            self.config, self.knowns, self.parameters, self.settings, self.units
+        )
+        self.instrument = load_data(self.settings, self.units)
+
 
         # TODO implement validation
-        validate_config(self.config)
+        # validate_config(self.config)
 
     def unit_conversion(self):
-
-        self.instrument=convert_spectrum(self.instrument, self.units)
-        pass
-        # TODO Bjoern?
-        # for par in self.parameters:
-        #     if 'unit' in par.keys():
-        #         # custom or specified unit
-        #         input_unit = u.Unit(par['unit'].value)
-        #     else:
-        #         input_unit = u.return_units(par, u.std_input_units)
-
+        self.instrument = convert_spectrum(self.instrument, self.units)
+        self.knowns = convert_knowns_and_parameters(self.knowns, self.units)
+        self.parameters = convert_knowns_and_parameters(
+            self.parameters, self.units
+        )
 
     def saving_inputs_to_folder(self):
-        make_output_folder(self.settings['output_folder'])
+        make_output_folder(self.settings["output_folder"])
+        for data_file in self.settings["data_files"].keys():
+            input_string = self.settings["data_files"][data_file]["path"]
+            os.system(
+                "cp "
+                + input_string
+                + " "
+                + self.settings["output_folder"]
+                + "/input_"
+                + input_string.split("/")[-1]
+            )
+
         # save_config_file()
         # save_instrument_data()
         # save_converted_dictionaries()

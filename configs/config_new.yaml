@@ -76,7 +76,7 @@ PHYSICAL PARAMETERS:
         mean: 1
         sigma: 0.2
     truth: 1.
-    unit: Rearth
+    unit: test
   M_pl:
     prior:
       kind: log-gaussian
@@ -209,7 +209,7 @@ CLOUD PARAMETERS:
     truth: 5e-5
   H2SO484(c)_am_sigma_lnorm:
     prior:
-      kind: uniform
+      kind: log-uniform
       prior_specs:
         log_lower: 1
         log_upper: 5

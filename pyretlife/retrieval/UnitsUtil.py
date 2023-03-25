@@ -1,4 +1,3 @@
-
 import astropy.units as u
 import numpy as np
 
@@ -70,7 +69,7 @@ class UnitsUtil:
     def return_units(key, units):
         try:
             return units[key]
-        except IndexError:
+        except KeyError:
             return u.dimensionless_unscaled
 
     # def unit_extract(self, key, input_string):
@@ -88,83 +87,141 @@ class UnitsUtil:
     #         splitted = splitted[: ind[0]]
     #
     #     return input_unit, splitted
+    #
+    # @staticmethod
+    # def unit_conv(
+    #     key,
+    #     input_unit,
+    #     target_unit,
+    #     input_truth,
+    #     prior_type=None,
+    #     input_prior=None,
+    #     printing=True,
+    # ):
+    #     # Convert the truth if it is provided
+    #     conv_truth = (
+    #         (input_truth * input_unit).to(target_unit).value
+    #         if input_truth is not None
+    #         else None
+    #     )
+    #
+    #     # If provided convert the prior
+    #     if (prior_type is not None) and (input_prior is not None):
+    #         # Conversion of LogUniform priors
+    #         if prior_type in ["log-uniform"]:
+    #             conv_prior = [
+    #                 (10**i * input_unit).to(target_unit) for i in input_prior
+    #             ]
+    #             conv_prior = [np.log10(i.value) for i in conv_prior]
+    #
+    #         # Conversion of LogGaussian priors
+    #         elif prior_type in ["log-gaussian"]:
+    #             conv_prior = [
+    #                 (10 ** input_prior[0] * input_unit).to(target_unit),
+    #                 input_prior[1],
+    #             ]
+    #             conv_prior = [np.log10(conv_prior[0].value), conv_prior[1]]
+    #
+    #         # G and U priors are transformed easily as they do not contain a
+    #         # logarithm they are just scaled
+    #         # ULU and FU (only used for abundances and PT parameters in the
+    #         # polynomial profile. no special treatment)
+    #         else:
+    #             conv_prior = [
+    #                 (i * input_unit).to(target_unit).value for i in input_prior
+    #             ]
+    #
+    #         # If a conversion was performed print it as a check
+    #         if (target_unit != input_unit) and printing:
+    #             print(
+    #                 "Conversion performed for retrieved parameter " + key + "."
+    #             )
+    #             print(
+    #                 "Input value:",
+    #                 input_truth,
+    #                 input_unit,
+    #                 "\tInput prior:",
+    #                 prior_type,
+    #                 input_prior,
+    #             )
+    #             print(
+    #                 "Converted value:",
+    #                 conv_truth,
+    #                 target_unit,
+    #                 "\tConverted prior:",
+    #                 prior_type,
+    #                 conv_prior,
+    #             )
+    #             print()
+    #
+    #         return conv_truth, conv_prior
 
     @staticmethod
-    def unit_conv(
+    def prior_unit_conversion(
+        key, input_unit, target_unit, prior, printing=True
+    ) -> dict:
+        converted_prior = {}
+        for spec in prior["prior_specs"]:
+            # Conversion of LogUniform priors
+            if prior["kind"] in ["log-uniform", "log-gaussian"]:
+                converted_prior[spec] = np.log10(
+                    (10 ** prior["prior_specs"][spec] * input_unit)
+                    .to(target_unit)
+                    .value
+                )
+            else:
+                converted_prior[spec] = (
+                    (prior["prior_specs"][spec] * input_unit)
+                    .to(target_unit)
+                    .value
+                )
+
+        # TODO why doesn't the sigma vary?
+        # Conversion of LogGaussian priors
+        # elif prior['kind'] in ["log-gaussian"]:
+        #     conv_prior = [
+        #         (10 ** input_prior[0] * input_unit).to(target_unit),
+        #         input_prior[1],
+        #     ]
+        #     conv_prior = [np.log10(conv_prior[0].value), conv_prior[1]]
+
+        # G and U priors are transformed easily as they do not contain a
+        # logarithm they are just scaled
+        # ULU and FU (only used for abundances and PT parameters in the
+        # polynomial profile. no special treatment)
+
+        # If a conversion was performed print it as a check
+        if (target_unit != input_unit) and printing:
+            print(
+                "Conversion performed for prior of "
+                + key
+                + ". Prior kind: "
+                + prior["kind"]
+            )
+            print("Input values:", prior["prior_specs"], input_unit)
+            print("Converted value:", converted_prior, target_unit)
+            print()
+
+        return converted_prior
+
+    @staticmethod
+    def truth_unit_conversion(
         key,
         input_unit,
         target_unit,
         input_truth,
-        prior_type=None,
-        input_prior=None,
         printing=True,
     ):
-        # Convert the truth if it is provided
-        conv_truth = (
-            (input_truth * input_unit).to(target_unit).value
-            if input_truth is not None
-            else None
-        )
-
-        # If provided convert the prior
-        if (prior_type is not None) and (input_prior is not None):
-            # Conversion of LogUniform priors
-            if prior_type in ["LU"]:
-                conv_prior = [
-                    (10**i * input_unit).to(target_unit) for i in input_prior
-                ]
-                conv_prior = [np.log10(i.value) for i in conv_prior]
-
-            # Conversion of LogGaussian priors
-            elif prior_type in ["LG"]:
-                conv_prior = [
-                    (10 ** input_prior[0] * input_unit).to(target_unit),
-                    input_prior[1],
-                ]
-                conv_prior = [np.log10(conv_prior[0].value), conv_prior[1]]
-
-            # G and U priors are transformed easily as they do not contain a
-            # logarithm they are just scaled
-            # ULU and FU (only used for abundances and PT parameters in the
-            # polynomial profile. no special treatment)
-            else:
-                conv_prior = [
-                    (i * input_unit).to(target_unit).value for i in input_prior
-                ]
-
-            # If a conversion was performed print it as a check
-            if (target_unit != input_unit) and printing:
-                print(
-                    "Conversion performed for retrieved parameter " + key + "."
-                )
-                print(
-                    "Input value:",
-                    input_truth,
-                    input_unit,
-                    "\tInput prior:",
-                    prior_type,
-                    input_prior,
-                )
-                print(
-                    "Converted value:",
-                    conv_truth,
-                    target_unit,
-                    "\tConverted prior:",
-                    prior_type,
-                    conv_prior,
-                )
-                print()
-
-            return conv_truth, conv_prior
+        converted_truth = (input_truth * input_unit).to(target_unit)
 
         # If a conversion was performed print it as a check
         if (target_unit != input_unit) and printing:
-            print("Conversion performed for known parameter " + key + ".")
+            print("Conversion performed for truth value of " + key + ".")
             print("Input value:", input_truth, input_unit)
-            print("Converted value:", conv_truth, target_unit)
+            print("Converted value:", converted_truth, target_unit)
             print()
 
-        return conv_truth
+        return converted_truth
 
     # def unit_spectrum_extract(self, unit_str: str = ""):
     #     if len(unit_str)==0:  # This checks if `ind` is empty!

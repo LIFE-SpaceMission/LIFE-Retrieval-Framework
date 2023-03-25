@@ -21,7 +21,10 @@ m_elec = snc.m_e * 1e3
 
 # Derived exact constants
 sigma = snc.sigma * 1e3
-L0 = snc.physical_constants['Loschmidt constant (273.15 K, 101.325 kPa)'][0] * 1e-6
+L0 = (
+    snc.physical_constants["Loschmidt constant (273.15 K, 101.325 kPa)"][0]
+    * 1e-6
+)
 R = snc.R
 
 # Units definitions
@@ -30,7 +33,7 @@ atm = snc.atm * 1e1
 AU = snc.au * 1e2
 pc = snc.parsec * 1e2
 light_year = snc.light_year * 1e2
-amu = snc.physical_constants['atomic mass constant'][0] * 1e3
+amu = snc.physical_constants["atomic mass constant"][0] * 1e3
 
 # Astronomical constants
 r_sun = anc.R_sun.cgs.value
@@ -46,13 +49,12 @@ s_earth = 1.3654e6  # erg.s-1.cm-2, source: https://agupubs.onlinelibrary.wiley.
 
 # Molecular weights in amu
 molecular_weight = {
-    'H2O': 18.,
-    'O2': 32.,
-    'N2': 28.,
-    'CH4': 16.,
-    'CO2': 44.,
-    'CO': 28.,
-    'H2': 2.,
-    'He': 4.
+    "H2O": 18.0,
+    "O2": 32.0,
+    "N2": 28.0,
+    "CH4": 16.0,
+    "CO2": 44.0,
+    "CO": 28.0,
+    "H2": 2.0,
+    "He": 4.0,
 }
-
