@@ -161,29 +161,30 @@ class UnitsUtil:
         key, input_unit, target_unit, prior, printing=True
     ) -> dict:
         converted_prior = {}
-        for spec in prior["prior_specs"]:
-            # Conversion of LogUniform priors
-            if prior["kind"] in ["log-uniform", "log-gaussian"]:
+
+        # Conversion of LogUniform priors
+        if prior["kind"] in ["log-uniform"]:
+            for spec in prior["prior_specs"]:
                 converted_prior[spec] = np.log10(
                     (10 ** prior["prior_specs"][spec] * input_unit)
                     .to(target_unit)
                     .value
                 )
-            else:
+        elif prior["kind"] in ["log-gaussian"]:
+            # only translate the mean but leave the sigma the same (in log space)
+            converted_prior["log_mean"] = np.log10(
+                (10 ** prior["prior_specs"]["log_mean"] * input_unit)
+                .to(target_unit)
+                .value
+            )
+            converted_prior["log_sigma"] = prior["prior_specs"]["log_sigma"]
+        else:
+            for spec in prior["prior_specs"]:
                 converted_prior[spec] = (
                     (prior["prior_specs"][spec] * input_unit)
                     .to(target_unit)
                     .value
                 )
-
-        # TODO why doesn't the sigma vary?
-        # Conversion of LogGaussian priors
-        # elif prior['kind'] in ["log-gaussian"]:
-        #     conv_prior = [
-        #         (10 ** input_prior[0] * input_unit).to(target_unit),
-        #         input_prior[1],
-        #     ]
-        #     conv_prior = [np.log10(conv_prior[0].value), conv_prior[1]]
 
         # G and U priors are transformed easily as they do not contain a
         # logarithm they are just scaled
