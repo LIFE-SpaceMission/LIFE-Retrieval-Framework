@@ -277,15 +277,15 @@ def get_check_prt_path() -> Path:
     return Path(input_pRT_path)
 
 
-def set_prt_opacity(input_prt_path, input_opacity_path) -> None:
+def set_prt_opacity(input_prt_path: Union[Path,str], input_opacity_path:Union[Path,str]) -> None:
     file_path = Path(input_prt_path) / "petitRADTRANS" / "path.txt"
     with open(file_path, "r") as path_file:
         orig_path = path_file.read()
 
     # LEGACY: for older versions of petitRADTRANS
-    if orig_path != "#\n" + str(input_opacity_path):
-        with open(file_path, "w+") as input_data:
-            input_data.write("#\n" + input_opacity_path)
+    # if orig_path != "#\n" + str(input_opacity_path):
+    #     with open(file_path, "w+") as input_data:
+    #         input_data.write("#\n" + input_opacity_path)
 
     # For new versions of pRT
-    os.environ["pRT_input_data_path"] = input_opacity_path
+    os.environ["pRT_input_data_path"] = str(input_opacity_path)
