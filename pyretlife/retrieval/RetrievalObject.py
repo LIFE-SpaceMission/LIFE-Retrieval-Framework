@@ -81,8 +81,6 @@ class RetrievalObject:
         self.rt_object = None
         self.run_retrieval = run_retrieval
 
-        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
-
         self.knowns = {}
         self.parameters = {}
         self.settings = {}
@@ -97,6 +95,7 @@ class RetrievalObject:
         sys.path.append(str(self.input_prt_path))
         set_prt_opacity(self.input_prt_path,self.input_opacity_path)
 
+        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
 
     def load_configuration(self, config_file: str):
         # Load standard configurations (hard-coded)

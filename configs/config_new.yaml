@@ -14,7 +14,7 @@ RUN SETTINGS:
     Rayleigh: True
     thermal: True
     direct_light: True
-    clouds: False
+    clouds: True
   include_CIA: True
   resolution: 200
   n_layers: 200
