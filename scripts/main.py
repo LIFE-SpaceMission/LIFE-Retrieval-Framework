@@ -49,23 +49,26 @@ if __name__ == "__main__":
     pyret_ship.load_configuration(config_file=args.config)
     pyret_ship.unit_conversion()
     pyret_ship.assign_prior_functions()
+
+
+    # TODO Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
+    #pyret_ship.saving_inputs_to_folder()
+
     pyret_ship.petitRADTRANS_initialization()
+    pyret_ship.read_MMW_Storage()
     import ipdb
 
     ipdb.set_trace()
 
-    # Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
-    #pyret_ship.saving_inputs_to_folder()
 
-    # g.init_rt()
 
     # # Run MultiNest
     # result = solve(
     #     LogLikelihood=g.log_likelihood,
     #     Prior=g.priors,
-    #     n_dims=len(g.params),
-    #     outputfiles_basename=g.prefix,
-    #     n_live_points=600,  # TODO: Make this a parameter configurable
+    #     n_dims= len(pyret_ship.parameters),
+    #     outputfiles_basename=str(pyret_ship.settings['output_folder'])+'/',
+    #     n_live_points=pyret_ship.settings['live_points'],
     #     verbose=True,
     # )
     #

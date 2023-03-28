@@ -27,6 +27,7 @@ from pyretlife.retrieval.config import (
     load_data,
     get_check_opacity_path,
     get_check_prt_path,
+    get_retrieval_path,
     set_prt_opacity
 )
 from pyretlife.retrieval.petitRADTRANS_initialization import define_linelists
@@ -36,7 +37,7 @@ from pyretlife.retrieval.unit_conversions import (
     convert_knowns_and_parameters,
 )
 from pyretlife.retrieval.priors import assign_priors
-import pyretlife.retrieval.nat_cst as nc
+
 
 
 # -----------------------------------------------------------------------------
@@ -81,21 +82,23 @@ class RetrievalObject:
         self.rt_object = None
         self.run_retrieval = run_retrieval
 
+
+
+        # # Get and check the goodness of the environmental variables
+        self.input_opacity_path=get_check_opacity_path()
+        self.input_prt_path = get_check_prt_path()
+        self.input_retrieval_path = get_retrieval_path()
+        sys.path.append(str(self.input_prt_path))
+        set_prt_opacity(self.input_prt_path,self.input_opacity_path)
+
+        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
+
         self.knowns = {}
         self.parameters = {}
         self.settings = {}
         self.instrument = {}
         # Create a units object to enable unit conversions
-        self.units = units.UnitsUtil(nc)
-
-        # TODO uncomment when final
-        # # Get and check the goodness of the environmental variables
-        self.input_opacity_path=get_check_opacity_path()
-        self.input_prt_path = get_check_prt_path()
-        sys.path.append(str(self.input_prt_path))
-        set_prt_opacity(self.input_prt_path,self.input_opacity_path)
-
-        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
+        self.units = units.UnitsUtil(self.petitRADTRANS.nat_cst)
 
     def load_configuration(self, config_file: str):
         # Load standard configurations (hard-coded)
@@ -143,8 +146,9 @@ class RetrievalObject:
         """
         used_line_species, used_rayleigh_species, used_cia_species, used_cloud_species = define_linelists(self.config,self.settings, self.input_opacity_path)
 
-        old_stdout = sys.stdout
-        sys.stdout = open(os.devnull, "w")
+        # TODO implement verbose output
+        # old_stdout = sys.stdout
+        # sys.stdout = open(os.devnull, "w")
         ls = sorted(used_line_species)[::-1]
         self.rt_object = self.petitRADTRANS.Radtrans(
             line_species=ls,
@@ -153,9 +157,9 @@ class RetrievalObject:
             cloud_species=sorted(used_cloud_species),
             wlen_bords_micron=self.settings['wavelength_range'],
             mode="c-k",
-            do_scat_emis=self.settings["scattering"],
+            do_scat_emis=True in self.settings['include_scattering'].values(),
         )
-        sys.stdout = old_stdout
+        # sys.stdout = old_stdout
         self.rt_object.setup_opa_structure(np.logspace(self.settings['top_log_pressure'], 0, self.settings['n_layers'], base=10))
 
 
@@ -165,7 +169,7 @@ class RetrievalObject:
         # Read in the molecular weights database
         self.MMW_Storage = {}
         reader = np.loadtxt(
-            self.input_path_opacity + "/opa_input_files/Molecular_Weights.txt",
+            str(self.input_opacity_path) + "/opa_input_files/Molecular_Weights.txt",
             dtype="str",
         )
         for i in range(len(reader[:, 0])):

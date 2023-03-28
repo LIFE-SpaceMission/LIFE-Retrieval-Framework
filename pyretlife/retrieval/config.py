@@ -276,6 +276,24 @@ def get_check_prt_path() -> Path:
         raise RuntimeError("PYRETLIFE_PRT_PATH set, but folder is not valid.")
     return Path(input_pRT_path)
 
+def get_retrieval_path() -> Path:
+    """
+    The get_retrieval_path function checks that the PYRETLIFE_RETRIEVAL_PATH environment variable is set, and if so, then the function returns a Path object pointing to this folder.
+    Returns:
+        The path to the retrieval folder
+
+    """
+
+    input_retrieval_path = os.environ.get("PYRETLIFE_RETRIEVAL_PATH")
+    if input_retrieval_path is None:
+        raise RuntimeWarning("PYRETLIFE_RETRIEVAL_PATH not set, assuming current directory.")
+        input_retrieval_path=Path('.')
+    if not Path(input_pRT_path).exists():
+        raise RuntimeError("PYRETLIFE_RETRIEVAL_PATH set, but folder does not exist!")
+
+    if not os.system('git -C '+ str(input_retrieval_path)+' -parse --is-inside-work-tree' ):
+        raise RuntimeError("PYRETLIFE_RETRIEVAL_PATH set, but not a Git Repository!")
+    return Path(input_retrieval_path)
 
 def set_prt_opacity(input_prt_path: Union[Path,str], input_opacity_path:Union[Path,str]) -> None:
     file_path = Path(input_prt_path) / "petitRADTRANS" / "path.txt"
