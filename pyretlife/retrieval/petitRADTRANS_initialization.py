@@ -96,9 +96,9 @@ def ingest_cloud_linelists(cloud_species:list, input_opacity_path:Union[str, Pat
     }
     for cloud in cloud_species:
         cloud_dir = str(
-            Path(input_opacity_path) / "opacities" / "continuum" / "clouds" /
-            cloud.split('_')[0].replace('(c)', '_c') / cloud_dict[cloud[-2]] / cloud_dict[cloud[-1]]
-        )
+            input_opacity_path) + "/opacities/continuum/clouds/" +\
+                    cloud.split('_')[0].replace('(c)', '_c') + \
+                    cloud_dict[cloud[-2]] + cloud_dict[cloud[-1]]
 
         if not os.path.exists(cloud_dir):
             sys.exit(

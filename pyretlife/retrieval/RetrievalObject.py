@@ -92,10 +92,10 @@ class RetrievalObject:
 
         # TODO uncomment when final
         # # Get and check the goodness of the environmental variables
-        # self.input_opacity_path=get_check_opacity_path()
-        # self.input_prt_path = get_check_prt_path()
-        # sys.path.append(str(self.input_prt_path))
-        # set_prt_opacity(self.input_prt_path,self.input_opacity_path)
+        self.input_opacity_path=get_check_opacity_path()
+        self.input_prt_path = get_check_prt_path()
+        sys.path.append(str(self.input_prt_path))
+        set_prt_opacity(self.input_prt_path,self.input_opacity_path)
 
 
     def load_configuration(self, config_file: str):
