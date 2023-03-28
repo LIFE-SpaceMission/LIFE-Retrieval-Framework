@@ -81,7 +81,7 @@ class RetrievalObject:
         self.rt_object = None
         self.run_retrieval = run_retrieval
 
-        # self.petitRADTRANS = importlib.import_module("petitRADTRANS")
+        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
 
         self.knowns = {}
         self.parameters = {}

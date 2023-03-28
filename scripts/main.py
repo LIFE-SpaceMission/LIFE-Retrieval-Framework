@@ -49,6 +49,7 @@ if __name__ == "__main__":
     pyret_ship.load_configuration(config_file=args.config)
     pyret_ship.unit_conversion()
     pyret_ship.assign_prior_functions()
+    pyret_ship.petitRADTRANS_initialization()
     import ipdb
 
     ipdb.set_trace()

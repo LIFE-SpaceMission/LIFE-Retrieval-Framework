@@ -25,10 +25,9 @@ def define_linelists(config:dict, settings:dict, input_opacity_path:Union[str,Pa
             tot_mols.extend( [item for sublist in  [key.split('-') for key in used_cia_species] for item in sublist])
         #CLOUDS
         if settings['include_scattering']['clouds']:
-
-            cloud_species = list(set(["_".join(key.split('_')[:2]) for key in config['CLOUD PARAMETERS'].keys() if key !='settings_clouds']))
+            cloud_species = set(["_".join(key.split('_')[:2]) for key in config['CLOUD PARAMETERS'].keys() if key !='settings_clouds'])
             used_cloud_species=ingest_cloud_linelists(cloud_species,input_opacity_path)
-            tot_mols.append([cloud.split("_", 1)[0] for cloud in cloud_species])
+            tot_mols.extend([cloud.split("_", 1)[0] for cloud in cloud_species])
 
 
         tot_mols = list(set(tot_mols))
