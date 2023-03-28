@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
 
     # TODO Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
-    #pyret_ship.saving_inputs_to_folder()
+    pyret_ship.saving_inputs_to_folder()
 
     pyret_ship.petitRADTRANS_initialization()
     pyret_ship.read_MMW_Storage()

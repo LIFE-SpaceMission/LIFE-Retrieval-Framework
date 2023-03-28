@@ -212,6 +212,11 @@ class RetrievalObject:
                 + input_string.split("/")[-1]
             )
 
+
+        ## SAVE GITHUB COMMIT STRING
+
+        if self.input_retrieval_path != '':
+            os.system('git -C '+self.input_retrieval_path+' show --name-status >'+self.settings["output_folder"]+'/git_commit.txt')
         # save_config_file()
         # save_instrument_data()
         # save_converted_dictionaries()
