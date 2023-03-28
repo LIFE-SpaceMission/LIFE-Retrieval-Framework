@@ -22,7 +22,6 @@ import numpy as np
 
 def assign_priors(dictionary: dict) -> dict:
     for parameter in dictionary.keys():
-        print(dictionary[parameter])
         prior_kind = dictionary[parameter]['prior']['kind']
         if prior_kind == 'uniform':
             dictionary[parameter]['prior']['function'] = uniform_prior

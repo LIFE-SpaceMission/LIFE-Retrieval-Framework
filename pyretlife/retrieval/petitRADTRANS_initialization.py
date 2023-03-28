@@ -50,7 +50,7 @@ def ingest_opacity_linelists(settings: dict, input_opacity_path: Union[str, Path
         species_at_resolution.append(line + string)
 
     line_species = os.listdir(
-        input_opacity_path + "/opacities/lines/corr_k/"
+        Path(input_opacity_path)/ "opacities"/"lines"/"corr_k"
     )
     return list(set(species_at_resolution) & set(line_species))
 
@@ -73,7 +73,7 @@ def ingest_rayleigh_linelists(species: list) -> list:
 def ingest_cia_linelists(species: list, input_opacity_path: Union[str, Path]) -> list:
     used_cia_species = []
     continuum_opacities = os.listdir(
-        input_opacity_path + "/opacities/continuum/CIA/"
+        Path(input_opacity_path) / "opacities" / "continuum" / "CIA"
     )
     for cia in continuum_opacities:
         cia_components = cia.split("-")
@@ -96,11 +96,8 @@ def ingest_cloud_linelists(cloud_species:list, input_opacity_path:Union[str, Pat
     }
     for cloud in cloud_species:
         cloud_dir = str(
-            input_opacity_path
-            + "/opacities/continuum/clouds/"
-            + cloud.split('_')[0].replace('(c)', '_c')
-            + cloud_dict[cloud[-2]]
-            + cloud_dict[cloud[-1]]
+            Path(input_opacity_path) / "opacities" / "continuum" / "clouds" /
+            cloud.split('_')[0].replace('(c)', '_c') / cloud_dict[cloud[-2]] / cloud_dict[cloud[-1]]
         )
 
         if not os.path.exists(cloud_dir):
