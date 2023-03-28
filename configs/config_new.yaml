@@ -7,7 +7,6 @@ GROUND TRUTH DATA:
       path: template_retrieval/inputs/Rugheimer_ModernEarth_cloudfree_R50_SNR10.txt
       unit: micron, erg s-1 Hz-1 m-2
 
-
 RUN SETTINGS:
   wavelength_range: [4,18.5]
   output_folder: ../template_retrieval

@@ -10,10 +10,7 @@ from argparse import ArgumentParser, Namespace
 import os, warnings, sys
 
 # from pymultinest.solve import solve
-from pyretlife.retrieval.config import (
-    get_check_opacity_path,
-    get_check_prt_path,
-)
+
 from pyretlife.retrieval import RetrievalObject
 
 
@@ -39,15 +36,10 @@ def get_cli_arguments() -> Namespace:
 
 if __name__ == "__main__":
     # Set the number of threads to 1
-    os.environ["OMP_NUM_THREADS"] = "1"
-    warnings.simplefilter("ignore")
+    # os.environ["OMP_NUM_THREADS"] = "1"
+    # warnings.simplefilter("ignore")
+    #
 
-    # Get and check the goodness of the environmental variables
-    input_opacity_path=get_check_opacity_path()
-    input_prt_path = get_check_prt_path()
-    sys.path.append(str(input_prt_path))
-    # WORKS BUT COMMENTED TO NOT OVERWRITE THINGS WHILE BUILDING THE CODE
-    # set_prt_opacity(input_prt_path,input_opacity_path)
 
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
@@ -56,18 +48,13 @@ if __name__ == "__main__":
     pyret_ship = RetrievalObject.RetrievalObject(run_retrieval=True)
     pyret_ship.load_configuration(config_file=args.config)
     pyret_ship.unit_conversion()
+    pyret_ship.assign_prior_functions()
+    import ipdb
 
-
-
-
-
-
-    # Validate the config file: does it have all we need?
-    # TODO: It already includes the old check_temp_pars. More checks are necessary
-    #validate_config(config)
+    ipdb.set_trace()
 
     # Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
-    pyret_ship.saving_inputs_to_folder()
+    #pyret_ship.saving_inputs_to_folder()
 
     # g.init_rt()
 

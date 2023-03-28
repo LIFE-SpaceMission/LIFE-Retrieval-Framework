@@ -36,36 +36,35 @@ def convert_spectrum(Instrument: dict, Units: UnitsUtil) -> dict:
 
 def convert_knowns_and_parameters(Dictionary: dict, Units: UnitsUtil) -> dict:
     for section in Dictionary.keys():
-        for subsection in Dictionary[section].keys():
             refined_dict = {}
             # Convert the input to retrieval units
             converted_unit = Units.return_units(
-                subsection, Units.retrieval_units
+                section, Units.retrieval_units
             )
-            refined_dict["input_unit"] = Dictionary[section][subsection]["unit"]
+            refined_dict["input_unit"] = Dictionary[section]["unit"]
             refined_dict["unit"] = converted_unit
 
-            if "truth" in Dictionary[section][subsection].keys():
+            if "truth" in Dictionary[section].keys():
                 converted_truth = Units.truth_unit_conversion(
-                    subsection,
-                    Dictionary[section][subsection]["unit"],
+                    section,
+                    Dictionary[section]["unit"],
                     converted_unit,
-                    Dictionary[section][subsection]["truth"],
+                    Dictionary[section]["truth"],
                 )
-                refined_dict["input_truth"] = Dictionary[section][subsection][
+                refined_dict["input_truth"] = Dictionary[section][
                     "truth"
                 ]
                 refined_dict["truth"] = converted_truth
 
-            if "prior" in Dictionary[section][subsection].keys():
+            if "prior" in Dictionary[section].keys():
                 converted_prior = Units.prior_unit_conversion(
-                    subsection,
-                    Dictionary[section][subsection]["unit"],
+                    section,
+                    Dictionary[section]["unit"],
                     converted_unit,
-                    Dictionary[section][subsection]["prior"],
+                    Dictionary[section]["prior"],
                 )
-                refined_dict["prior"] = Dictionary[section][subsection]["prior"]
+                refined_dict["prior"] = Dictionary[section]["prior"]
                 refined_dict["prior"]["converted_prior_specs"] = converted_prior
-
-            Dictionary[section][subsection] = refined_dict
+            refined_dict['type']=Dictionary[section]["type"]
+            Dictionary[section] = refined_dict
     return Dictionary

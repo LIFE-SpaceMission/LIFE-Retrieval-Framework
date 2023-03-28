@@ -108,60 +108,72 @@ def make_output_folder(folder_path: Union[Path, str]) -> None:
 
 def populate_dictionaries(
     config: dict,
-    Knowns: dict,
-    Parameters: dict,
-    Settings: dict,
-    Units: UnitsUtil,
+    knowns: dict,
+    parameters: dict,
+    settings: dict,
+    units: UnitsUtil,
 ) -> Tuple[dict, dict, dict, UnitsUtil]:
+
     if "USER-DEFINED UNITS" in config.keys():
         for key in config["USER-DEFINED UNITS"]:
-            Units.custom_unit(
+            units.custom_unit(
                 key, u.Quantity(config["USER-DEFINED UNITS"][key])
             )
-
+    linelist=[]
     for section in config.keys():
-        Parameters[section] = {}
-        Knowns[section] = {}
         if section != "USER-DEFINED UNITS":
             for subsection in config[section].keys():
                 if (
                     type(config[section][subsection]) is dict
                     and "prior" in config[section][subsection].keys()
                 ):
-                    Parameters[section][subsection] = config[section][
+                    parameters[subsection] = config[section][
                         subsection
                     ]
                     if "unit" in config[section][subsection].keys():
                         input_unit = u.Unit(config[section][subsection]["unit"])
                     else:
-                        input_unit = Units.return_units(
-                            subsection, Units.std_input_units
+                        input_unit = units.return_units(
+                            subsection, units.std_input_units
                         )
-                    Parameters[section][subsection]["unit"] = input_unit
+                    parameters[subsection]["unit"] = input_unit
+                    parameters[subsection]['type'] = section
 
                 elif (
                     type(config[section][subsection]) is dict
                     and "truth" in config[section][subsection].keys()
                 ):
-                    Knowns[section][subsection] = config[section][subsection]
+                    knowns[subsection] = config[section][subsection]
                     if "unit" in config[section][subsection].keys():
                         input_unit = u.Unit(config[section][subsection]["unit"])
                     else:
-                        input_unit = Units.return_units(
-                            subsection, Units.std_input_units
+                        input_unit = units.return_units(
+                            subsection, units.std_input_units
                         )
-                    Knowns[section][subsection]["unit"] = input_unit
+                    knowns[subsection]["unit"] = input_unit
+                    knowns[subsection]['type'] = section
+
                 else:
-                    Settings[subsection] = config[section][subsection]
+                    settings[subsection] = config[section][subsection]
 
-    return Knowns, Parameters, Settings, Units
+                # read lists if available. Can be a str or list.
+                if (
+                    type(config[section][subsection]) is dict
+                    and "lines" in config[section][subsection].keys()
+                ):
+                    if isinstance(config[section][subsection]['lines'],str):
+                        linelist.append(config[section][subsection]['lines'])
+                    else:
+                        linelist.extend(config[section][subsection]['lines'])
+        settings['opacity_linelist']=linelist
+    return knowns, parameters, settings, units
 
 
-def load_data(Settings: dict, Units: UnitsUtil, retrieval: bool = True) -> dict:
-    result_dir = Settings["output_folder"]
-    Instrument = {}
-    for data_file in Settings["data_files"].keys():
-        input_string = Settings["data_files"][data_file]["path"]
+def load_data(settings: dict, units: UnitsUtil, retrieval: bool = True) -> dict:
+    result_dir = settings["output_folder"]
+    instrument = {}
+    for data_file in settings["data_files"].keys():
+        input_string = settings["data_files"][data_file]["path"]
         # Case handling for the retrieval plotting
         if not retrieval:
             if os.path.isfile(
@@ -182,25 +194,25 @@ def load_data(Settings: dict, Units: UnitsUtil, retrieval: bool = True) -> dict:
         input_data = np.genfromtxt(input_string)
 
         # retrieve units
-        if "unit" in Settings["data_files"][data_file].keys():
+        if "unit" in settings["data_files"][data_file].keys():
             input_unit_wavelength = u.Unit(
-                Settings["data_files"][data_file]["unit"].split(",")[0]
+                settings["data_files"][data_file]["unit"].split(",")[0]
             )
             input_unit_flux = u.Unit(
-                Settings["data_files"][data_file]["unit"].split(",")[1]
+                settings["data_files"][data_file]["unit"].split(",")[1]
             )
         else:
-            input_unit_wavelength = Units.return_units(
-                "wavelength", Units.std_input_units
+            input_unit_wavelength = units.return_units(
+                "wavelength", units.std_input_units
             )
-            input_unit_flux = Units.return_units("flux", Units.std_input_units)
+            input_unit_flux = units.return_units("flux", units.std_input_units)
 
         # trim spectrum
         input_data = input_data[
             input_data[:, 0]
             >= (
-                Settings["wavelength_range"][0]
-                * Units.return_units("WMIN", Units.std_input_units)
+                    settings["wavelength_range"][0]
+                    * units.return_units("WMIN", units.std_input_units)
             )
             .to(input_unit_wavelength)
             .value
@@ -208,18 +220,18 @@ def load_data(Settings: dict, Units: UnitsUtil, retrieval: bool = True) -> dict:
         input_data = input_data[
             input_data[:, 0]
             <= (
-                Settings["wavelength_range"][1]
-                * Units.return_units("WMAX", Units.std_input_units)
+                    settings["wavelength_range"][1]
+                    * units.return_units("WMAX", units.std_input_units)
             )
             .to(input_unit_wavelength)
             .value
         ]
-        Instrument[data_file] = {
+        instrument[data_file] = {
             "input_data": input_data,
             "input_unit_wavelength": input_unit_wavelength,
             "input_unit_flux": input_unit_flux,
         }
-    return Instrument
+    return instrument
 
 
 def get_check_opacity_path() -> Path:

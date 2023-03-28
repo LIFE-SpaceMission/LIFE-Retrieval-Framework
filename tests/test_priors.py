@@ -1,5 +1,5 @@
 """
-Unit tests for priors.py.
+Unit tests for priors_timmy.py.
 """
 
 # -----------------------------------------------------------------------------
@@ -9,7 +9,7 @@ Unit tests for priors.py.
 import numpy as np
 import pytest
 
-from pyretlife.retrieval.priors import (
+from pyretlife.retrieval.priors_timmy import (
     get_prior_from_string,
     GaussianPrior,
     UniformPrior,

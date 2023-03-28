@@ -1,6 +1,6 @@
-
 def validate_config(config_file: dict):
     raise NotImplementedError
+
 
 ### OLD FUNCTION TO BE SPLIT UP
 #
