@@ -10,5 +10,5 @@ RUN SETTINGS:
   include_moon: False
   resolution: 1000
   n_layers: 100
-  top_log_pressure: -6
+  log_top_pressure: -6
   live_points: 600

@@ -91,3 +91,23 @@ def validate_config(config_file: dict):
 #             "Missing one or more PT parameters/knowns. "
 #             "Make sure these exist:" + str(missing_params)
 #         )
+
+
+# def length_scales_test(self):
+#      """
+#      Function to scale lengths check form pc
+#      and earth radii to cm and m
+#      """
+#
+#      # Check if distance to system is provided
+#      if "d_syst" not in self.phys_vars:
+#          raise RuntimeError("ERROR! Distance from the star is missing!")
+#
+#      # Check if radius of the planet is provided
+#      if "R_pl" not in self.phys_vars:
+#          raise RuntimeError("ERROR! Planetary radius is missing!")
+#
+#      # Check if radius of the moon is provided
+#      if self.settings["moon"] == "True":
+#          if "R_m" not in self.phys_vars:
+#              raise RuntimeError("ERROR! Moon radius is missing!")

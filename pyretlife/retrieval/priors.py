@@ -65,7 +65,7 @@ def assign_priors(dictionary: dict) -> dict:
     # ccube[key] = pr
 
 
-def uniform_prior(r, x1, x2):
+def uniform_prior(r, prior_specs):
     """
     Scales a random number generated in a uniform prior between 0
     and 1 to the respective value corresponding to a uniform prior
@@ -83,10 +83,12 @@ def uniform_prior(r, x1, x2):
     -------
     A random number generated from a uniform prior between [x1, x2].
     """
+    x1=prior_specs['lower']
+    x2=prior_specs['upper']
     return x1 + r * (x2 - x1)
 
 
-def gaussian_prior(r, mu, sigma):
+def gaussian_prior(r, prior_specs):
     """
     Scales a random number generated in a uniform prior between 0
     and 1 to the respective value corresponding to a gaussian prior
@@ -108,15 +110,23 @@ def gaussian_prior(r, mu, sigma):
     #    return -1.0e32
     # else:
     # return -((r - mu) / sigma)**2 / 2
+    mu=prior_specs['mean']
+    sigma=prior_specs['sigma']
     return stat.norm.ppf(r) * sigma + mu
 
 
-def log_uniform_prior(r, x1, x2):
-    return np.power(10, uniform_prior(r, x1, x2))
+def log_uniform_prior(r, prior_specs):
+    prior_logspace={}
+    prior_logspace['lower']=prior_specs['log_lower']
+    prior_logspace['upper']=prior_specs['log_upper']
+    return np.power(10, uniform_prior(r, prior_logspace))
 
 
-def log_gaussian_prior(r, mu, sigma):
-    return np.power(10, gaussian_prior(r, mu, sigma))
+def log_gaussian_prior(r, prior_specs):
+    prior_logspace={}
+    prior_logspace['mean']=prior_specs['log_mean']
+    prior_logspace['sigma']=prior_specs['log_sigma']
+    return np.power(10, gaussian_prior(r,prior_logspace))
 
 
 def invalid_prior(par):

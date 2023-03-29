@@ -9,7 +9,7 @@ The main program of the retrieval suite.
 from argparse import ArgumentParser, Namespace
 import os, warnings, sys
 
-# from pymultinest.solve import solve
+from pymultinest.solve import solve
 
 from pyretlife.retrieval import RetrievalObject
 
@@ -48,7 +48,9 @@ if __name__ == "__main__":
     pyret_ship = RetrievalObject.RetrievalObject(run_retrieval=True)
     pyret_ship.load_configuration(config_file=args.config)
     pyret_ship.unit_conversion()
+    pyret_ship.assign_knowns()
     pyret_ship.assign_prior_functions()
+    pyret_ship.vae_initialization()
 
 
     # TODO Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
@@ -63,15 +65,15 @@ if __name__ == "__main__":
 
 
     # # Run MultiNest
-    # result = solve(
-    #     LogLikelihood=g.log_likelihood,
-    #     Prior=g.priors,
-    #     n_dims= len(pyret_ship.parameters),
-    #     outputfiles_basename=str(pyret_ship.settings['output_folder'])+'/',
-    #     n_live_points=pyret_ship.settings['live_points'],
-    #     verbose=True,
-    # )
-    #
+    result = solve(
+        LogLikelihood=g.log_likelihood,
+        Prior=pyret_ship.unity_cube_to_prior_space,
+        n_dims= len(pyret_ship.parameters),
+        outputfiles_basename=str(pyret_ship.settings['output_folder'])+'/',
+        n_live_points=pyret_ship.settings['live_points'],
+        verbose=True,
+    )
+
     # # Print final results
     # print("\n evidence: %(logZ).1f +- %(logZerr).1f\n" % result)
     # print("parameter values:")
