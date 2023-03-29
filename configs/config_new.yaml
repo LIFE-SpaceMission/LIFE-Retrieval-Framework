@@ -169,6 +169,7 @@ SCATTERING PARAMETERS: #read when necessary
     truth: 0.1
   emissivity:
     truth: 1.
+  geometry: dayside_ave
   stellar_temperature:
     truth: 5778.
   stellar_radius:

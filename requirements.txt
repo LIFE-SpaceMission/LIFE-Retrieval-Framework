@@ -36,3 +36,5 @@ PyYAML~=6.0
 astropy~=5.2.1
 setuptools~=65.6.3
 deepdiff~=6.2.3
+ipdb~=0.13.11
+molmass~=2022.12.9

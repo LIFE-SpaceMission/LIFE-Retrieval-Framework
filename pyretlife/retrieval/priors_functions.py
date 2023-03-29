@@ -22,15 +22,15 @@ import numpy as np
 
 def assign_priors(dictionary: dict) -> dict:
     for parameter in dictionary.keys():
-        prior_kind = dictionary[parameter]['prior']['kind']
-        if prior_kind == 'uniform':
-            dictionary[parameter]['prior']['function'] = uniform_prior
-        elif prior_kind == 'log-uniform':
-            dictionary[parameter]['prior']['function'] = log_uniform_prior
-        elif prior_kind == 'gaussian':
-            dictionary[parameter]['prior']['function'] = gaussian_prior
-        elif prior_kind == 'log-gaussian':
-            dictionary[parameter]['prior']['function'] = log_gaussian_prior
+        prior_kind = dictionary[parameter]["prior"]["kind"]
+        if prior_kind == "uniform":
+            dictionary[parameter]["prior"]["function"] = uniform_prior
+        elif prior_kind == "log-uniform":
+            dictionary[parameter]["prior"]["function"] = log_uniform_prior
+        elif prior_kind == "gaussian":
+            dictionary[parameter]["prior"]["function"] = gaussian_prior
+        elif prior_kind == "log-gaussian":
+            dictionary[parameter]["prior"]["function"] = log_gaussian_prior
         else:
             invalid_prior(parameter)
         # TODO Implement ULU, FU, I
@@ -49,15 +49,13 @@ def uniform_prior(r, prior_specs):
     Parameters
     ----------
     r : A random float generated from the uniform prior between [0, 1].
-    x1 : The new lower boundary (float).
-    x2 : The new upper boundary (floa).
-
+    prior_specs:
     Returns
     -------
     A random number generated from a uniform prior between [x1, x2].
     """
-    x1=prior_specs['lower']
-    x2=prior_specs['upper']
+    x1 = prior_specs["lower"]
+    x2 = prior_specs["upper"]
     return x1 + r * (x2 - x1)
 
 
@@ -72,9 +70,7 @@ def gaussian_prior(r, prior_specs):
     Parameters
     ----------
     r : A random float generated from the uniform prior between [0, 1].
-    mu : The mean of the gaussian distribution (float).
-    sigma : The standard deviation of the gaussian distribution (float).
-
+    prior_specs:
     Returns
     -------
     A random float generated from a gaussian prior G(mu,sigma).
@@ -83,23 +79,19 @@ def gaussian_prior(r, prior_specs):
     #    return -1.0e32
     # else:
     # return -((r - mu) / sigma)**2 / 2
-    mu=prior_specs['mean']
-    sigma=prior_specs['sigma']
+    mu = prior_specs["mean"]
+    sigma = prior_specs["sigma"]
     return stat.norm.ppf(r) * sigma + mu
 
 
 def log_uniform_prior(r, prior_specs):
-    prior_logspace={}
-    prior_logspace['lower']=prior_specs['log_lower']
-    prior_logspace['upper']=prior_specs['log_upper']
+    prior_logspace = {"lower": prior_specs["log_lower"], "upper": prior_specs["log_upper"]}
     return np.power(10, uniform_prior(r, prior_logspace))
 
 
 def log_gaussian_prior(r, prior_specs):
-    prior_logspace={}
-    prior_logspace['mean']=prior_specs['log_mean']
-    prior_logspace['sigma']=prior_specs['log_sigma']
-    return np.power(10, gaussian_prior(r,prior_logspace))
+    prior_logspace = {"mean": prior_specs["log_mean"], "sigma": prior_specs["log_sigma"]}
+    return np.power(10, gaussian_prior(r, prior_logspace))
 
 
 def invalid_prior(par):

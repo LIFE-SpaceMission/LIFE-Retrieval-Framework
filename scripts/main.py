@@ -7,7 +7,6 @@ The main program of the retrieval suite.
 # -----------------------------------------------------------------------------
 
 from argparse import ArgumentParser, Namespace
-import os, warnings, sys
 
 from pymultinest.solve import solve
 

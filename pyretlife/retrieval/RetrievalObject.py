@@ -15,9 +15,8 @@ __status__ = "Development"
 # -----------------------------------------------------------------------------
 
 from pathlib import Path
-import os,sys
+import os, sys
 import numpy as np
-from typing import Union, Tuple
 
 import importlib
 import json
@@ -31,18 +30,42 @@ from pyretlife.retrieval.configuration_ingestion_functions import (
     get_check_opacity_path,
     get_check_prt_path,
     get_retrieval_path,
-    set_prt_opacity
+    set_prt_opacity,
 )
-from pyretlife.retrieval.radiative_transfer_functions import define_linelists
-from pyretlife.retrieval.likelihood_validation import validate_pt_profile,validate_sum_of_cube,validate_positive_temperatures,validate_sum_of_abundances
-from pyretlife.retrieval.atmospheric_variables_functions import calculate_gravity,calculate_log_ground_pressure, calculate_polynomial_profile,calculate_vae_profile,calculate_guillot_profile,calculate_isothermal_profile,calculate_madhuseager_profile,calculate_mod_madhuseager_profile
+from pyretlife.retrieval.radiative_transfer_functions import (
+    define_linelists,
+    calculate_moon_flux,
+    assign_reflectance_emissivity,
+    calculate_emission_flux,
+    scale_flux_to_distance,
+    rebin_spectrum,
+)
+from pyretlife.retrieval.likelihood_validation import (
+    validate_pt_profile,
+    validate_sum_of_cube,
+    validate_positive_temperatures,
+    validate_sum_of_abundances,
+    validate_spectrum_goodness,
+)
+from pyretlife.retrieval.atmospheric_variables_functions import (
+    calculate_gravity,
+    calculate_log_ground_pressure,
+    calculate_polynomial_profile,
+    calculate_vae_profile,
+    calculate_guillot_profile,
+    calculate_isothermal_profile,
+    calculate_madhuseager_profile,
+    calculate_mod_madhuseager_profile,
+    calculate_abundances,
+    assign_cloud_parameters,
+    calc_MMW,
+)
 from pyretlife.retrieval.config_validation import validate_config
 from pyretlife.retrieval.unit_conversion_functions import (
     convert_spectrum,
     convert_knowns_and_parameters,
 )
 from pyretlife.retrieval.priors_functions import assign_priors
-
 
 
 # -----------------------------------------------------------------------------
@@ -55,16 +78,13 @@ class RetrievalObject:
     This class binds together all the different parts of the retrieval.
 
     Args:
-        config_file_path: Path to the config file.
-        paths_file_path: Path to the paths file.
         run_retrieval:
 
     Attributes:
         config: The configuration (i.e., the contents of the YAML or
             INI file for a given retrieval) as a dictionary.
-        path_prt: Path to the petitRADTRANS installation.
-        path_opacity: Path to the opacity data.
-        path_multinest: Path to the MultiNest installation.
+        input_prt_path: Path to the petitRADTRANS installation.
+        input_opacity_path: Path to the opacity data.
         ...
 
     TODO: Keep adding attributes here to document them.
@@ -87,14 +107,12 @@ class RetrievalObject:
         self.rt_object = None
         self.run_retrieval = run_retrieval
 
-
-
         # # Get and check the goodness of the environmental variables
-        self.input_opacity_path=get_check_opacity_path()
+        self.input_opacity_path = get_check_opacity_path()
         self.input_prt_path = get_check_prt_path()
         self.input_retrieval_path = get_retrieval_path()
         sys.path.append(str(self.input_prt_path))
-        set_prt_opacity(self.input_prt_path,self.input_opacity_path)
+        set_prt_opacity(self.input_prt_path, self.input_opacity_path)
 
         self.petitRADTRANS = importlib.import_module("petitRADTRANS")
 
@@ -123,13 +141,21 @@ class RetrievalObject:
             self.parameters,
             self.settings,
             self.units,
-        ) = populate_dictionaries(self.config_default, self.knowns, self.parameters, self.settings, self.units)
+        ) = populate_dictionaries(
+            self.config_default,
+            self.knowns,
+            self.parameters,
+            self.settings,
+            self.units,
+        )
         (
             self.knowns,
             self.parameters,
             self.settings,
             self.units,
-        ) = populate_dictionaries(self.config, self.knowns, self.parameters, self.settings, self.units)
+        ) = populate_dictionaries(
+            self.config, self.knowns, self.parameters, self.settings, self.units
+        )
         self.instrument = load_data(self.settings, self.units)
 
         # IF CLOUDS, ASSIGN P0 WHEN NOT PROVIDED
@@ -140,9 +166,7 @@ class RetrievalObject:
     def unit_conversion(self):
         self.instrument = convert_spectrum(self.instrument, self.units)
         self.knowns = convert_knowns_and_parameters(self.knowns, self.units)
-        self.parameters = convert_knowns_and_parameters(
-            self.parameters, self.units
-        )
+        self.parameters = convert_knowns_and_parameters(self.parameters, self.units)
 
     def assign_knowns(self):
         self.temp_vars = {}
@@ -161,7 +185,7 @@ class RetrievalObject:
             elif self.knowns[par]["type"] == "PHYSICAL PARAMETERS":
                 self.phys_vars[par] = self.knowns[par]["truth"].value
             elif self.knowns[par]["type"] == "CLOUD PARAMETERS":
-                #TODO review this snippet
+                # TODO review this snippet
                 if (
                     not "_".join(par.split("_", 2)[:2])
                     in self.cloud_vars.keys()
@@ -183,22 +207,28 @@ class RetrievalObject:
             elif self.knowns[par]["type"] == "MOON PARAMETERS":
                 self.moon_vars[par] = self.knowns[par]["truth"].value
 
-        #in case the PT profile is known, assign it already
+        # in case the PT profile is known, assign it already
         if self.settings["parametrization"] == "input":
             self.press, self.temp = np.loadtxt(
                 self.temp_vars["input_path"], unpack=True
             )
 
-
     def assign_prior_functions(self):
-        self.parameters= assign_priors(self.parameters)
+        self.parameters = assign_priors(self.parameters)
         # TODO Check that all priors are valid (invalid_prior function in priors.py otherwise)
 
     def petitRADTRANS_initialization(self):
         """
         Initializes the rt_object given the wavelength range.
         """
-        used_line_species, used_rayleigh_species, used_cia_species, used_cloud_species = define_linelists(self.config,self.settings, self.input_opacity_path)
+        (
+            used_line_species,
+            used_rayleigh_species,
+            used_cia_species,
+            used_cloud_species,
+        ) = define_linelists(
+            self.config, self.settings, self.input_opacity_path
+        )
 
         # TODO implement verbose output
         # old_stdout = sys.stdout
@@ -209,39 +239,45 @@ class RetrievalObject:
             rayleigh_species=sorted(used_rayleigh_species),
             continuum_opacities=sorted(used_cia_species),
             cloud_species=sorted(used_cloud_species),
-            wlen_bords_micron=self.settings['wavelength_range'],
+            wlen_bords_micron=self.settings["wavelength_range"],
             mode="c-k",
-            do_scat_emis=True in self.settings['include_scattering'].values(),
+            do_scat_emis=True in self.settings["include_scattering"].values(),
         )
         # sys.stdout = old_stdout
-        self.rt_object.setup_opa_structure(np.logspace(self.settings['top_log_pressure'], 0, self.settings['n_layers'], base=10))
-
+        self.rt_object.setup_opa_structure(
+            np.logspace(
+                self.settings["top_log_pressure"],
+                0,
+                self.settings["n_layers"],
+                base=10,
+            )
+        )
 
     def unity_cube_to_prior_space(self, cube):
-        ccube=cube.copy()
+        ccube = cube.copy()
         for par in self.parameters.keys():
             prior = self.parameters[par]["prior"]
             idx = list(self.parameters.keys()).index(par)
-            ccube[idx]=prior['function'](ccube[idx],prior['prior_specs'])
+            ccube[idx] = prior["function"](ccube[idx], prior["prior_specs"])
 
     def assign_cube_to_parameters(self, cube):
-
         for par in self.parameters.keys():
             idx = list(self.parameters.keys()).index(par)
             if self.parameters[par]["type"] == "TEMPERATURE PARAMETERS":
                 self.temp_vars[par] = cube[idx]
-            elif self.parameters[par]["type"] == "CHEMICAL COMPOSITION PARAMETERS":
+            elif (
+                self.parameters[par]["type"]
+                == "CHEMICAL COMPOSITION PARAMETERS"
+            ):
                 self.chem_vars[par] = cube[idx]
             elif self.parameters[par]["type"] == "PHYSICAL PARAMETERS":
                 self.phys_vars[par] = cube[idx]
             elif self.parameters[par]["type"] == "CLOUD PARAMETERS":
                 if (
-                        not "_".join(par.split("_", 2)[:2])
-                            in self.cloud_vars.keys()
+                    not "_".join(par.split("_", 2)[:2])
+                    in self.cloud_vars.keys()
                 ):
-                    self.cloud_vars[
-                        "_".join(par.split("_", 2)[:2])
-                    ] = {}
+                    self.cloud_vars["_".join(par.split("_", 2)[:2])] = {}
                 try:
                     self.cloud_vars["_".join(par.split("_", 2)[:2])][
                         par.split("_", 2)[2]
@@ -256,40 +292,50 @@ class RetrievalObject:
             elif self.parameters[par]["type"] == "MOON PARAMETERS":
                 self.moon_vars[par] = cube[idx]
 
-    def calculate_pt_profile(self, parameterization, log_ground_pressure, log_top_pressure,
-                             layers):
-
+    def calculate_pt_profile(
+        self, parameterization, log_ground_pressure, log_top_pressure, layers
+    ):
         """
         Creates the pressure-temperature profile from the temperature
         parameters and the pressure.
         """
-        self.press = np.array(np.logspace(log_top_pressure, log_ground_pressure, layers, base=10))
+        self.press = np.array(
+            np.logspace(log_top_pressure, log_ground_pressure, layers, base=10)
+        )
 
         if parameterization == "polynomial":
-            self.temp= calculate_polynomial_profile(self.press, self.temp_vars)
+            self.temp = calculate_polynomial_profile(self.press, self.temp_vars)
 
         # TODO understand what is going on here
         elif parameterization == "vae_pt":
-           self.temp= calculate_vae_profile(self.press, self.vae_pt, self.temp_vars)
+            self.temp = calculate_vae_profile(
+                self.press, self.vae_pt, self.temp_vars
+            )
 
         elif parameterization == "guillot":
-            self.temp = calculate_guillot_profile(self.press, self.petitRADTRANS, self.temp_vars)
+            self.temp = calculate_guillot_profile(
+                self.press, self.petitRADTRANS, self.temp_vars
+            )
 
         elif self.settings["parametrization"] == "isothermal":
             self.temp = calculate_isothermal_profile(self.press, self.temp_vars)
 
         elif self.settings["parametrization"] == "madhuseager":
-            self.temp=calculate_madhuseager_profile( self.press,self.temp_vars)
+            self.temp = calculate_madhuseager_profile(
+                self.press, self.temp_vars
+            )
 
         elif self.settings["parametrization"] == "mod_madhuseager":
-            self.temp = calculate_mod_madhuseager_profile(self.press, self.temp_vars)
+            self.temp = calculate_mod_madhuseager_profile(
+                self.press, self.temp_vars
+            )
 
         else:
             raise ValueError("Unknown PT setting!")
 
         return
 
-    def calculate_log_likelihood(self,cube):
+    def calculate_log_likelihood(self, cube):
         """
         Calculates the log(likelihood) of the forward model generated
         with parameters and known variables.
@@ -300,34 +346,128 @@ class RetrievalObject:
         # retrieved parameters to them
         self.assign_cube_to_parameters(cube)
 
-        #TODO expand on tests here
+        # TODO expand on tests here
 
         # test goodness of random draw
-        if validate_pt_profile(self.settings,self.temp_vars, self.phys_vars):
+        if validate_pt_profile(self.settings, self.temp_vars, self.phys_vars):
             return -1e32
         if validate_sum_of_cube(cube):
             return -1e32
 
-        self.phys_vars=calculate_gravity(self.phys_vars)
-        self.phys_vars=calculate_log_ground_pressure(self.phys_vars)
+        self.phys_vars = calculate_gravity(self.phys_vars)
+        self.phys_vars = calculate_log_ground_pressure(self.phys_vars)
 
-        if self.settings['parameterization'] != 'input':
-            self.calculate_pt_profile(parameterization=self.settings['parameterization'], log_ground_pressure=self.phys_vars['log_P0'], log_top_pressure=self.settings['log_top_pressure'], layers=self.settings['n_layers'])
+        if self.settings["parameterization"] != "input":
+            self.calculate_pt_profile(
+                parameterization=self.settings["parameterization"],
+                log_ground_pressure=self.phys_vars["log_P0"],
+                log_top_pressure=self.settings["log_top_pressure"],
+                layers=self.settings["n_layers"],
+            )
 
         if validate_positive_temperatures(self.temp):
             return -1e32
         if validate_sum_of_abundances(self.chem_vars):
             return -1e32
-        else:
-            self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(self.press)
+        self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
+            self.press
+        )
 
-        #initialize calculated pressure
+        self.abundances = calculate_abundances(self.chem_vars, self.press)
+        (
+            self.abundances,
+            self.cloud_vars,
+            self.cloud_radii,
+            self.cloud_lnorm,
+        ) = assign_cloud_parameters(
+            self.abundances, self.cloud_vars, self.press
+        )
+
+        self.MMW = calc_MMW(self.abundances, self.settings, self.inert)
+        # initialize calculated pressure
         self.rt_object.setup_opa_structure(self.press)
 
+        if self.settings["include_moon"]:
+            self.moon_flux = calculate_moon_flux(
+                self.rt_object.freq, self.petitRADTRANS, self.moon_vars
+            )
 
+        if (
+            True
+            in self.settings["include_scattering"][
+                "direct_light", "thermal"
+            ].values()
+        ):
+            # TODO test if it works
+            (
+                self.rt_object.reflectance,
+                self.rt_object.emissivity,
+            ) = assign_reflectance_emissivity(
+                self.scat_vars, self.rt_object.freq
+            )
+
+        # Calculate the forward model; this returns the frequency
+        # and the flux F_nu in erg/cm^2/s/Hz.
+        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(
+            self.rt_object,
+            self.settings,
+            self.temp,
+            self.abundances,
+            self.phys_vars["g"],
+            self.MMW,
+            self.cloud_radii,
+            self.cloud_lnorm,
+            self.scat_vars,
+            em_contr=False,
+        )
+
+        self.rt_object.wavelength = self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
+        if validate_spectrum_goodness(self.rt_object.flux):
+            return -1e32
+
+        if self.phys_vars["d_syst"] is not None:
+            self.rt_object.flux = scale_flux_to_distance(
+                self.rt_object.flux,
+                self.phys_vars["R_pl"],
+                self.phys_vars["d_syst"],
+            )
+            if self.settings["include_moon"]:
+                self.moon_flux = scale_flux_to_distance(
+                    self.moon_flux,
+                    self.moon_vars["R_m"],
+                    self.phys_vars["d_syst"],
+                )
+
+        # Calculate total log-likelihood (sum over instruments)
+        log_likelihood = 0.0
+        for inst in self.instrument.keys():
+            # Rebin the spectrum according to the input spectrum if wavelengths
+            # differ strongly
+            rebinned_flux = rebin_spectrum(
+                self.instrument[inst],
+                self.rt_object.wavelength,
+                self.rt_object.flux,
+            )
+            if self.settings["moon"] == "True":
+                rebinned_flux += rebin_spectrum(
+                    self.instrument[inst],
+                    self.rt_object.wavelength,
+                    self.moon_flux,
+                )
+
+            # Calculate log-likelihood
+            log_likelihood += -0.5 * np.sum(
+                (
+                    (rebinned_flux - self.instrument[inst]["flux"])
+                    / self.instrument[inst]["error"]
+                )
+                ** 2.0
+            )
+
+        return log_likelihood
 
     def vae_initialization(self):
-        #TODO see if it can be improved
+        # TODO see if it can be improved
 
         # if the vae_pt is selected initialize the pt profile model
         if self.settings["parameterization"] == "vae_pt":
@@ -349,6 +489,7 @@ class RetrievalObject:
                 flow_path=os.path.dirname(os.path.realpath(__file__))
                 + "/vae_pt_models/Flow/flow-state-dict.pt",
             )
+
     def saving_inputs_to_folder(self):
         make_output_folder(self.settings["output_folder"])
         for data_file in self.settings["data_files"].keys():
@@ -362,10 +503,15 @@ class RetrievalObject:
                 + input_string.split("/")[-1]
             )
 
-
         ## SAVE GITHUB COMMIT STRING
-        if self.input_retrieval_path != '':
-            os.system('git -C '+self.input_retrieval_path+' show --name-status >'+self.settings["output_folder"]+'/git_commit.txt')
+        if self.input_retrieval_path != "":
+            os.system(
+                "git -C "
+                + self.input_retrieval_path
+                + " show --name-status >"
+                + self.settings["output_folder"]
+                + "/git_commit.txt"
+            )
 
         with open("%s/params.json" % self.settings["output_folder"], "w") as f:
             json.dump(list(self.parameters.keys()), f, indent=2)

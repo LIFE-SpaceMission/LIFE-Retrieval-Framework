@@ -114,13 +114,12 @@ def populate_dictionaries(
     settings: dict,
     units: UnitsUtil,
 ) -> Tuple[dict, dict, dict, UnitsUtil]:
-
     if "USER-DEFINED UNITS" in config.keys():
         for key in config["USER-DEFINED UNITS"]:
             units.custom_unit(
                 key, u.Quantity(config["USER-DEFINED UNITS"][key])
             )
-    linelist=[]
+    linelist = []
     for section in config.keys():
         if section != "USER-DEFINED UNITS":
             for subsection in config[section].keys():
@@ -128,9 +127,7 @@ def populate_dictionaries(
                     type(config[section][subsection]) is dict
                     and "prior" in config[section][subsection].keys()
                 ):
-                    parameters[subsection] = config[section][
-                        subsection
-                    ]
+                    parameters[subsection] = config[section][subsection]
                     if "unit" in config[section][subsection].keys():
                         input_unit = u.Unit(config[section][subsection]["unit"])
                     else:
@@ -138,7 +135,7 @@ def populate_dictionaries(
                             subsection, units.std_input_units
                         )
                     parameters[subsection]["unit"] = input_unit
-                    parameters[subsection]['type'] = section
+                    parameters[subsection]["type"] = section
 
                 elif (
                     type(config[section][subsection]) is dict
@@ -152,7 +149,7 @@ def populate_dictionaries(
                             subsection, units.std_input_units
                         )
                     knowns[subsection]["unit"] = input_unit
-                    knowns[subsection]['type'] = section
+                    knowns[subsection]["type"] = section
 
                 else:
                     settings[subsection] = config[section][subsection]
@@ -162,55 +159,57 @@ def populate_dictionaries(
                     type(config[section][subsection]) is dict
                     and "lines" in config[section][subsection].keys()
                 ):
-                    if isinstance(config[section][subsection]['lines'],str):
-                        linelist.append(config[section][subsection]['lines'])
+                    if isinstance(config[section][subsection]["lines"], str):
+                        linelist.append(config[section][subsection]["lines"])
                     else:
-                        linelist.extend(config[section][subsection]['lines'])
-        settings['opacity_linelist']=linelist
+                        linelist.extend(config[section][subsection]["lines"])
+        settings["opacity_linelist"] = linelist
     return knowns, parameters, settings, units
 
-def P0_test(self, ind=None):
-        #TODO check function
-        """
-        Function to check if the surface pressure is provided or can
-        be calculated from the provided parameters and brings it to
-        the correct format for petit radtrans
-        """
 
-        # Case dependant setting of the surface pressure
-        if self.settings["clouds"] == "opaque":
-            # Choose a surface pressure below the lower cloud deck
-            if not (("log_P0" in self.phys_vars) or ("P0" in self.phys_vars)):
-                self.phys_vars["log_P0"] = 4
-            else:
-                if ("log_P0" in self.knowns) or ("P0" in self.knowns):
-                    if ind is not None:
-                        if ind == 0:
-                            if "P0" in self.knowns:
-                                self.phys_vars["log_P0"] = np.log10(
-                                    self.knowns["P0"]["value"]
-                                )
-                            else:
-                                self.phys_vars["log_P0"] = self.knowns[
-                                    "log_P0"
-                                ]["value"]
+def P0_test(self, ind=None):
+    # TODO check function
+    """
+    Function to check if the surface pressure is provided or can
+    be calculated from the provided parameters and brings it to
+    the correct format for petit radtrans
+    """
+
+    # Case dependant setting of the surface pressure
+    if self.settings["clouds"] == "opaque":
+        # Choose a surface pressure below the lower cloud deck
+        if not (("log_P0" in self.phys_vars) or ("P0" in self.phys_vars)):
+            self.phys_vars["log_P0"] = 4
+        else:
+            if ("log_P0" in self.knowns) or ("P0" in self.knowns):
+                if ind is not None:
+                    if ind == 0:
+                        if "P0" in self.knowns:
+                            self.phys_vars["log_P0"] = np.log10(
+                                self.knowns["P0"]["value"]
+                            )
                         else:
-                            self.phys_vars["log_P0"] = 4
+                            self.phys_vars["log_P0"] = self.knowns["log_P0"][
+                                "value"
+                            ]
                     else:
                         self.phys_vars["log_P0"] = 4
                 else:
-                    raise RuntimeError(
-                        "ERROR! For opaque cloud models, the surface pressure "
-                        "P0 is not retrievable!"
-                    )
+                    self.phys_vars["log_P0"] = 4
+            else:
+                raise RuntimeError(
+                    "ERROR! For opaque cloud models, the surface pressure "
+                    "P0 is not retrievable!"
+                )
 
-        else:
-            if "log_P0" not in self.phys_vars:
-                if "P0" in self.phys_vars:
-                    self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
-                else:
-                    print("ERROR! Either log_P0 or P0 is needed!")
-                    sys.exit()
+    else:
+        if "log_P0" not in self.phys_vars:
+            if "P0" in self.phys_vars:
+                self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
+            else:
+                print("ERROR! Either log_P0 or P0 is needed!")
+                sys.exit()
+
 
 def load_data(settings: dict, units: UnitsUtil, retrieval: bool = True) -> dict:
     result_dir = settings["output_folder"]
@@ -254,8 +253,8 @@ def load_data(settings: dict, units: UnitsUtil, retrieval: bool = True) -> dict:
         input_data = input_data[
             input_data[:, 0]
             >= (
-                    settings["wavelength_range"][0]
-                    * units.return_units("WMIN", units.std_input_units)
+                settings["wavelength_range"][0]
+                * units.return_units("WMIN", units.std_input_units)
             )
             .to(input_unit_wavelength)
             .value
@@ -263,8 +262,8 @@ def load_data(settings: dict, units: UnitsUtil, retrieval: bool = True) -> dict:
         input_data = input_data[
             input_data[:, 0]
             <= (
-                    settings["wavelength_range"][1]
-                    * units.return_units("WMAX", units.std_input_units)
+                settings["wavelength_range"][1]
+                * units.return_units("WMAX", units.std_input_units)
             )
             .to(input_unit_wavelength)
             .value
@@ -319,7 +318,8 @@ def get_check_prt_path() -> Path:
         raise RuntimeError("PYRETLIFE_PRT_PATH set, but folder is not valid.")
     return Path(input_pRT_path)
 
-def get_retrieval_path() -> Union[Path,str]:
+
+def get_retrieval_path() -> Union[Path, str]:
     """
     The get_retrieval_path function checks that the PYRETLIFE_RETRIEVAL_PATH environment variable is set, and if so, then the function returns a Path object pointing to this folder.
     Returns:
@@ -330,18 +330,34 @@ def get_retrieval_path() -> Union[Path,str]:
     input_retrieval_path = os.environ.get("PYRETLIFE_RETRIEVAL_PATH")
     if input_retrieval_path is None:
         warnings.warn("PYRETLIFE_RETRIEVAL_PATH not set. Skipping...")
-        input_retrieval_path = ''
+        input_retrieval_path = ""
         return input_retrieval_path
     if not Path(input_retrieval_path).exists():
-        warnings.warn("PYRETLIFE_RETRIEVAL_PATH set, but folder does not exist! Skipping...")
-        input_retrieval_path = ''
+        warnings.warn(
+            "PYRETLIFE_RETRIEVAL_PATH set, but folder does not exist! Skipping..."
+        )
+        input_retrieval_path = ""
         return input_retrieval_path
-    if not bool(subprocess.check_output('git -C '+input_retrieval_path+' rev-parse --is-inside-work-tree',shell=True).decode().strip('\n')):
-        warnings.warn("PYRETLIFE_RETRIEVAL_PATH set, but not a Git Repository! Skipping...")
-        input_retrieval_path=''
+    if not bool(
+        subprocess.check_output(
+            "git -C "
+            + input_retrieval_path
+            + " rev-parse --is-inside-work-tree",
+            shell=True,
+        )
+        .decode()
+        .strip("\n")
+    ):
+        warnings.warn(
+            "PYRETLIFE_RETRIEVAL_PATH set, but not a Git Repository! Skipping..."
+        )
+        input_retrieval_path = ""
     return input_retrieval_path
 
-def set_prt_opacity(input_prt_path: Union[Path,str], input_opacity_path:Union[Path,str]) -> None:
+
+def set_prt_opacity(
+    input_prt_path: Union[Path, str], input_opacity_path: Union[Path, str]
+) -> None:
     file_path = Path(input_prt_path) / "petitRADTRANS" / "path.txt"
     with open(file_path, "r") as path_file:
         orig_path = path_file.read()
