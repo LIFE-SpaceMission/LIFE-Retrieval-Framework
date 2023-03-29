@@ -9,7 +9,6 @@ __maintainer__ = "Björn S. Konrad, Eleonora Alei"
 __email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
 __status__ = "Development"
 
-import importlib
 
 # -----------------------------------------------------------------------------
 # IMPORTS
@@ -20,8 +19,10 @@ import os,sys
 import numpy as np
 from typing import Union, Tuple
 
+import importlib
+import json
 from pyretlife.retrieval import UnitsUtil as units
-from pyretlife.retrieval.config import (
+from pyretlife.retrieval.configuration_ingestion_functions import (
     read_config_file,
     check_if_configs_match,
     populate_dictionaries,
@@ -32,15 +33,15 @@ from pyretlife.retrieval.config import (
     get_retrieval_path,
     set_prt_opacity
 )
-from pyretlife.retrieval.petitRADTRANS_initialization import define_linelists
+from pyretlife.retrieval.radiative_transfer_functions import define_linelists
 from pyretlife.retrieval.likelihood_validation import validate_pt_profile,validate_sum_of_cube,validate_positive_temperatures,validate_sum_of_abundances
-from pyretlife.retrieval.likelihood import calculate_gravity,calculate_log_ground_pressure, calculate_polynomial_profile,calculate_vae_profile,calculate_guillot_profile,calculate_isothermal_profile,calculate_madhuseager_profile,calculate_mod_madhuseager_profile
+from pyretlife.retrieval.atmospheric_variables_functions import calculate_gravity,calculate_log_ground_pressure, calculate_polynomial_profile,calculate_vae_profile,calculate_guillot_profile,calculate_isothermal_profile,calculate_madhuseager_profile,calculate_mod_madhuseager_profile
 from pyretlife.retrieval.config_validation import validate_config
-from pyretlife.retrieval.unit_conversions import (
+from pyretlife.retrieval.unit_conversion_functions import (
     convert_spectrum,
     convert_knowns_and_parameters,
 )
-from pyretlife.retrieval.priors import assign_priors
+from pyretlife.retrieval.priors_functions import assign_priors
 
 
 
@@ -323,18 +324,6 @@ class RetrievalObject:
         #initialize calculated pressure
         self.rt_object.setup_opa_structure(self.press)
 
-    def read_MMW_Storage(self):
-
-        # Read in the molecular weights database
-        self.MMW_Storage = {}
-        reader = np.loadtxt(
-            str(self.input_opacity_path) + "/opa_input_files/Molecular_Weights.txt",
-            dtype="str",
-        )
-        for i in range(len(reader[:, 0])):
-            self.MMW_Storage[reader[i, 0]] = float(reader[i, 1])
-
-
 
 
     def vae_initialization(self):
@@ -377,6 +366,9 @@ class RetrievalObject:
         ## SAVE GITHUB COMMIT STRING
         if self.input_retrieval_path != '':
             os.system('git -C '+self.input_retrieval_path+' show --name-status >'+self.settings["output_folder"]+'/git_commit.txt')
+
+        with open("%s/params.json" % self.settings["output_folder"], "w") as f:
+            json.dump(list(self.parameters.keys()), f, indent=2)
         # save_config_file()
         # save_instrument_data()
         # save_converted_dictionaries()

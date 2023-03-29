@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     # # Run MultiNest
     result = solve(
-        LogLikelihood=g.log_likelihood,
+        LogLikelihood=pyret_ship.calculate_log_likelihood,
         Prior=pyret_ship.unity_cube_to_prior_space,
         n_dims= len(pyret_ship.parameters),
         outputfiles_basename=str(pyret_ship.settings['output_folder'])+'/',

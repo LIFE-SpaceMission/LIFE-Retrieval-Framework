@@ -1,3 +1,4 @@
+from molmass import Formula
 import astropy.constants as const
 import numpy as np
 from typing import Union, Tuple
@@ -157,3 +158,42 @@ def calculate_mod_madhuseager_profile(P:ndarray,temp_vars:dict) -> ndarray:
                 P[i], P2, T2, temp_vars["alpha2"], beta2
             )
     return T
+
+
+def get_MMW_from_nfrac(n_frac):
+    """
+    Calculate the mean molecular weight from a number fraction
+
+    Args:
+        n_fracs : dict
+            A dictionary of number fractions
+    """
+    mass = 0.0
+    for key,value in n_frac.items():
+        spec = key.split("_R_")[0]
+        mass += value*getMM(spec)
+    return mass
+
+
+def getMM(species):
+    """
+    Get the molecular mass of a given species.
+
+    This function uses the molmass package to
+    calculate the mass number for the standard
+    isotope of an input species. If all_iso
+    is part of the input, it will return the
+    mean molar mass.
+
+    Args:
+        species : string
+            The chemical formula of the compound. ie C2H2 or H2O
+    Returns:
+        The molar mass of the compound in atomic mass units.
+    """
+    name = species.split("_")[0]
+    name = name.split(',')[0]
+    f = Formula(name)
+    if "all_iso" in species:
+        return f.mass
+    return f.isotope.massnumber
