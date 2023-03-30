@@ -23,20 +23,6 @@ def calculate_gravity(phys_vars: dict) -> dict:
     return phys_vars
 
 
-def calculate_log_ground_pressure(phys_vars: dict) -> dict:
-    """
-    Function to check if the surface gravity is provided or can
-    be calculated from the provided parameters.
-    """
-
-    # Calculate the surface gravity g given M_Pl and R_pl or log_g.
-    # If in knowns already, skip
-    if "log_P0" not in phys_vars.keys():
-        if "P0" in phys_vars.keys():
-            phys_vars["log_P0"] = np.log10(phys_vars["P0"])
-    return phys_vars
-
-
 def calculate_polynomial_profile(P: ndarray, temp_vars: dict) -> ndarray:
     return np.array(
         np.polyval(

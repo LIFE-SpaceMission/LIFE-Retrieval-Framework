@@ -49,7 +49,6 @@ from pyretlife.retrieval.likelihood_validation import (
 )
 from pyretlife.retrieval.atmospheric_variables_functions import (
     calculate_gravity,
-    calculate_log_ground_pressure,
     calculate_polynomial_profile,
     calculate_vae_profile,
     calculate_guillot_profile,
@@ -345,123 +344,128 @@ class RetrievalObject:
         # Generate dictionaries for the different classes of parameters
         # and add the known parameters as well as a sample of the
         # retrieved parameters to them
-        try:
-            self.assign_cube_to_parameters(cube)
-            # TODO expand on tests here
+        self.assign_cube_to_parameters(cube)
+        # TODO expand on tests here
 
-            # test goodness of random draw
-            if validate_pt_profile(self.settings, self.temp_vars, self.phys_vars):
-                return -1e32
-            if validate_cube_finite(cube):
-                return -1e32
-            self.phys_vars = calculate_gravity(self.phys_vars)
-            self.phys_vars = calculate_log_ground_pressure(self.phys_vars)
+        # test goodness of random draw
+        if validate_pt_profile(self.settings, self.temp_vars, self.phys_vars):
+            # print('PT profile not valid')
+            return -1e99
+        if validate_cube_finite(cube):
+            # print('cube infinite')
+            return -1e99
+        self.phys_vars = calculate_gravity(self.phys_vars)
+        if 'log_P0' not in self.parameters.keys():
+            self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
 
-            if self.settings["parameterization"] != "input":
-                self.calculate_pt_profile(
-                    parameterization=self.settings["parameterization"],
-                    log_ground_pressure=self.phys_vars["log_P0"],
-                    log_top_pressure=self.settings["log_top_pressure"],
-                    layers=self.settings["n_layers"],
-                )
-
-            if validate_positive_temperatures(self.temp):
-                return -1e32
-            if validate_sum_of_abundances(self.chem_vars):
-                return -1e32
-            self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
-                self.press
+        if self.settings["parameterization"] != "input":
+            self.calculate_pt_profile(
+                parameterization=self.settings["parameterization"],
+                log_ground_pressure=self.phys_vars["log_P0"],
+                log_top_pressure=self.settings["log_top_pressure"],
+                layers=self.settings["n_layers"],
             )
 
-            self.abundances = calculate_abundances(self.chem_vars, self.press)
+        if validate_positive_temperatures(self.temp):
+            # print('negative_tempearatures')
+            return -1e99
+        if validate_sum_of_abundances(self.chem_vars):
+            # print('abundances too high')
+            return -1e99
+        self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
+            self.press
+        )
+
+        self.abundances = calculate_abundances(self.chem_vars, self.press)
+        (
+            self.abundances,
+            self.cloud_vars,
+            self.cloud_radii,
+            self.cloud_lnorm,
+        ) = assign_cloud_parameters(
+            self.abundances, self.cloud_vars, self.press
+        )
+
+        self.MMW = calc_MMW(self.abundances, self.settings, self.inert)
+        # initialize calculated pressure
+        self.rt_object.setup_opa_structure(self.press)
+
+        if self.settings["include_moon"]:
+            self.moon_flux = calculate_moon_flux(
+                self.rt_object.freq, self.petitRADTRANS, self.moon_vars
+            )
+
+        if self.settings["include_scattering"][
+                "direct_light"] or self.settings["include_scattering"][
+                "thermal"]:
+
             (
-                self.abundances,
-                self.cloud_vars,
-                self.cloud_radii,
-                self.cloud_lnorm,
-            ) = assign_cloud_parameters(
-                self.abundances, self.cloud_vars, self.press
+                self.rt_object.reflectance,
+                self.rt_object.emissivity,
+            ) = assign_reflectance_emissivity(
+                self.scat_vars, self.rt_object.freq
             )
 
-            self.MMW = calc_MMW(self.abundances, self.settings, self.inert)
-            # initialize calculated pressure
-            self.rt_object.setup_opa_structure(self.press)
+        # Calculate the forward model; this returns the frequency
+        # and the flux F_nu in erg/cm^2/s/Hz.
+        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(
+            self.rt_object,
+            self.settings,
+            self.temp,
+            self.abundances,
+            self.phys_vars["g"],
+            self.MMW,
+            self.cloud_radii,
+            self.cloud_lnorm,
+            self.scat_vars,
+            em_contr=False,
+        )
 
+        self.rt_object.wavelength = self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
+        if validate_spectrum_goodness(self.rt_object.flux):
+            # print('Nan spectrum')
+            return -1e99
+
+        if self.phys_vars["d_syst"] is not None:
+            # WARNING! THIS CONVERTS UNITS OF PRT SPECTRUM from cm-2 to m-2
+            self.rt_object.flux = scale_flux_to_distance(
+                self.rt_object.flux,
+                self.phys_vars["R_pl"],
+                self.phys_vars["d_syst"],
+            )
             if self.settings["include_moon"]:
-                self.moon_flux = calculate_moon_flux(
-                    self.rt_object.freq, self.petitRADTRANS, self.moon_vars
-                )
-
-            if self.settings["include_scattering"][
-                    "direct_light"] or self.settings["include_scattering"][
-                    "thermal"]:
-
-                (
-                    self.rt_object.reflectance,
-                    self.rt_object.emissivity,
-                ) = assign_reflectance_emissivity(
-                    self.scat_vars, self.rt_object.freq
-                )
-
-            # Calculate the forward model; this returns the frequency
-            # and the flux F_nu in erg/cm^2/s/Hz.
-            self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(
-                self.rt_object,
-                self.settings,
-                self.temp,
-                self.abundances,
-                self.phys_vars["g"],
-                self.MMW,
-                self.cloud_radii,
-                self.cloud_lnorm,
-                self.scat_vars,
-                em_contr=False,
-            )
-
-            self.rt_object.wavelength = self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
-            if validate_spectrum_goodness(self.rt_object.flux):
-                return -1e32
-
-            if self.phys_vars["d_syst"] is not None:
-                self.rt_object.flux = scale_flux_to_distance(
-                    self.rt_object.flux,
-                    self.phys_vars["R_pl"],
+                self.moon_flux = scale_flux_to_distance(
+                    self.moon_flux,
+                    self.moon_vars["R_m"],
                     self.phys_vars["d_syst"],
                 )
-                if self.settings["include_moon"]:
-                    self.moon_flux = scale_flux_to_distance(
-                        self.moon_flux,
-                        self.moon_vars["R_m"],
-                        self.phys_vars["d_syst"],
-                    )
 
-            # Calculate total log-likelihood (sum over instruments)
-            log_likelihood = 0.0
-            for inst in self.instrument.keys():
-                # Rebin the spectrum according to the input spectrum if wavelengths
-                # differ strongly
-                rebinned_flux = rebin_spectrum(
+        # Calculate total log-likelihood (sum over instruments)
+        log_likelihood = 0.0
+        for inst in self.instrument.keys():
+            # Rebin the spectrum according to the input spectrum if wavelengths
+            # differ strongly
+            rebinned_flux = rebin_spectrum(
+                self.instrument[inst],
+                self.rt_object.wavelength,
+                self.rt_object.flux,
+            )
+            if self.settings["include_moon"] == "True":
+                rebinned_flux += rebin_spectrum(
                     self.instrument[inst],
                     self.rt_object.wavelength,
-                    self.rt_object.flux,
+                    self.moon_flux,
                 )
-                if self.settings["include_moon"] == "True":
-                    rebinned_flux += rebin_spectrum(
-                        self.instrument[inst],
-                        self.rt_object.wavelength,
-                        self.moon_flux,
-                    )
 
-                # Calculate log-likelihood
-                log_likelihood += -0.5 * np.sum(
-                    (
-                        (rebinned_flux - self.instrument[inst]["flux"])
-                        / self.instrument[inst]["error"]
-                    )
-                    ** 2.0
+            # Calculate log-likelihood
+            log_likelihood += -0.5 * np.sum(
+                (
+                    (rebinned_flux - self.instrument[inst]["flux"])
+                    / self.instrument[inst]["error"]
                 )
-        except:
-            import ipdb;ipdb.set_trace()
+                ** 2.0
+                )
+        print(log_likelihood)
         return log_likelihood
 
     def vae_initialization(self):
