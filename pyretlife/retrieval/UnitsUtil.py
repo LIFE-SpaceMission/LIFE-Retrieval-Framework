@@ -26,7 +26,7 @@ class UnitsUtil:
             "stellar_radius": self.custom_unit(
                 "pRT_R_sun", pRT_const.r_sun * u.cm
             ),
-            "semimajoraxis": self.custom_unit("pRT_AU", pRT_const.AU * u.cm),
+            "semimajor_axis": self.custom_unit("pRT_AU", pRT_const.AU * u.cm),
             # MOON PARAMETERS
             "T_m": u.K,
             "R_m": u.pRT_R_earth,
@@ -49,7 +49,7 @@ class UnitsUtil:
             # SCATTERING PARAMETERS
             "stellar_temperature": u.K,
             "stellar_radius": u.cm,
-            "semimajoraxis": u.cm,
+            "semimajor_axis": u.cm,
             # MOON PARAMETERS
             "T_m": u.K,
             "R_m": u.cm,
