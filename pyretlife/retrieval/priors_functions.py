@@ -31,6 +31,8 @@ def assign_priors(dictionary: dict) -> dict:
             dictionary[parameter]["prior"]["function"] = gaussian_prior
         elif prior_kind == "log-gaussian":
             dictionary[parameter]["prior"]["function"] = log_gaussian_prior
+        elif prior_kind == "fourth-uniform":
+            dictionary[parameter]["prior"]["function"] = fourth_power_uniform_prior
         else:
             invalid_prior(parameter)
         # TODO Implement ULU, FU, I
@@ -93,6 +95,9 @@ def log_gaussian_prior(r, prior_specs):
     prior_logspace = {"mean": prior_specs["log_mean"], "sigma": prior_specs["log_sigma"]}
     return np.power(10, gaussian_prior(r, prior_logspace))
 
+def fourth_power_uniform_prior(r, prior_specs):
+    prior_fourth = {"lower": prior_specs["fourth_lower"], "upper": prior_specs["fourth_upper"]}
+    return np.power(uniform_prior(r, prior_fourth), 4)
 
 def invalid_prior(par):
     # Note: If you are exiting the run with an error, you should not use
