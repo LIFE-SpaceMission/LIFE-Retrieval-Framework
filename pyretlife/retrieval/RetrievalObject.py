@@ -349,10 +349,8 @@ class RetrievalObject:
 
         # test goodness of random draw
         if validate_pt_profile(self.settings, self.temp_vars, self.phys_vars):
-            # print('PT profile not valid')
             return -1e99
         if validate_cube_finite(cube):
-            # print('cube infinite')
             return -1e99
         self.phys_vars = calculate_gravity(self.phys_vars)
         if 'log_P0' not in self.parameters.keys():
@@ -367,10 +365,8 @@ class RetrievalObject:
             )
 
         if validate_positive_temperatures(self.temp):
-            # print('negative_tempearatures')
             return -1e99
         if validate_sum_of_abundances(self.chem_vars):
-            # print('abundances too high')
             return -1e99
         self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
             self.press
@@ -423,7 +419,6 @@ class RetrievalObject:
 
         self.rt_object.wavelength = self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
         if validate_spectrum_goodness(self.rt_object.flux):
-            # print('Nan spectrum')
             return -1e99
 
         if self.phys_vars["d_syst"] is not None:
@@ -465,7 +460,6 @@ class RetrievalObject:
                 )
                 ** 2.0
                 )
-        print(log_likelihood)
         return log_likelihood
 
     def vae_initialization(self):
