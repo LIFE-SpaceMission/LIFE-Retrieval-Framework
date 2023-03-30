@@ -155,10 +155,10 @@ def calculate_moon_flux(frequency: ndarray, pRT, moon_vars: dict):
     return np.pi * B_nu  # in erg/cm^2/s/Hz
 
 
-def assign_reflectance_emissivity(scat_vars, frequency):
+def assign_reflectance_emissivity(scat_vars:dict, frequency:ndarray) -> Tuple[ndarray, ndarray]:
     reflectance = scat_vars["reflectance"] * np.ones_like(frequency)
     emissivity = scat_vars["emissivity"] * np.ones_like(frequency)
-
+    return reflectance, emissivity
 
 def calculate_emission_flux(
     rt_object,
@@ -181,7 +181,7 @@ def calculate_emission_flux(
     # TODO implement better logging
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, "w")
-    if not settings["directlight"]:
+    if not settings['include_scattering']["direct_light"]:
         rt_object.calc_flux(
             temp,
             abundances,
@@ -189,8 +189,7 @@ def calculate_emission_flux(
             MMW,
             radius=cloud_radii,
             sigma_lnorm=cloud_lnorm,
-            add_cloud_scat_as_abs=True
-            in settings["include_scattering"]["clouds"].values(),
+            add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
             contribution=em_contr,
         )
     else:
@@ -205,8 +204,7 @@ def calculate_emission_flux(
             Tstar=scat_vars["stellar_temperature"],
             Rstar=scat_vars["stellar_radius"],
             semimajoraxis=scat_vars["semimajor_axis"],
-            add_cloud_scat_as_abs=True
-            in settings["include_scattering"]["clouds"].values(),
+            add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
             contribution=em_contr,
         )
     # sys.stdout = old_stdout

@@ -50,17 +50,10 @@ if __name__ == "__main__":
     pyret_ship.assign_knowns()
     pyret_ship.assign_prior_functions()
     pyret_ship.vae_initialization()
-
+    pyret_ship.petitRADTRANS_initialization()
 
     # TODO Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
     pyret_ship.saving_inputs_to_folder()
-
-    pyret_ship.petitRADTRANS_initialization()
-    pyret_ship.read_MMW_Storage()
-    import ipdb
-
-    ipdb.set_trace()
-
 
 
     # # Run MultiNest
@@ -72,7 +65,7 @@ if __name__ == "__main__":
         n_live_points=pyret_ship.settings['live_points'],
         verbose=True,
     )
-
+    #
     # # Print final results
     # print("\n evidence: %(logZ).1f +- %(logZerr).1f\n" % result)
     # print("parameter values:")

@@ -34,21 +34,29 @@ def validate_pt_profile(
     return result
 
 
-def validate_sum_of_cube(cube: list) -> bool:
-    if np.isfinite(cube).all():
+def validate_cube_finite(cube: list) -> bool:
+    if not np.isfinite(cube).all():
         return True
+    else:
+        return False
 
 
 def validate_positive_temperatures(temp: ndarray) -> bool:
     if any((temp < 0).tolist()):
         return True
+    else:
+        return False
 
 
 def validate_sum_of_abundances(chem_vars: dict) -> bool:
     if sum(chem_vars.values()) > 1:
         return True
+    else:
+        return False
 
 
 def validate_spectrum_goodness(flux: ndarray) -> bool:
     if np.sum(np.isnan(flux)) > 0:
         return True
+    else:
+        return False

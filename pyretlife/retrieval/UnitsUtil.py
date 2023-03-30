@@ -163,14 +163,14 @@ class UnitsUtil:
         converted_prior = {}
 
         # Conversion of LogUniform priors
-        if prior["kind"] in ["log-uniform"]:
+        if prior["kind"] == "log-uniform":
             for spec in prior["prior_specs"]:
                 converted_prior[spec] = np.log10(
                     (10 ** prior["prior_specs"][spec] * input_unit)
                     .to(target_unit)
                     .value
                 )
-        elif prior["kind"] in ["log-gaussian"]:
+        elif prior["kind"] == "log-gaussian":
             # only translate the mean but leave the sigma the same (in log space)
             converted_prior["log_mean"] = np.log10(
                 (10 ** prior["prior_specs"]["log_mean"] * input_unit)

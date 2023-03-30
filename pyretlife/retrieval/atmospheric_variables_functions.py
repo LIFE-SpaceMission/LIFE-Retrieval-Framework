@@ -185,13 +185,13 @@ def assign_cloud_parameters(
 
 
 def calc_MMW(abundances: dict, settings: dict, inert: ndarray) -> ndarray:
-    mmw = np.zeros_like(abundances)  # prevent division by 0
+    mmw = np.zeros_like(range(settings['n_layers']),dtype=float)
+    for layer in range(settings['n_layers']):
+        for key in abundances.keys():
+            mmw[layer] = mmw[layer]+ abundances[key][layer] * getMM(key)
 
-    for key in abundances.keys():
-        mmw += abundances[key] * getMM(key)
-
-    if "mmw_inert" in settings.keys():
-        mmw += inert * float(settings["mmw_inert"])
+        if "mmw_inert" in settings.keys():
+             mmw[layer] =mmw[layer]+ inert[layer] * float(settings["mmw_inert"])
     return mmw
 
 

@@ -60,7 +60,8 @@ def convert_knowns_and_parameters(dictionary: dict, units: UnitsUtil) -> dict:
                 dictionary[section]["prior"],
             )
             refined_dict["prior"] = dictionary[section]["prior"]
-            refined_dict["prior"]["converted_prior_specs"] = converted_prior
+            refined_dict['prior']['input_prior_specs']= dictionary[section]["prior"]['prior_specs']
+            refined_dict["prior"]["prior_specs"] = converted_prior
         refined_dict["type"] = dictionary[section]["type"]
         dictionary[section] = refined_dict
     return dictionary
