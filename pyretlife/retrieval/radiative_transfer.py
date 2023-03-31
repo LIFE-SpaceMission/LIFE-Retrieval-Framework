@@ -1,20 +1,22 @@
+import os
+import sys
 from pathlib import Path
-from typing import Union, Tuple
-import os, sys
+from typing import Union, Tuple, Set
+
 import numpy as np
-from numpy import ndarray
 import spectres
+from numpy import ndarray
 
 
 def define_linelists(
     config: dict, settings: dict, input_opacity_path: Union[str, Path]
 ) -> Tuple[list, list, list, list]:
-    used_line_species = []
+
     used_rayleigh_species = []
     used_cia_species = []
     used_cloud_species = []
 
-    species = list(set(config["CHEMICAL COMPOSITION PARAMETERS"].keys()))
+    species = list(config["CHEMICAL COMPOSITION PARAMETERS"].keys())
 
     used_line_species = ingest_opacity_linelists(settings, input_opacity_path)
 
@@ -103,6 +105,7 @@ def ingest_cia_linelists(
         Path(input_opacity_path) / "opacities" / "continuum" / "CIA"
     )
     for cia in continuum_opacities:
+        cia: str
         cia_components = cia.split("-")
         if len(cia_components) > 1:
             if (
@@ -115,7 +118,7 @@ def ingest_cia_linelists(
 
 
 def ingest_cloud_linelists(
-    cloud_species: list, input_opacity_path: Union[str, Path]
+    cloud_species: Set[str], input_opacity_path: Union[str, Path]
 ) -> list:
     used_cloud_species = []
     cloud_dict = {
@@ -143,22 +146,25 @@ def ingest_cloud_linelists(
     return used_cloud_species
 
 
-def calculate_moon_flux(frequency: ndarray, pRT, moon_vars: dict):
-    exponent = pRT.nat_cst.h * frequency / (pRT.nat_cst.kB * moon_vars["T_m"])
-    B_nu = (
-        2
-        * pRT.nat_cst.h
-        * frequency**3
-        / pRT.nat_cst.c**2
-        / (np.exp(exponent) - 1)
+def calculate_moon_flux(frequency: ndarray, prt_instance, moon_vars: dict):
+    exponent = prt_instance.nat_cst.h * frequency / (prt_instance.nat_cst.kB * moon_vars["T_m"])
+    blackbody_nu = (
+            2
+            * prt_instance.nat_cst.h
+            * frequency ** 3
+            / prt_instance.nat_cst.c ** 2
+            / (np.exp(exponent) - 1)
     )  # in erg/cm^2/s/Hz/sr
-    return np.pi * B_nu  # in erg/cm^2/s/Hz
+    return np.pi * blackbody_nu  # in erg/cm^2/s/Hz
 
 
-def assign_reflectance_emissivity(scat_vars:dict, frequency:ndarray) -> Tuple[ndarray, ndarray]:
+def assign_reflectance_emissivity(
+    scat_vars: dict, frequency: ndarray
+) -> Tuple[ndarray, ndarray]:
     reflectance = scat_vars["reflectance"] * np.ones_like(frequency)
     emissivity = scat_vars["emissivity"] * np.ones_like(frequency)
     return reflectance, emissivity
+
 
 def calculate_emission_flux(
     rt_object,
@@ -166,7 +172,7 @@ def calculate_emission_flux(
     temp: ndarray,
     abundances: dict,
     gravity: float,
-    MMW: ndarray,
+    mmw: ndarray,
     cloud_radii: dict,
     cloud_lnorm: int,
     scat_vars: dict,
@@ -181,12 +187,12 @@ def calculate_emission_flux(
     # TODO implement better logging
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, "w")
-    if not settings['include_scattering']["direct_light"]:
+    if not settings["include_scattering"]["direct_light"]:
         rt_object.calc_flux(
             temp,
             abundances,
             gravity,
-            MMW,
+            mmw,
             radius=cloud_radii,
             sigma_lnorm=cloud_lnorm,
             add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
@@ -197,7 +203,7 @@ def calculate_emission_flux(
             temp,
             abundances,
             gravity,
-            MMW,
+            mmw,
             radius=cloud_radii,
             sigma_lnorm=cloud_lnorm,
             geometry=settings["geometry"],

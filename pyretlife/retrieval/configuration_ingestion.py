@@ -20,7 +20,7 @@ import yaml
 
 from deepdiff import DeepDiff
 
-from pyretlife.retrieval.UnitsUtil import UnitsUtil
+from pyretlife.retrieval.units import UnitsUtil
 
 
 # -----------------------------------------------------------------------------
@@ -167,7 +167,7 @@ def populate_dictionaries(
     return knowns, parameters, settings, units
 
 
-def P0_test(self, ind=None):
+def ground_pressure_test(self, ind=None):
     # TODO check function
     """
     Function to check if the surface pressure is provided or can
@@ -309,19 +309,20 @@ def get_check_prt_path() -> Path:
 
     """
 
-    input_pRT_path = os.environ.get("PYRETLIFE_PRT_PATH")
-    if input_pRT_path is None:
+    input_prt_path = os.environ.get("PYRETLIFE_PRT_PATH")
+    if input_prt_path is None:
         raise RuntimeError("PYRETLIFE_PRT_PATH not set!")
-    if not Path(input_pRT_path).exists():
+    if not Path(input_prt_path).exists():
         raise RuntimeError("PYRETLIFE_PRT_PATH set, but folder does not exist!")
-    if len(glob.glob(input_pRT_path + "/petitRADTRANS/*")) == 0:
+    if len(glob.glob(input_prt_path + "/petitRADTRANS/*")) == 0:
         raise RuntimeError("PYRETLIFE_PRT_PATH set, but folder is not valid.")
-    return Path(input_pRT_path)
+    return Path(input_prt_path)
 
 
 def get_retrieval_path() -> Union[Path, str]:
     """
-    The get_retrieval_path function checks that the PYRETLIFE_RETRIEVAL_PATH environment variable is set, and if so, then the function returns a Path object pointing to this folder.
+    The get_retrieval_path function checks that the PYRETLIFE_RETRIEVAL_PATH environment variable is set,
+    and if so, then the function returns a Path object pointing to this folder.
     Returns:
         The path to the retrieval folder
 

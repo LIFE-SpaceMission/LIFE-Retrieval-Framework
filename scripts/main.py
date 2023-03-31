@@ -10,7 +10,7 @@ from argparse import ArgumentParser, Namespace
 
 from pymultinest.solve import solve
 
-from pyretlife.retrieval import RetrievalObject
+from pyretlife.retrieval.run import RetrievalObject
 
 
 # -----------------------------------------------------------------------------
@@ -39,12 +39,11 @@ if __name__ == "__main__":
     # warnings.simplefilter("ignore")
     #
 
-
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
 
     # Initializes a RetrievalObject (the pyret_ship)
-    pyret_ship = RetrievalObject.RetrievalObject(run_retrieval=True)
+    pyret_ship = RetrievalObject(run_retrieval=True)
     pyret_ship.load_configuration(config_file=args.config)
     pyret_ship.unit_conversion()
     pyret_ship.assign_knowns()
@@ -52,17 +51,17 @@ if __name__ == "__main__":
     pyret_ship.vae_initialization()
     pyret_ship.petitRADTRANS_initialization()
 
-    # TODO Paste the full config file (including the default arguments) to the output directory (and also other things e.g. retrieval version, github commit string, environment variables for future backtracing)
+    # TODO Paste the full config file (including the default arguments) to the output directory (and also other things
+    #  e.g. retrieval version, github commit string, environment variables for future backtracing)
     pyret_ship.saving_inputs_to_folder()
-
 
     # # Run MultiNest
     result = solve(
         LogLikelihood=pyret_ship.calculate_log_likelihood,
         Prior=pyret_ship.unity_cube_to_prior_space,
-        n_dims= len(pyret_ship.parameters),
-        outputfiles_basename=str(pyret_ship.settings['output_folder'])+'/',
-        n_live_points=pyret_ship.settings['live_points'],
+        n_dims=len(pyret_ship.parameters),
+        outputfiles_basename=str(pyret_ship.settings["output_folder"]) + "/",
+        n_live_points=pyret_ship.settings["live_points"],
         verbose=True,
     )
     #

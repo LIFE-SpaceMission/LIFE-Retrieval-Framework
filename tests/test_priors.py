@@ -9,7 +9,7 @@ Unit tests for priors_timmy.py.
 import numpy as np
 import pytest
 
-from pyretlife.retrieval.priors_timmy import (
+from pyretlife.legacy_src.priors_timmy import (
     get_prior_from_string,
     GaussianPrior,
     UniformPrior,

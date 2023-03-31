@@ -14,14 +14,26 @@ __status__ = "Development"
 # IMPORTS
 # -----------------------------------------------------------------------------
 
-from pathlib import Path
-import os, sys
-import numpy as np
-
 import importlib
 import json
-from pyretlife.retrieval import UnitsUtil as units
-from pyretlife.retrieval.configuration_ingestion_functions import (
+import os
+import sys
+from pathlib import Path
+import numpy as np
+
+from pyretlife.retrieval.atmospheric_variables import (
+    calculate_gravity,
+    calculate_polynomial_profile,
+    calculate_vae_profile,
+    calculate_guillot_profile,
+    calculate_isothermal_profile,
+    calculate_madhuseager_profile,
+    calculate_mod_madhuseager_profile,
+    calculate_abundances,
+    assign_cloud_parameters,
+    calc_mmw,
+)
+from pyretlife.retrieval.configuration_ingestion import (
     read_config_file,
     check_if_configs_match,
     populate_dictionaries,
@@ -32,14 +44,6 @@ from pyretlife.retrieval.configuration_ingestion_functions import (
     get_retrieval_path,
     set_prt_opacity,
 )
-from pyretlife.retrieval.radiative_transfer_functions import (
-    define_linelists,
-    calculate_moon_flux,
-    assign_reflectance_emissivity,
-    calculate_emission_flux,
-    scale_flux_to_distance,
-    rebin_spectrum,
-)
 from pyretlife.retrieval.likelihood_validation import (
     validate_pt_profile,
     validate_cube_finite,
@@ -47,24 +51,19 @@ from pyretlife.retrieval.likelihood_validation import (
     validate_sum_of_abundances,
     validate_spectrum_goodness,
 )
-from pyretlife.retrieval.atmospheric_variables_functions import (
-    calculate_gravity,
-    calculate_polynomial_profile,
-    calculate_vae_profile,
-    calculate_guillot_profile,
-    calculate_isothermal_profile,
-    calculate_madhuseager_profile,
-    calculate_mod_madhuseager_profile,
-    calculate_abundances,
-    assign_cloud_parameters,
-    calc_MMW,
+from pyretlife.retrieval.priors import assign_priors
+from pyretlife.retrieval.radiative_transfer import (
+    define_linelists,
+    calculate_moon_flux,
+    assign_reflectance_emissivity,
+    calculate_emission_flux,
+    scale_flux_to_distance,
+    rebin_spectrum,
 )
-from pyretlife.retrieval.config_validation import validate_config
-from pyretlife.retrieval.unit_conversion_functions import (
-    convert_spectrum,
-    convert_knowns_and_parameters,
-)
-from pyretlife.retrieval.priors_functions import assign_priors
+from pyretlife.retrieval.units import (UnitsUtil,
+                                       convert_spectrum,
+                                       convert_knowns_and_parameters,
+                                       )
 
 
 # -----------------------------------------------------------------------------
@@ -101,6 +100,18 @@ class RetrievalObject:
         """
 
         # Store constructor arguments
+        self.vae_pt = None
+        self.moon_flux = None
+        self.MMW = None
+        self.inert = None
+        self.temp = None
+        self.press = None
+        self.moon_vars = None
+        self.scat_vars = None
+        self.cloud_vars = None
+        self.phys_vars = None
+        self.chem_vars = None
+        self.temp_vars = None
         self.config = None
         self.config_default = None
         self.rt_object = None
@@ -120,7 +131,7 @@ class RetrievalObject:
         self.settings = {}
         self.instrument = {}
         # Create a units object to enable unit conversions
-        self.units = units.UnitsUtil(self.petitRADTRANS.nat_cst)
+        self.units = UnitsUtil(self.petitRADTRANS.nat_cst)
 
     def load_configuration(self, config_file: str):
         # Load standard configurations (hard-coded)
@@ -165,7 +176,9 @@ class RetrievalObject:
     def unit_conversion(self):
         self.instrument = convert_spectrum(self.instrument, self.units)
         self.knowns = convert_knowns_and_parameters(self.knowns, self.units)
-        self.parameters = convert_knowns_and_parameters(self.parameters, self.units)
+        self.parameters = convert_knowns_and_parameters(
+            self.parameters, self.units
+        )
 
     def assign_knowns(self):
         self.temp_vars = {}
@@ -213,6 +226,7 @@ class RetrievalObject:
             )
 
     def assign_prior_functions(self):
+        self.parameters = read_input_prior(self.parameters)
         self.parameters = assign_priors(self.parameters)
         # TODO Check that all priors are valid (invalid_prior function in priors.py otherwise)
 
@@ -253,12 +267,12 @@ class RetrievalObject:
         )
 
     def unity_cube_to_prior_space(self, cube):
-        ccube = cube.copy()
+        cube_copy = cube.copy()
         for par in self.parameters.keys():
             prior = self.parameters[par]["prior"]
             idx = list(self.parameters.keys()).index(par)
-            ccube[idx] = prior["function"](ccube[idx], prior["prior_specs"])
-        return ccube
+            cube_copy[idx] = prior["function"](cube_copy[idx], prior["prior_specs"])
+        return cube_copy
 
     def assign_cube_to_parameters(self, cube):
         for par in self.parameters.keys():
@@ -308,22 +322,16 @@ class RetrievalObject:
 
         # TODO understand what is going on here
         elif parameterization == "vae_pt":
-            self.temp = calculate_vae_profile(
-                self.press, self.vae_pt, self.temp_vars
-            )
+            self.temp = calculate_vae_profile(self.press, self.vae_pt, self.temp_vars)
 
         elif parameterization == "guillot":
-            self.temp = calculate_guillot_profile(
-                self.press, self.petitRADTRANS, self.temp_vars
-            )
+            self.temp = calculate_guillot_profile(self.press, self.petitRADTRANS, self.temp_vars)
 
         elif self.settings["parameterization"] == "isothermal":
             self.temp = calculate_isothermal_profile(self.press, self.temp_vars)
 
         elif self.settings["parameterization"] == "madhuseager":
-            self.temp = calculate_madhuseager_profile(
-                self.press, self.temp_vars
-            )
+            self.temp = calculate_madhuseager_profile(self.press, self.temp_vars)
 
         elif self.settings["parameterization"] == "mod_madhuseager":
             self.temp = calculate_mod_madhuseager_profile(
@@ -353,7 +361,7 @@ class RetrievalObject:
         if validate_cube_finite(cube):
             return -1e99
         self.phys_vars = calculate_gravity(self.phys_vars)
-        if 'log_P0' not in self.parameters.keys():
+        if "log_P0" not in self.parameters.keys():
             self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
 
         if self.settings["parameterization"] != "input":
@@ -382,19 +390,17 @@ class RetrievalObject:
             self.abundances, self.cloud_vars, self.press
         )
 
-        self.MMW = calc_MMW(self.abundances, self.settings, self.inert)
+        self.MMW = calc_mmw(self.abundances, self.settings, self.inert)
         # initialize calculated pressure
         self.rt_object.setup_opa_structure(self.press)
 
         if self.settings["include_moon"]:
-            self.moon_flux = calculate_moon_flux(
-                self.rt_object.freq, self.petitRADTRANS, self.moon_vars
-            )
+            self.moon_flux = calculate_moon_flux(self.rt_object.freq, self.petitRADTRANS, self.moon_vars)
 
-        if self.settings["include_scattering"][
-                "direct_light"] or self.settings["include_scattering"][
-                "thermal"]:
-
+        if (
+            self.settings["include_scattering"]["direct_light"]
+            or self.settings["include_scattering"]["thermal"]
+        ):
             (
                 self.rt_object.reflectance,
                 self.rt_object.emissivity,
@@ -404,20 +410,14 @@ class RetrievalObject:
 
         # Calculate the forward model; this returns the frequency
         # and the flux F_nu in erg/cm^2/s/Hz.
-        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(
-            self.rt_object,
-            self.settings,
-            self.temp,
-            self.abundances,
-            self.phys_vars["g"],
-            self.MMW,
-            self.cloud_radii,
-            self.cloud_lnorm,
-            self.scat_vars,
-            em_contr=False,
-        )
+        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
+                                                                           self.abundances, self.phys_vars["g"],
+                                                                           self.MMW, self.cloud_radii, self.cloud_lnorm,
+                                                                           self.scat_vars, em_contr=False)
 
-        self.rt_object.wavelength = self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
+        self.rt_object.wavelength = (
+            self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
+        )
         if validate_spectrum_goodness(self.rt_object.flux):
             return -1e99
 
@@ -459,7 +459,7 @@ class RetrievalObject:
                     / self.instrument[inst]["error"]
                 )
                 ** 2.0
-                )
+            )
         return log_likelihood
 
     def vae_initialization(self):
@@ -499,7 +499,7 @@ class RetrievalObject:
                 + input_string.split("/")[-1]
             )
 
-        ## SAVE GITHUB COMMIT STRING
+        # SAVE GITHUB COMMIT STRING
         if self.input_retrieval_path != "":
             os.system(
                 "git -C "

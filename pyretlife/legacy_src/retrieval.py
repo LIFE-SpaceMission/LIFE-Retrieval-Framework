@@ -10,7 +10,7 @@ from argparse import ArgumentParser, Namespace
 
 # from pprint import pprint
 
-import os,warnings
+import os, warnings
 
 from pyretlife.legacy_src import global_class as rp_globals
 from pymultinest.solve import solve
@@ -21,6 +21,7 @@ from pymultinest.solve import solve
 # -----------------------------------------------------------------------------
 # DEFINITIONS
 # -----------------------------------------------------------------------------
+
 
 def get_cli_arguments() -> Namespace:
     parser = ArgumentParser()

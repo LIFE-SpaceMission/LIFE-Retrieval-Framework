@@ -13,6 +13,9 @@ retrieved; the indexing follows the order of the params global list.
 
 import scipy.stats as stat
 import numpy as np
+from typing import Union
+from pathlib import Path
+from numpy import ndarray
 
 
 # -----------------------------------------------------------------------------
@@ -32,13 +35,30 @@ def assign_priors(dictionary: dict) -> dict:
         elif prior_kind == "log-gaussian":
             dictionary[parameter]["prior"]["function"] = log_gaussian_prior
         elif prior_kind == "fourth-uniform":
-            dictionary[parameter]["prior"]["function"] = fourth_power_uniform_prior
+            dictionary[parameter]["prior"][
+                "function"
+            ] = fourth_power_uniform_prior
+        elif prior_kind == "custom":
+            dictionary[parameter]["prior"][
+                "function"
+            ] = custom_prior
+
+            dictionary[parameter]["prior"][
+                "prior_specs"
+            ]['prior_data'] = read_custom_prior(dictionary[parameter]["prior"][
+                "prior_specs"
+            ]['prior_path'])
         else:
-            invalid_prior(parameter)
-        # TODO Implement ULU, FU, I
+            raise ValueError(
+                f"{parameter} does not have a valid prior. Please! choose a valid prior! "
+                f"Exiting the run..."
+            )
+        # TODO Implement ULU, I
 
     return dictionary
 
+def read_custom_prior(path: Union[str,Path]) -> ndarray:
+    return np.loadtxt(path)
 
 def uniform_prior(r, prior_specs):
     """
@@ -87,17 +107,30 @@ def gaussian_prior(r, prior_specs):
 
 
 def log_uniform_prior(r, prior_specs):
-    prior_logspace = {"lower": prior_specs["log_lower"], "upper": prior_specs["log_upper"]}
+    prior_logspace = {
+        "lower": prior_specs["log_lower"],
+        "upper": prior_specs["log_upper"],
+    }
     return np.power(10, uniform_prior(r, prior_logspace))
 
 
 def log_gaussian_prior(r, prior_specs):
-    prior_logspace = {"mean": prior_specs["log_mean"], "sigma": prior_specs["log_sigma"]}
+    prior_logspace = {
+        "mean": prior_specs["log_mean"],
+        "sigma": prior_specs["log_sigma"],
+    }
     return np.power(10, gaussian_prior(r, prior_logspace))
 
+
 def fourth_power_uniform_prior(r, prior_specs):
-    prior_fourth = {"lower": prior_specs["fourth_lower"], "upper": prior_specs["fourth_upper"]}
+    prior_fourth = {
+        "lower": prior_specs["fourth_lower"],
+        "upper": prior_specs["fourth_upper"],
+    }
     return np.power(uniform_prior(r, prior_fourth), 4)
+
+def custom_prior(r,prior_specs):
+    return np.quantile(prior_specs['data'], r, axis=0)
 
 def invalid_prior(par):
     # Note: If you are exiting the run with an error, you should not use
@@ -107,7 +140,4 @@ def invalid_prior(par):
     # give the user a clear error message and traceback, and will also
     # exit the run with a non-zero return code.
 
-    raise ValueError(
-        f"{par} does not have a valid prior. Please! choose a valid prior! "
-        f"Exiting the run..."
-    )
+

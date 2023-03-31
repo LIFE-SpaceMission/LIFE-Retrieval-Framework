@@ -72,89 +72,6 @@ class UnitsUtil:
         except KeyError:
             return u.dimensionless_unscaled
 
-    # def unit_extract(self, key, input_string):
-    #     # Split the string into components ignoring whitespaces
-    #     splitted = [
-    #         string for string in input_string.split(" ") if string != ""
-    #     ]
-    #
-    #     # Read the provided units. If none are provided use standard input.
-    #     ind = [i for i in range(len(splitted)) if splitted[i] == "Unit"]
-    #     if not ind:  # This checks if `ind` is empty!
-    #         input_unit = self.return_units(key, self.std_input_units)
-    #     else:
-    #         input_unit = u.Unit(" ".join(splitted[(ind[0] + 1) :]))
-    #         splitted = splitted[: ind[0]]
-    #
-    #     return input_unit, splitted
-    #
-    # @staticmethod
-    # def unit_conv(
-    #     key,
-    #     input_unit,
-    #     target_unit,
-    #     input_truth,
-    #     prior_type=None,
-    #     input_prior=None,
-    #     printing=True,
-    # ):
-    #     # Convert the truth if it is provided
-    #     conv_truth = (
-    #         (input_truth * input_unit).to(target_unit).value
-    #         if input_truth is not None
-    #         else None
-    #     )
-    #
-    #     # If provided convert the prior
-    #     if (prior_type is not None) and (input_prior is not None):
-    #         # Conversion of LogUniform priors
-    #         if prior_type in ["log-uniform"]:
-    #             conv_prior = [
-    #                 (10**i * input_unit).to(target_unit) for i in input_prior
-    #             ]
-    #             conv_prior = [np.log10(i.value) for i in conv_prior]
-    #
-    #         # Conversion of LogGaussian priors
-    #         elif prior_type in ["log-gaussian"]:
-    #             conv_prior = [
-    #                 (10 ** input_prior[0] * input_unit).to(target_unit),
-    #                 input_prior[1],
-    #             ]
-    #             conv_prior = [np.log10(conv_prior[0].value), conv_prior[1]]
-    #
-    #         # G and U priors are transformed easily as they do not contain a
-    #         # logarithm they are just scaled
-    #         # ULU and FU (only used for abundances and PT parameters in the
-    #         # polynomial profile. no special treatment)
-    #         else:
-    #             conv_prior = [
-    #                 (i * input_unit).to(target_unit).value for i in input_prior
-    #             ]
-    #
-    #         # If a conversion was performed print it as a check
-    #         if (target_unit != input_unit) and printing:
-    #             print(
-    #                 "Conversion performed for retrieved parameter " + key + "."
-    #             )
-    #             print(
-    #                 "Input value:",
-    #                 input_truth,
-    #                 input_unit,
-    #                 "\tInput prior:",
-    #                 prior_type,
-    #                 input_prior,
-    #             )
-    #             print(
-    #                 "Converted value:",
-    #                 conv_truth,
-    #                 target_unit,
-    #                 "\tConverted prior:",
-    #                 prior_type,
-    #                 conv_prior,
-    #             )
-    #             print()
-    #
-    #         return conv_truth, conv_prior
 
     @staticmethod
     def prior_unit_conversion(
@@ -224,20 +141,6 @@ class UnitsUtil:
 
         return converted_truth
 
-    # def unit_spectrum_extract(self, unit_str: str = ""):
-    #     if len(unit_str)==0:  # This checks if `ind` is empty!
-    #         input_unit = [
-    #             self.return_units("wavelength", self.std_input_units),
-    #             self.return_units("flux", self.std_input_units),
-    #         ]
-    #     else:
-    #         input_unit = [
-    #             u.Unit(i)
-    #             for i in (unit_str.split(","))
-    #         ]
-    #
-    #     return input_unit[0], input_unit[1]
-
     @staticmethod
     def unit_spectrum_conversion(
         key, input_unit, target_unit, input_data, printing=True
@@ -302,3 +205,71 @@ class UnitsUtil:
             .value
         )
         return conv_wl, conv_flux
+
+def convert_spectrum(instrument: dict, units: UnitsUtil) -> dict:
+    for data_file in instrument.keys():
+        converted_unit_wavelength = units.return_units(
+            "wavelength", units.retrieval_units
+        )
+        converted_unit_flux = units.return_units("flux", units.retrieval_units)
+        converted_data = units.unit_spectrum_conversion(
+            data_file,
+            [
+                instrument[data_file]["input_unit_wavelength"],
+                instrument[data_file]["input_unit_flux"],
+            ],
+            [converted_unit_wavelength, converted_unit_flux],
+            instrument[data_file]["input_data"],
+        )
+
+        instrument[data_file] = {
+            "wavelength": converted_data[:, 0],
+            "flux": converted_data[:, 1],
+            "error": converted_data[:, 2],
+            "unit_wavelength": converted_unit_wavelength,
+            "unit_flux": converted_unit_flux,
+            "input_wavelength": instrument[data_file]["input_data"][:, 0],
+            "input_flux": instrument[data_file]["input_data"][:, 1],
+            "input_error": instrument[data_file]["input_data"][:, 2],
+            "input_unit_wavelength": instrument[data_file][
+                "input_unit_wavelength"
+            ],
+            "input_unit_flux": instrument[data_file]["input_unit_flux"],
+        }
+    return instrument
+
+
+def convert_knowns_and_parameters(dictionary: dict, units: UnitsUtil) -> dict:
+    for section in dictionary.keys():
+        refined_dict = {}
+        # Convert the input to retrieval units
+        converted_unit = units.return_units(section, units.retrieval_units)
+        refined_dict["input_unit"] = dictionary[section]["unit"]
+        refined_dict["unit"] = converted_unit
+
+        if "truth" in dictionary[section].keys():
+            converted_truth = units.truth_unit_conversion(
+                section,
+                dictionary[section]["unit"],
+                converted_unit,
+                dictionary[section]["truth"],
+            )
+            refined_dict["input_truth"] = dictionary[section]["truth"]
+            refined_dict["truth"] = converted_truth
+
+        if "prior" in dictionary[section].keys():
+            converted_prior = units.prior_unit_conversion(
+                section,
+                dictionary[section]["unit"],
+                converted_unit,
+                dictionary[section]["prior"],
+            )
+            refined_dict["prior"] = dictionary[section]["prior"]
+            refined_dict["prior"]["input_prior_specs"] = dictionary[section][
+                "prior"
+            ]["prior_specs"]
+            refined_dict["prior"]["prior_specs"] = converted_prior
+        refined_dict["type"] = dictionary[section]["type"]
+        dictionary[section] = refined_dict
+    return dictionary
+

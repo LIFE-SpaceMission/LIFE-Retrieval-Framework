@@ -1,5 +1,5 @@
 from molmass import Formula
-import astropy.constants
+from astropy.constants import G
 import numpy as np
 from typing import Tuple
 from numpy import ndarray
@@ -18,12 +18,14 @@ def calculate_gravity(phys_vars: dict) -> dict:
             phys_vars["g"] = 10 ** phys_vars["log_g"]
         else:
             phys_vars["g"] = (
-                astropy.constants.G.cgs.value * phys_vars["M_pl"] / (phys_vars["R_pl"]) ** 2
+                G.cgs.value
+                * phys_vars["M_pl"]
+                / (phys_vars["R_pl"]) ** 2
             )
     return phys_vars
 
 
-def calculate_polynomial_profile(P: ndarray, temp_vars: dict) -> ndarray:
+def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     return np.array(
         np.polyval(
             np.array(
@@ -32,24 +34,24 @@ def calculate_polynomial_profile(P: ndarray, temp_vars: dict) -> ndarray:
                     for i in range(len(temp_vars))
                 ]
             ),
-            np.log10(P),
+            np.log10(pressure),
         )
     )
 
 
 # TODO typeset vae_pt
-def calculate_vae_profile(P: ndarray, vae_pt, temp_vars: dict) -> ndarray:
+def calculate_vae_profile(pressure: ndarray, vae_pt, temp_vars: dict) -> ndarray:
     return vae_pt.get_temperatures(
         z=np.array(
             [temp_vars["z_" + str(i + 1)] for i in range(len(temp_vars))]
         ),
-        log_p=np.log10(P),
+        log_p=np.log10(pressure),
     )
 
 
-def calculate_guillot_profile(P: ndarray, pRT, temp_vars: dict) -> ndarray:
-    return pRT.nat_cst.guillot_modif(
-        P,
+def calculate_guillot_profile(pressure: ndarray, prt_instance, temp_vars: dict) -> ndarray:
+    return prt_instance.nat_cst.guillot_modif(
+        pressure,
         1e1 ** temp_vars["log_delta"],
         1e1 ** temp_vars["log_gamma"],
         temp_vars["t_int"],
@@ -59,85 +61,86 @@ def calculate_guillot_profile(P: ndarray, pRT, temp_vars: dict) -> ndarray:
     )
 
 
-def calculate_isothermal_profile(P: ndarray, temp_vars: dict) -> ndarray:
-    return temp_vars["T_eq"] * np.ones_like(P)
+def calculate_isothermal_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
+    return temp_vars["T_eq"] * np.ones_like(pressure)
 
 
-def calculate_madhuseager_profile(P: ndarray, temp_vars: dict) -> ndarray:
+def calculate_madhuseager_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     import scipy.ndimage as sci
 
     beta1 = 0.5
     beta2 = 0.5
 
-    def T_P(P_m, P_i, T_i, alpha, beta):
-        return (np.log(P_m / P_i) / alpha) ** (1 / beta) + T_i
+    def temperature_calculator(pressure_m, pressure_i, temperature_i, alpha, beta):
+        return (np.log(pressure_m / pressure_i) / alpha) ** (1 / beta) + temperature_i
 
-    P0, P1, P2, P3 = (
-        10 ** P[0],  # log_top_pressure by definition
+    pressure_0, pressure_1, pressure_2, pressure_3 = (
+        10 ** pressure[0],  # log_top_pressure by definition
         10 ** temp_vars["log_P1"],
         10 ** temp_vars["log_P2"],
         10 ** temp_vars["log_P3"],
     )
 
-    T = np.zeros_like(P)
+    temperature = np.zeros_like(pressure)
 
-    T2 = (
+    temperature_2 = (
         temp_vars["T0"]
-        + (np.log(P1 / P0) / temp_vars["alpha1"]) ** (1 / beta1)
-        - (np.log(P1 / P2) / temp_vars["alpha2"]) ** (1 / beta2)
+        + (np.log(pressure_1 / pressure_0) / temp_vars["alpha1"]) ** (1 / beta1)
+        - (np.log(pressure_1 / pressure_2) / temp_vars["alpha2"]) ** (1 / beta2)
     )
-    T3 = T_P(P3, P2, T2, temp_vars["alpha2"], beta2)
+    temperature_3 = temperature_calculator(pressure_3, pressure_2, temperature_2, temp_vars["alpha2"], beta2)
 
-    for i in range(np.size(P)):
-        if P[i] < P1:
-            T[i] = T_P(
-                P[i],
-                P0,
+    for i in range(np.size(pressure)):
+        if pressure[i] < pressure_1:
+            temperature[i] = temperature_calculator(
+                pressure[i],
+                pressure_0,
                 temp_vars["T0"],
                 temp_vars["alpha1"],
                 beta1,
             )
-        elif P1 < P[i] < P3:
-            T[i] = T_P(P[i], P2, T2, temp_vars["alpha2"], beta2)
-        elif P[i] > P3:
-            T[i] = T3
+        elif pressure_1 < pressure[i] < pressure_3:
+            temperature[i] = temperature_calculator(pressure[i], pressure_2, temperature_2, temp_vars["alpha2"], beta2)
+        elif pressure[i] > pressure_3:
+            temperature[i] = temperature_3
 
-    T = sci.gaussian_filter1d(T, 20.0, mode="nearest")
-    return T
+    temperature = sci.gaussian_filter1d(temperature, 20.0, mode="nearest")
+    return temperature
 
-def calculate_mod_madhuseager_profile(P: ndarray, temp_vars: dict) -> ndarray:
+
+def calculate_mod_madhuseager_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     beta1 = 0.5
     beta2 = 0.5
 
-    def T_P(P_m, P_i, T_i, alpha, beta):
-        return (np.log(P_m / P_i) / alpha) ** (1 / beta) + T_i
+    def temperature_calculator(pressure_m, pressure_i, temperature_i, alpha, beta):
+        return (np.log(pressure_m / pressure_i) / alpha) ** (1 / beta) + temperature_i
 
-    P0, P1, P2 = (
-        10 ** P[0],
+    pressure_0, pressure_1, pressure_2 = (
+        10 ** pressure[0],
         10 ** temp_vars["log_P1"],
         10 ** temp_vars["log_P2"],
     )
 
-    T = np.zeros_like(P)
+    temperature = np.zeros_like(pressure)
 
-    T2 = (
+    temperature_2 = (
         temp_vars["T0"]
-        + (np.log(P1 / P0) / temp_vars["alpha1"]) ** (1 / beta1)
-        - (np.log(P1 / P2) / temp_vars["alpha2"]) ** (1 / beta2)
+        + (np.log(pressure_1 / pressure_0) / temp_vars["alpha1"]) ** (1 / beta1)
+        - (np.log(pressure_1 / pressure_2) / temp_vars["alpha2"]) ** (1 / beta2)
     )
 
-    for i in range(np.size(P)):
-        if P[i] < P1:
-            T[i] = T_P(
-                P[i],
-                P0,
+    for i in range(np.size(pressure)):
+        if pressure[i] < pressure_1:
+            temperature[i] = temperature_calculator(
+                pressure[i],
+                pressure_0,
                 temp_vars["T0"],
                 temp_vars["alpha1"],
                 beta1,
             )
-        elif P1 < P[i]:
-            T[i] = T_P(P[i], P2, T2, temp_vars["alpha2"], beta2)
-    return T
+        elif pressure_1 < pressure[i]:
+            temperature[i] = temperature_calculator(pressure[i], pressure_2, temperature_2, temp_vars["alpha2"], beta2)
+    return temperature
 
 
 def calculate_abundances(chem_vars: dict, press: ndarray) -> dict:
@@ -170,18 +173,20 @@ def assign_cloud_parameters(
     return abundances, cloud_vars, cloud_radii, cloud_lnorm
 
 
-def calc_MMW(abundances: dict, settings: dict, inert: ndarray) -> ndarray:
-    mmw = np.zeros_like(range(settings['n_layers']),dtype=float)
-    for layer in range(settings['n_layers']):
+def calc_mmw(abundances: dict, settings: dict, inert: ndarray) -> ndarray:
+    mmw = np.zeros_like(range(settings["n_layers"]), dtype=float)
+    for layer in range(settings["n_layers"]):
         for key in abundances.keys():
-            mmw[layer] = mmw[layer]+ abundances[key][layer] * getMM(key)
+            mmw[layer] = mmw[layer] + abundances[key][layer] * get_mm(key)
 
         if "mmw_inert" in settings.keys():
-             mmw[layer] =mmw[layer]+ inert[layer] * float(settings["mmw_inert"])
+            mmw[layer] = mmw[layer] + inert[layer] * float(
+                settings["mmw_inert"]
+            )
     return mmw
 
 
-def getMM(species):
+def get_mm(species):
     """
     Get the molecular mass of a given species.
 
@@ -199,6 +204,7 @@ def getMM(species):
     """
     name = species.split("_")[0]
     name = name.split(",")[0]
+    name = name.replace('(c)', '')
     f = Formula(name)
     if "all_iso" in species:
         return f.mass
