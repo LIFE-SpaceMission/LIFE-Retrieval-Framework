@@ -133,6 +133,8 @@ def custom_prior(r,prior_specs):
     return np.quantile(prior_specs['data'], r, axis=0)
 
 def invalid_prior(par):
+
+    raise ValueError
     # Note: If you are exiting the run with an error, you should not use
     # `sys.exit(0)` because that will produce a return code of 0, which
     # usually means "success" or "no errors". In any case, raising a
