@@ -130,16 +130,19 @@ class UnitsUtil:
         input_truth,
         printing=True,
     ):
-        converted_truth = (input_truth * input_unit).to(target_unit)
+        if input_truth is not None:
+            converted_truth = (input_truth * input_unit).to(target_unit)
 
-        # If a conversion was performed print it as a check
-        if (target_unit != input_unit) and printing:
-            print("Conversion performed for truth value of " + key + ".")
-            print("Input value:", input_truth, input_unit)
-            print("Converted value:", converted_truth, target_unit)
-            print()
+            # If a conversion was performed print it as a check
+            if (target_unit != input_unit) and printing:
+                print("Conversion performed for truth value of " + key + ".")
+                print("Input value:", input_truth, input_unit)
+                print("Converted value:", converted_truth, target_unit)
+                print()
 
-        return converted_truth
+            return converted_truth.value
+        else:
+            return None
 
     @staticmethod
     def unit_spectrum_conversion(
@@ -231,9 +234,7 @@ def convert_spectrum(instrument: dict, units: UnitsUtil) -> dict:
             "input_wavelength": instrument[data_file]["input_data"][:, 0],
             "input_flux": instrument[data_file]["input_data"][:, 1],
             "input_error": instrument[data_file]["input_data"][:, 2],
-            "input_unit_wavelength": instrument[data_file][
-                "input_unit_wavelength"
-            ],
+            "input_unit_wavelength": instrument[data_file]["input_unit_wavelength"],
             "input_unit_flux": instrument[data_file]["input_unit_flux"],
         }
     return instrument

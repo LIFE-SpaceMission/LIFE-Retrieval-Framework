@@ -128,6 +128,8 @@ def populate_dictionaries(
                     and "prior" in config[section][subsection].keys()
                 ):
                     parameters[subsection] = config[section][subsection]
+                    if not "truth" in config[section][subsection].keys():
+                        parameters[subsection]["truth"]=None
                     if "unit" in config[section][subsection].keys():
                         input_unit = u.Unit(config[section][subsection]["unit"])
                     else:

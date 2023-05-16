@@ -221,7 +221,7 @@ def scale_flux_to_distance(
     flux: ndarray, radius: float, distance: float
 ) -> ndarray:
     # Scale the fluxes to the desired separation
-    flux *= radius**2 / distance**2
+    flux = flux * radius**2 / distance**2
     return flux
 
 

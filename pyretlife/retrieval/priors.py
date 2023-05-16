@@ -139,5 +139,8 @@ def invalid_prior(par):
     # `ValueError` is probably the best way to go here, because it will
     # give the user a clear error message and traceback, and will also
     # exit the run with a non-zero return code.
+    # TODO: Add functionality for invalid priors
+
+    raise ValueError('The prior provided for ' + str(par) + 'is invalid.')
 
 

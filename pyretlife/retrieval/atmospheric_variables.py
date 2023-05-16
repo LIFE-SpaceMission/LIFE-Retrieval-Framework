@@ -75,7 +75,7 @@ def calculate_madhuseager_profile(pressure: ndarray, temp_vars: dict) -> ndarray
         return (np.log(pressure_m / pressure_i) / alpha) ** (1 / beta) + temperature_i
 
     pressure_0, pressure_1, pressure_2, pressure_3 = (
-        10 ** pressure[0],  # log_top_pressure by definition
+        pressure[0],  # log_top_pressure by definition
         10 ** temp_vars["log_P1"],
         10 ** temp_vars["log_P2"],
         10 ** temp_vars["log_P3"],
@@ -116,7 +116,7 @@ def calculate_mod_madhuseager_profile(pressure: ndarray, temp_vars: dict) -> nda
         return (np.log(pressure_m / pressure_i) / alpha) ** (1 / beta) + temperature_i
 
     pressure_0, pressure_1, pressure_2 = (
-        10 ** pressure[0],
+        pressure[0],
         10 ** temp_vars["log_P1"],
         10 ** temp_vars["log_P2"],
     )

@@ -92,7 +92,7 @@ class RetrievalObject:
     def __init__(
         self,
         run_retrieval: bool = True,
-    ):
+        ):
         """
         This function reads the config.ini file and initializes all
         the variables. It also ensures that the run is not rewritten
@@ -117,6 +117,11 @@ class RetrievalObject:
         self.rt_object = None
         self.run_retrieval = run_retrieval
 
+        self.knowns = {}
+        self.parameters = {}
+        self.settings = {}
+        self.instrument = {}
+
         # # Get and check the goodness of the environmental variables
         self.input_opacity_path = get_check_opacity_path()
         self.input_prt_path = get_check_prt_path()
@@ -126,10 +131,6 @@ class RetrievalObject:
 
         self.petitRADTRANS = importlib.import_module("petitRADTRANS")
 
-        self.knowns = {}
-        self.parameters = {}
-        self.settings = {}
-        self.instrument = {}
         # Create a units object to enable unit conversions
         self.units = UnitsUtil(self.petitRADTRANS.nat_cst)
 
@@ -164,9 +165,13 @@ class RetrievalObject:
             self.settings,
             self.units,
         ) = populate_dictionaries(
-            self.config, self.knowns, self.parameters, self.settings, self.units
+            self.config,
+            self.knowns,
+            self.parameters,
+            self.settings,
+            self.units
         )
-        self.instrument = load_data(self.settings, self.units)
+        self.instrument = load_data(self.settings, self.units,retrieval=self.run_retrieval)
 
         # IF CLOUDS, ASSIGN P0 WHEN NOT PROVIDED
         # TODO P0_test()
@@ -191,11 +196,11 @@ class RetrievalObject:
         # Add the known parameters to the dictionary
         for par in self.knowns.keys():
             if self.knowns[par]["type"] == "TEMPERATURE PARAMETERS":
-                self.temp_vars[par] = self.knowns[par]["truth"].value
+                self.temp_vars[par] = self.knowns[par]["truth"]
             elif self.knowns[par]["type"] == "CHEMICAL COMPOSITION PARAMETERS":
-                self.chem_vars[par] = self.knowns[par]["truth"].value
+                self.chem_vars[par] = self.knowns[par]["truth"]
             elif self.knowns[par]["type"] == "PHYSICAL PARAMETERS":
-                self.phys_vars[par] = self.knowns[par]["truth"].value
+                self.phys_vars[par] = self.knowns[par]["truth"]
             elif self.knowns[par]["type"] == "CLOUD PARAMETERS":
                 # TODO review this snippet
                 if (
@@ -206,18 +211,18 @@ class RetrievalObject:
                 try:
                     self.cloud_vars["_".join(par.split("_", 2)[:2])][
                         par.split("_", 2)[2]
-                    ] = self.knowns[par]["truth"].value
+                    ] = self.knowns[par]["truth"]
                 except:
                     self.cloud_vars["_".join(par.split("_", 2)[:2])][
                         "abundance"
-                    ] = self.knowns[par]["truth"].value
+                    ] = self.knowns[par]["truth"]
                     self.chem_vars[par.split("_", 1)[0]] = self.knowns[par][
                         "truth"
-                    ].value
+                    ]
             elif self.knowns[par]["type"] == "SCATTERING PARAMETERS":
-                self.scat_vars[par] = self.knowns[par]["truth"].value
+                self.scat_vars[par] = self.knowns[par]["truth"]
             elif self.knowns[par]["type"] == "MOON PARAMETERS":
-                self.moon_vars[par] = self.knowns[par]["truth"].value
+                self.moon_vars[par] = self.knowns[par]["truth"]
 
         # in case the PT profile is known, assign it already
         if self.settings["parameterization"] == "input":
@@ -342,6 +347,66 @@ class RetrievalObject:
             raise ValueError("Unknown PT setting!")
 
         return
+    
+    def calculate_spectrum(self):
+        self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
+            self.press
+        )
+
+        self.abundances = calculate_abundances(self.chem_vars, self.press)
+        (
+            self.abundances,
+            self.cloud_vars,
+            self.cloud_radii,
+            self.cloud_lnorm,
+        ) = assign_cloud_parameters(
+            self.abundances, self.cloud_vars, self.press
+        )
+
+        self.MMW = calc_mmw(self.abundances, self.settings, self.inert)
+
+        # initialize calculated pressure
+        self.rt_object.setup_opa_structure(self.press)
+
+        if self.settings["include_moon"]:
+            self.moon_flux = calculate_moon_flux(self.rt_object.freq, self.petitRADTRANS, self.moon_vars)
+
+        if (
+            self.settings["include_scattering"]["direct_light"]
+            or self.settings["include_scattering"]["thermal"]
+        ):
+            (
+                self.rt_object.reflectance,
+                self.rt_object.emissivity,
+            ) = assign_reflectance_emissivity(
+                self.scat_vars, self.rt_object.freq
+            )
+
+        # Calculate the forward model; this returns the frequency
+        # and the flux F_nu in erg/cm^2/s/Hz.
+        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
+                                                                           self.abundances, self.phys_vars["g"],
+                                                                           self.MMW, self.cloud_radii, self.cloud_lnorm,
+                                                                           self.scat_vars, em_contr=False)
+
+        self.rt_object.wavelength = (
+            self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
+        )
+    
+    def distance_scale_spectrum(self):
+        if self.phys_vars["d_syst"] is not None:
+            # WARNING! THIS CONVERTS UNITS OF PRT SPECTRUM from cm-2 to m-2
+            self.rt_object.flux = scale_flux_to_distance(
+                self.rt_object.flux,
+                self.phys_vars["R_pl"],
+                self.phys_vars["d_syst"],
+            )
+            if self.settings["include_moon"]:
+                self.moon_flux = scale_flux_to_distance(
+                    self.moon_flux,
+                    self.moon_vars["R_m"],
+                    self.phys_vars["d_syst"],
+                )
 
     def calculate_log_likelihood(self, cube):
         """
@@ -376,64 +441,12 @@ class RetrievalObject:
             return -1e99
         if validate_sum_of_abundances(self.chem_vars):
             return -1e99
-        self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
-            self.press
-        )
 
-        self.abundances = calculate_abundances(self.chem_vars, self.press)
-        (
-            self.abundances,
-            self.cloud_vars,
-            self.cloud_radii,
-            self.cloud_lnorm,
-        ) = assign_cloud_parameters(
-            self.abundances, self.cloud_vars, self.press
-        )
-
-        self.MMW = calc_mmw(self.abundances, self.settings, self.inert)
-        # initialize calculated pressure
-        self.rt_object.setup_opa_structure(self.press)
-
-        if self.settings["include_moon"]:
-            self.moon_flux = calculate_moon_flux(self.rt_object.freq, self.petitRADTRANS, self.moon_vars)
-
-        if (
-            self.settings["include_scattering"]["direct_light"]
-            or self.settings["include_scattering"]["thermal"]
-        ):
-            (
-                self.rt_object.reflectance,
-                self.rt_object.emissivity,
-            ) = assign_reflectance_emissivity(
-                self.scat_vars, self.rt_object.freq
-            )
-
-        # Calculate the forward model; this returns the frequency
-        # and the flux F_nu in erg/cm^2/s/Hz.
-        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
-                                                                           self.abundances, self.phys_vars["g"],
-                                                                           self.MMW, self.cloud_radii, self.cloud_lnorm,
-                                                                           self.scat_vars, em_contr=False)
-
-        self.rt_object.wavelength = (
-            self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
-        )
+        self.calculate_spectrum()
         if validate_spectrum_goodness(self.rt_object.flux):
             return -1e99
 
-        if self.phys_vars["d_syst"] is not None:
-            # WARNING! THIS CONVERTS UNITS OF PRT SPECTRUM from cm-2 to m-2
-            self.rt_object.flux = scale_flux_to_distance(
-                self.rt_object.flux,
-                self.phys_vars["R_pl"],
-                self.phys_vars["d_syst"],
-            )
-            if self.settings["include_moon"]:
-                self.moon_flux = scale_flux_to_distance(
-                    self.moon_flux,
-                    self.moon_vars["R_m"],
-                    self.phys_vars["d_syst"],
-                )
+        self.distance_scale_spectrum()
 
         # Calculate total log-likelihood (sum over instruments)
         log_likelihood = 0.0
