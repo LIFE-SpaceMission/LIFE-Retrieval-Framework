@@ -152,8 +152,10 @@ class retrieval_plotting_object(RetrievalObject):
 
 
         truths = np.array([[self.parameters[parameter]['truth'] for parameter in self.parameters.keys()]])
-        print(truths)
-        print(self.posteriors)
+        
+        #print(truths)
+        #self.posteriors['M_pl']=self.posteriors['M_pl']*5.972167867791379e+27
+        #self.posteriors['R_pl']=self.posteriors['R_pl']*637810000.0
 
 
 
@@ -202,7 +204,7 @@ class retrieval_plotting_object(RetrievalObject):
         # to the retrieved posterior distributions of partameters
         if not hasattr(self, 'true_fluxes'):
             truths = np.array([[self.parameters[parameter]['truth'] for parameter in self.parameters.keys()]])
-            
+
             try:
                 print('Calculating spectrum from provided true values.')
                 with contextlib.redirect_stdout(None):
@@ -424,8 +426,8 @@ class retrieval_plotting_object(RetrievalObject):
         process,ind_start,ind_end = task_assignment('Spectrum',n_processes,dimension,process)
 
         # Initialize the RT object and read the data
-        print(self.parameters.keys())
-        self.petitRADTRANS_initialization()
+        with contextlib.redirect_stdout(None):
+            self.petitRADTRANS_initialization()
 
         # Print status of calculation
         if process == 0:
@@ -440,7 +442,7 @@ class retrieval_plotting_object(RetrievalObject):
             # Fetch the known parameters and a sample of retrieved
             # parameters from the posteriors
             self.assign_cube_to_parameters(parameter_samples[ind,:])
-            self.phys_vars = calculate_gravity(self.phys_vars)
+            self.phys_vars = calculate_gravity(self.phys_vars,self.config)
             
             if "log_P0" not in self.parameters.keys():
                 self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
@@ -456,10 +458,10 @@ class retrieval_plotting_object(RetrievalObject):
                 log_top_pressure=self.settings["log_top_pressure"],
                 layers=self.settings["n_layers"],
                 )
-            
+
             self.calculate_spectrum()
             self.distance_scale_spectrum()
-
+         
             # Store the calculated spectra
             if i == 0:
                 spectra['wavelengths'] = self.rt_object.wavelength
@@ -581,7 +583,6 @@ class retrieval_plotting_object(RetrievalObject):
             instrument_plots = [list(retrieved_instrument_wavelengths.keys())]
 
         ax_arg = ax
-        #if ax is None:
 
         # Generate plots for different instrument configurations
         for instrument_plot in instrument_plots:
@@ -599,7 +600,7 @@ class retrieval_plotting_object(RetrievalObject):
                         
             # Plotting the input spectrum
             input_instruments = local_instrument.keys() if 'full_range' in instrument_plot else instrument_plot
-            print(input_instruments)
+
             for instrument in input_instruments:
 
                 # Plot the noise for the input spectrum
@@ -627,28 +628,29 @@ class retrieval_plotting_object(RetrievalObject):
             if plot_log_wavelength:
                 ax.set_xscale('log')
             if x_lim is None:
-                x_lim_loc = [1e1000,0]
-                for instrument in instrument_plot:
-                    ax.set_xlim([min(retrieved_instrument_wavelengths[instrument][0],x_lim_loc[0]),max(retrieved_instrument_wavelengths[instrument][-1],x_lim_loc[1])])
+                x_lim_loc = [min([retrieved_instrument_wavelengths[instrument][0] for instrument in instrument_plot]),
+                             max([retrieved_instrument_wavelengths[instrument][-1] for instrument in instrument_plot])]
             else:
-                ax.set_xlim(x_lim)
+                x_lim_loc = x_lim
+            ax.set_xlim(x_lim_loc)
 
             if plot_log_flux:
                 ax.set_yscale('log')
             if y_lim is None:
                 if plot_residual:
-                    ax.set_ylim([-58,58])
+                    y_lim_loc = [-58,58]
                 else:
-                    ax.set_ylim([0,list(ax.get_ylim())[1]])
+                    y_lim_loc = [0,list(ax.get_ylim())[1]]
             else:
-                ax.set_ylim(y_lim)
+                y_lim_loc = y_lim
+            ax.set_ylim(y_lim_loc)
 
             # Print the case identifier
             if case_identifier is not None:
                 if plot_residual:
-                    ax.annotate(case_identifier,[x_lim[1]-0.025*(x_lim[1]-x_lim[0]),y_lim[0]+0.1*(y_lim[1]-y_lim[0])],ha='right',va='bottom',weight='bold')
+                    ax.annotate(case_identifier,[x_lim_loc[1]-0.025*(x_lim_loc[1]-x_lim_loc[0]),y_lim_loc[0]+0.1*(y_lim_loc[1]-y_lim_loc[0])],ha='right',va='bottom',weight='bold')
                 else:
-                    ax.annotate(case_identifier,[x_lim[1]-0.05*(x_lim[1]-x_lim[0]),y_lim[0]+0.05*(y_lim[1]-y_lim[0])],ha='right',va='bottom',weight='bold')
+                    ax.annotate(case_identifier,[x_lim_loc[1]-0.05*(x_lim_loc[1]-x_lim_loc[0]),y_lim_loc[0]+0.05*(y_lim_loc[1]-y_lim_loc[0])],ha='right',va='bottom',weight='bold')
 
             # Legend cosmetics (adding custom patches to the legend)
             handles, labels = ax.get_legend_handles_labels()
@@ -673,7 +675,6 @@ class retrieval_plotting_object(RetrievalObject):
                 return
             else:
                 filename = 'full_range' if not plot_instruments_separately else instrument_plot[0]
-                print(filename)
                 if plot_residual:
                     filename = 'residual_' + filename
                 plt.savefig(self.results_directory+'Plots_New/plot_spectrum_'+filename+'.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
@@ -691,185 +692,7 @@ class retrieval_plotting_object(RetrievalObject):
     #################################################################################
     """
 
-
-
-
-    def Flux_Error(self, save=False, plot_residual = False, skip=1, x_lim = None, y_lim = None, quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
-                    noise_title = 'Observation Noise', legend_loc = 'best', n_processes=50,figsize=(12,2),median_only=False,reevaluate_spectra=False,
-                    split_instruments=False,single_instrument=None,log_x=False,log_y=False,x_unit=None,y_unit=None):
-        '''
-        This Function creates a plot that visualizes the absolute uncertainty on the
-        retrieval results in comparison with the input spectrum for the retrieval.
-        '''
-
-        # Unit conversions for the x and y scales of the graph
-        retrieval_units = {'x_unit':self.units.retrieval_units['wavelength'], 'y_unit':self.units.retrieval_units['flux']}
-        plot_units = {'x_unit':retrieval_units['x_unit'] if x_unit is None else x_unit,
-                       'y_unit':retrieval_units['y_unit'] if y_unit is None else y_unit}
-        unit_titles = {i:'$\\left['+f"{plot_units[i]:latex}"[1:-1]+'\\right]$' for i in plot_units}
-
-        # Convert the fluxes to the desired units
-        local_instrument = self.instrument.copy()
-        for instrument in local_instrument.keys():
-            converted_spectrum = self.units.unit_spectrum_conversion('spec',[retrieval_units['x_unit'],retrieval_units['y_unit']],[plot_units['x_unit'],plot_units['y_unit']],
-                                            np.array([self.instrument[instrument]['wavelength'],self.instrument[instrument]['flux'],self.instrument[instrument]['error']]).T,printing=False)
-            local_instrument[instrument]['wavelength'], local_instrument[instrument]['flux'], local_instrument[instrument]['error'] = converted_spectrum[:, 0], converted_spectrum[:, 1], converted_spectrum[:, 2]
-        local_wavelengths, local_fluxes = self.units.unit_spectrum_cube([retrieval_units['x_unit'],retrieval_units['y_unit']],[plot_units['x_unit'],plot_units['y_unit']],
-                                        self.retrieved_wavelengths,self.retrieved_fluxes)
-        
-        # If provided select instruments to plot
-        if (not single_instrument is None) and (not single_instrument in local_instrument.keys()):
-            print(single_instrument + ' is not a valid instrument. Valid instruments:', list(local_instrument.keys()))
-            sys.exit()
-        intruments = local_instrument.keys() if single_instrument is None else [single_instrument]
-        save_name = '' if single_instrument is None else single_instrument[8:]
-
-        # Define factors depening on wether residual is plotted or not
-        fac_input = 1 if plot_residual else 0
-        fac_resid = {inst:(100/local_instrument[inst]['flux'] if plot_residual else 1) for inst in intruments}
-
-        # Find the quantiles for the different spectra
-        median_all_wl = np.quantile(local_fluxes,0.5,axis=0)
-        quantiles_all_wl = [np.quantile(local_fluxes,q,axis=0) for q in quantiles]
-        
-        # Generate colorlevels for the different quantiles
-        color_levels, level_thresholds, N_levels = generate_quantile_color_levels(color,quantiles)
-
-        # If necessary rebin the quantiles, calculate the residuals, and split up into instruments
-        inst_median = {}
-        inst_quantiles = {}
-        inst_wls = {}
-        if split_instruments or plot_residual:
-            for inst in intruments:
-                # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
-                if not np.array([(np.round(local_instrument[inst]['wavelength'],10)==np.round(local_wavelengths,10))]).all():
-                    inst_median[inst] = (spectres.spectres(local_instrument[inst]['wavelength'],local_wavelengths,median_all_wl)-local_instrument[inst]['flux']*fac_input)*fac_resid[inst]
-                    inst_quantiles[inst] = [(spectres.spectres(local_instrument[inst]['wavelength'],local_wavelengths,quantiles_all_wl[q])-local_instrument[inst]['flux']*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
-                else:
-                    inst_median[inst] = (median_all_wl-local_instrument[inst]['flux']*fac_input)*fac_resid[inst]
-                    inst_quantiles[inst] = [(quantiles_all_wl[q]-local_instrument[inst]['flux']*fac_input)*fac_resid[inst] for q in range(len(quantiles))]
-                inst_wls[inst] = local_instrument[inst]['wavelength']
-        else:
-            inst_median['all_wl'] = median_all_wl
-            inst_quantiles['all_wl'] = quantiles_all_wl
-            inst_wls['all_wl'] = local_wavelengths
-
-        # Start of the plotting
-        ax_arg = ax
-        if ax is None:
-            if plot_residual:
-                figure = plt.figure(figsize=(12,2))
-            else:
-                figure = plt.figure(figsize=figsize)
-            ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
-        else:
-            pass
-            
-        # Plotting the retrieved Spectra
-        for inst in inst_wls.keys():
-            if median_only:
-                ax.plot(inst_wls[inst],inst_median[inst],color=color,lw = 0.5, label = 'Best Fit')
-            else:
-                for i in range(N_levels):
-                    ax.fill(np.append(inst_wls[inst],np.flip(inst_wls[inst])),
-                            np.append(inst_quantiles[inst][i],np.flip(inst_quantiles[inst][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
-
-        # Plotting the input spectrum
-        for inst in intruments:
-            # Plot the noise for the input spectrum
-            if plot_noise:
-                ax.fill(np.append(local_instrument[inst]['wavelength'],np.flip(local_instrument[inst]['wavelength'])),np.append((local_instrument[inst]['flux']*abs(fac_input-1)+local_instrument[inst]['error'])*fac_resid[inst],
-                        np.flip((local_instrument[inst]['flux']*abs(fac_input-1)-local_instrument[inst]['error'])*fac_resid[inst])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True,zorder=0)
-
-            # Plotting the input spectra either as line or datapoints
-            if plot_true_spectrum:
-                label = None if plot_residual else 'Input Spectrum'
-                ls = ':' if plot_residual else '-'
-                lw = 2 if median_only else 1.5
-                ax.plot(local_instrument[inst]['wavelength'],local_instrument[inst]['flux']*abs(fac_input-1),color = 'black',ls=ls,label=label,lw=lw,zorder=2)
-            if plot_datapoints:
-                ax.errorbar(local_instrument[inst]['wavelength'],local_instrument[inst]['flux']*abs(fac_input-1),yerr=local_instrument[inst]['error'],color = 'k',ms = 3,marker='o',ls='',label = 'Input Spectrum',zorder=2)
-
-        # If it is a single plot show the axes titles
-        if ax_arg is None:
-            if plot_residual:
-                ax.set_ylabel(r'Residual $\left[\%\right]$')
-            else:
-                #ax.set_ylabel(r'Flux at 10 pc $\left[\mathrm{\frac{erg}{s\,Hz\,m^2}}\right]$')
-                ax.set_ylabel('Flux at 10 pc '+unit_titles['y_unit'])
-            ax.set_xlabel('Wavelength '+unit_titles['x_unit'])
-
-        # Set the limits for the plot axes and the scaling
-        if log_x:
-            ax.set_xscale('log')
-        if x_lim is not None:
-            ax.set_xlim(x_lim)
-        else:
-            x_lim = [1e1000,0]
-            for inst in inst_wls.keys():
-                x_lim = [min(inst_wls[inst][0],x_lim[0]),max(inst_wls[inst][-1],x_lim[1])]
-            ax.set_xlim(x_lim)
-
-        if log_y:
-            ax.set_yscale('log')
-        if y_lim is not None:
-            ax.set_ylim(y_lim)
-        else:
-            if plot_residual:
-                y_lim=[-58,58]
-                ax.set_ylim(y_lim)
-            else:
-                y_lim=[0,list(ax.get_ylim())[1]]
-                ax.set_ylim(y_lim)
-
-        # Print the case identifier
-        if case_identifier is not None:
-            if plot_residual:
-                ax.annotate(case_identifier,[x_lim[1]-0.025*(x_lim[1]-x_lim[0]),y_lim[0]+0.1*(y_lim[1]-y_lim[0])],ha='right',va='bottom',weight='bold')
-            else:
-                ax.annotate(case_identifier,[x_lim[1]-0.05*(x_lim[1]-x_lim[0]),y_lim[0]+0.05*(y_lim[1]-y_lim[0])],ha='right',va='bottom',weight='bold')
-
-        # Legend cosmetics
-        handles, labels = ax.get_legend_handles_labels()
-
-        # Add the patches to the legend
-        patch_handles = []
-        patch_labels = []
-        if not median_only:
-            patch_handles = [MulticolorPatch([tuple(color_levels[i, :])],[1]) for i in range(N_levels)]
-            if quantiles_title is None:
-                patch_labels = [str(quantiles[i])+'-'+str(quantiles[-i-1]) for i in range(N_levels)]
-            else:
-                patch_labels = quantiles_title
-
-            if plot_noise:
-                patch_handles = [MulticolorPatch([(0.8,0.8,0.8)],[1])]+patch_handles
-                patch_labels = [noise_title]+patch_labels
-
-        # Add the legend
-        if plot_residual:
-            lgd = ax.legend(handles+patch_handles,labels+patch_labels,
-                    handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=len(labels+patch_labels),loc=legend_loc,frameon=False)
-        else:
-            lgd = ax.legend(handles+patch_handles,labels+patch_labels,
-                    handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
-
-        # Save or pass back the figure
-        if ax_arg is not None:
-            pass
-        elif save:
-            if plot_residual:
-                plt.savefig(self.results_directory+'Plots_New/plot_spectrum_residual'+save_name+'.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
-            else:
-                plt.savefig(self.results_directory+'Plots_New/plot_spectrum'+save_name+'.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
-            return figure, ax
-
-
-
-
-
-
+    
 
     def plot_retrieved_pt_profile(self, save=False,  x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
@@ -893,8 +716,6 @@ class retrieval_plotting_object(RetrievalObject):
         unit_titles = {i:'$\\left['+f"{local_units[i]:latex}"[1:-1]+'\\right]$' for i in local_units}
 
         # Convert the units of the P-T profile posteriors and the true value
-        print(self.settings.keys())
-
         local_retrieved_pressures_extrapolated    = self.units.truth_unit_conversion('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.retrieved_pressures_extrapolated,printing=False)
         local_retrieved_temperatures_extrapolated = self.units.truth_unit_conversion('Temperature',retrieval_units['x_unit'],local_units['x_unit'],self.retrieved_temperatures_extrapolated,printing=False)
         local_retrieved_pressures    = self.units.truth_unit_conversion('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.retrieved_pressures,printing=False)

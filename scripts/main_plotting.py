@@ -47,38 +47,42 @@ if __name__ == "__main__":
     # Initializes a RetrievalObject (the pyret_ship)
     plotting = retrieval_plotting_object(results_directory = args.res_dir)
 
+    #print(plotting.posteriors.shape)
+    #print(plotting.posteriors.drop_duplicates().shape)
+
     # Calculates and saves the PT profiles and spectra for plotting and 
-    plotting.calculate_posterior_pt_profile(n_processes=10,reevaluate_PT=True)
     plotting.calculate_true_pt_profile()
-    plotting.calculate_posterior_spectrum(n_processes=40,reevaluate_spectra=True)
+    plotting.calculate_posterior_pt_profile(n_processes=10,reevaluate_PT=False)
+
+    plotting.calculate_posterior_spectrum(n_processes=50,reevaluate_spectra=True)
     plotting.calculate_true_spectrum()
     #print(plotting.__dict__.keys())
 
-    plotting.Flux_Error(skip =1, plot_residual = True,save =True,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],n_processes=30,
-                    plot_noise = True, plot_true_spectrum = True, legend_loc = 'upper center',color = '#009e73',noise_title = 'Photon Noise',figsize=(15.275, 3.02),median_only=False,reevaluate_spectra = False,split_instruments=True)
+    #plotting.Flux_Error(skip =1, plot_residual = True,save =True,quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],n_processes=30,
+    #                plot_noise = True, plot_true_spectrum = True, legend_loc = 'upper center',color = '#009e73',noise_title = 'Photon Noise',figsize=(15.275, 3.02),median_only=False,reevaluate_spectra = False,split_instruments=True)
 
-    #plotting.plot_retrieved_flux(quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-    #                quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'], ax = None, color = '#009e73', case_identifier = None,
-    #                
-    #                figsize=(12,2),
-    #                legend_loc = 'upper center',
-    #                x_lim = None,
-    #                y_lim = None,
-    #                
-    #                noise_title = 'Observation Noise',  
-    #
-    #                
-    #                plot_instruments_separately=False,     
-    #                plot_residual = True,
-    #                plot_log_wavelength=False,
-    #                plot_log_flux=False,
-    #                plot_unit_wavelength=None,
-    #                plot_unit_flux=u.photon/u.m**2/u.s/ u.micron,
-    #                plot_retrieved_median=False,
-    #                
-    #                plot_noise = True,
-    #                plot_true_spectrum = True,
-    #                plot_datapoints = False)
+    plotting.plot_retrieved_flux(quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                    quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'], ax = None, color = '#009e73', case_identifier = None,
+                   
+                    figsize=(12,2),
+                    legend_loc = 'upper center',
+                    x_lim = None,
+                    y_lim = None,
+                    
+                    noise_title = 'Observation Noise',  
+    
+                    
+                    plot_instruments_separately=False,     
+                    plot_residual = True,
+                    plot_log_wavelength=False,
+                    plot_log_flux=False,
+                    plot_unit_wavelength=None,
+                    plot_unit_flux=None,#u.photon/u.m**2/u.s/ u.micron,
+                    plot_retrieved_median=False,
+                    
+                    plot_noise = True,
+                    plot_true_spectrum = True,
+                    plot_datapoints = False)
 
     plotting.plot_retrieved_pt_profile(save=True,    inlay_loc='upper right', x_lim =[110,790], y_lim = [1e-6,10**(3.9)],legend_loc = 'lower left',
             quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],quantiles_title=[r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],bins_inlay = 20,figsize=(5, 4.4),

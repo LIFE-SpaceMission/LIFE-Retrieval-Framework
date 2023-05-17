@@ -425,7 +425,8 @@ class RetrievalObject:
             return -1e99
         if validate_cube_finite(cube):
             return -1e99
-        self.phys_vars = calculate_gravity(self.phys_vars)
+        
+        self.phys_vars = calculate_gravity(self.phys_vars,self.config)
         if "log_P0" not in self.parameters.keys():
             self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
 

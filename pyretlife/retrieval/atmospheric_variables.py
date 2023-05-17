@@ -5,7 +5,7 @@ from typing import Tuple
 from numpy import ndarray
 
 
-def calculate_gravity(phys_vars: dict) -> dict:
+def calculate_gravity(phys_vars: dict,config: dict) -> dict:
     """
     Function to check if the surface gravity is provided or can
     be calculated from the provided parameters.
@@ -13,8 +13,8 @@ def calculate_gravity(phys_vars: dict) -> dict:
 
     # Calculate the surface gravity g given M_Pl and R_pl or log_g.
     # If in knowns already, skip
-    if "g" not in phys_vars.keys():
-        if "log_g" in phys_vars.keys():
+    if "g" not in config['PHYSICAL PARAMETERS'].keys():
+        if "log_g" in config['PHYSICAL PARAMETERS'].keys():
             phys_vars["g"] = 10 ** phys_vars["log_g"]
         else:
             phys_vars["g"] = (

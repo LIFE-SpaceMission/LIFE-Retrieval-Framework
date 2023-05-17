@@ -13,6 +13,7 @@ __status__ = "Development"
 # IMPORTS
 # -----------------------------------------------------------------------------
 import multiprocessing as mp
+import contextlib
 
 
 
@@ -46,8 +47,9 @@ class parallel():
 
     def __worker(self,process,results_direectory,function,function_args):
         # Initialization of a new radtrans object
-        from pyretlife.retrieval_plotting.run_plotting import retrieval_plotting_object
-        results_temp = retrieval_plotting_object(results_directory = results_direectory)
+        with contextlib.redirect_stdout(None):
+            from pyretlife.retrieval_plotting.run_plotting import retrieval_plotting_object
+            results_temp = retrieval_plotting_object(results_directory = results_direectory)
 
         # Function calculation
         function_args['process'] = process

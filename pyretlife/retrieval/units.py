@@ -131,7 +131,7 @@ class UnitsUtil:
         printing=True,
     ):
         if input_truth is not None:
-            converted_truth = (input_truth * input_unit).to(target_unit)
+            converted_truth = (input_truth * input_unit).to(target_unit).value
 
             # If a conversion was performed print it as a check
             if (target_unit != input_unit) and printing:
@@ -140,7 +140,7 @@ class UnitsUtil:
                 print("Converted value:", converted_truth, target_unit)
                 print()
 
-            return converted_truth.value
+            return converted_truth
         else:
             return None
 
