@@ -14,9 +14,7 @@ __status__ = "Development"
 # -----------------------------------------------------------------------------
 import multiprocessing as mp
 import contextlib
-
-
-
+import pyretlife.retrieval_plotting.calculate_secondary_quantities as secondary_quantites
 
 
 # Class that enables the parallelization of a function
@@ -53,35 +51,5 @@ class parallel():
 
         # Function calculation
         function_args['process'] = process
-        self.result[process] = getattr(results_temp,function)(**function_args)
-        
-
-
-# Assignment of Tasks to different processes for parallel computation
-def task_assignment(calculation_type,n_processes,dimension,process):
-    if (n_processes is not None) and (process is not None):
-        if process == 0:
-            # Print the task assignment
-            print_task_assignment(calculation_type,n_processes,dimension)
-        ind_start = process*dimension//n_processes
-        ind_end = min(dimension,(process+1)*dimension//n_processes)
-    else:
-        ind_start = 0
-        ind_end = dimension
-        process = 0
-    return process,ind_start,ind_end
-
-
-
-# Printing function for parallel computation
-def print_task_assignment(calculation_type,n_processes,dimension):
-    print('\n-----------------------------------------------------')
-    print('\n    '+str(calculation_type)+' calculation on multiple CPUs:')
-    print('')
-    print('    Number of calculations:\t'+str(dimension))
-    print('    Number of processes:\t'+str(n_processes))
-    print('')
-    print('    Distribution of tasks:')
-    for proc_ind in range(n_processes):
-        print('\tProcess '+str(proc_ind)+':\t'+str(calculation_type)+':\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
-    print('\n-----------------------------------------------------\n')
+        function_args['rp_object'] = results_temp
+        self.result[process] = getattr(secondary_quantites,function)(**function_args)

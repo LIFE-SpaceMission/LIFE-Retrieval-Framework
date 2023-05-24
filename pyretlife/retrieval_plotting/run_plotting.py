@@ -78,7 +78,10 @@ from pyretlife.retrieval.run import RetrievalObject
 
 from pyretlife.retrieval_plotting.parallel_computation import (
     parallel,
-    task_assignment,
+)
+from pyretlife.retrieval_plotting.calculate_secondary_quantities import(
+    parallel_pt_profile_calculation,
+    parallel_spectrum_calculation,
 )
 
 from pyretlife.retrieval_plotting.color_handling import (
@@ -91,7 +94,12 @@ from pyretlife.retrieval_plotting.custom_matplotlib_handles import (
     MulticolorPatchHandler,
     Handles
 )
-
+from pyretlife.retrieval_plotting.posterior_plotting import (
+    Generate_Parameter_Titles,
+    Scale_Posteriors,
+    Posterior_Plot,
+    Corner_Plot
+)
 from pyretlife.retrieval_plotting.inlay_plot import (
     add_inlay_plot,
     add_inlay_plot_labels
@@ -208,7 +216,7 @@ class retrieval_plotting_object(RetrievalObject):
             try:
                 print('Calculating spectrum from provided true values.')
                 with contextlib.redirect_stdout(None):
-                    spectrum = self.parallel_spectrum_calculation(truths)
+                    spectrum = parallel_spectrum_calculation(self,truths)
                 print('Spectrum successfully calculated from true values.\n')
                 for key in spectrum.keys():
                     setattr(self,'true_'+key,spectrum[key])
@@ -244,7 +252,7 @@ class retrieval_plotting_object(RetrievalObject):
             try:
                 print('Calculating PT profile from provided true values.')
                 with contextlib.redirect_stdout(None):
-                    pt_profile = self.parallel_pt_profile_calculation(truths,layers=layers,p_surf=p_surf)
+                    pt_profile = parallel_pt_profile_calculation(self,truths,layers=layers,p_surf=p_surf)
                 print('PT profile successfully calculated from true values.\n')
                 for key in pt_profile.keys():
                     setattr(self,'true_'+key,pt_profile[key])
@@ -316,185 +324,113 @@ class retrieval_plotting_object(RetrievalObject):
     
 
 
-    def parallel_pt_profile_calculation(self,parameter_samples,skip = 1,layers=500,p_surf=4,n_processes=None,process=None):
+
+
+    """
+    #################################################################################
+    #                                                                               #
+    #   Routines for generating cornerplots.                                        #
+    #                                                                               #
+    #################################################################################
+    """
+
+
+
+    def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
+                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_bond=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
+                    color='k',add_table=False,color_truth='C3',ULU_lim=[-0.15,0.75],parameter_units='input',custom_unit_titles={},custom_parameter_titles={}):
         '''
-        Function to calculate the PT profiles corresponding to the retrieved posterior distributions
-        for subsequent plotting in the flux PT plotting functions.
-        '''
-
-        # Iterate over the equal weighted posterior and Split up the jobs onto the multiple processes
-        dimension = np.shape(parameter_samples)[0]//skip
-        process,ind_start,ind_end = task_assignment('PT-Profile',n_processes,dimension,process)
-
-        # Print status of calculation
-        if process == 0:
-            print('Starting PT-profile calculation.')
-            print('\t0.00 % of PT-profiles calculated.', end = "\r")
-
-        pt_profiles = {}
-        t_start = t.time()
-        for i in range(ind_start,ind_end):
-            ind = skip*i
-
-            # Fetch the known parameters and a sample of retrieved
-            # parameters from the posteriors
-            self.assign_cube_to_parameters(parameter_samples[ind,:])
-            #self.phys_vars = calculate_gravity(self.phys_vars)
-            #self.P0_test(ind=i)
-
-            if "log_P0" not in self.parameters.keys():
-                self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
-
-            # Calculate the cloud bottom pressure from the cloud thickness parameter
-            cloud_tops = []
-            cloud_bottoms = []
-            for key in self.cloud_vars.keys():
-                cloud_bottoms += [self.cloud_vars[key]['top_pressure']+self.cloud_vars[key]['thickness']]
-                cloud_tops += [self.cloud_vars[key]['top_pressure']]
-                self.calculate_pt_profile(
-                        parameterization=self.settings["parameterization"],
-                        log_ground_pressure=p_surf,
-                        log_top_pressure=np.log10(np.min(cloud_tops)),
-                        layers=layers,
-                        )
-                pressure_cloud_top = self.press[0]
-                temperature_cloud_top = self.temp[0]
-
-            # Extrapolate the retrieved P-T profile to higher pressures
-            self.calculate_pt_profile(
-                    parameterization=self.settings["parameterization"],
-                    log_ground_pressure=p_surf,
-                    log_top_pressure=self.settings["log_top_pressure"],
-                    layers=layers,
-                    )
-            pressure_extrapolated = self.press
-            temperature_extrapolated = self.temp
-            ind = np.where(self.press > 10**self.phys_vars['log_P0'])
-
-            # Calculate the pressure temperature profile corresponding to the set of parameters
-            self.calculate_pt_profile(
-                    parameterization=self.settings["parameterization"],
-                    log_ground_pressure=self.phys_vars["log_P0"],
-                    log_top_pressure=self.settings["log_top_pressure"],
-                    layers=self.settings["n_layers"],
-                    )
-
-            # Initialize the arrays for storage
-            if i==ind_start:
-                size = ind_end-ind_start
-                pt_profiles['pressures'] = np.zeros((size,len(self.press)))
-                pt_profiles['temperatures'] = np.zeros((size,len(self.temp)))
-                pt_profiles['pressures_extrapolated'] = np.zeros((size,len(pressure_extrapolated)))
-                pt_profiles['temperatures_extrapolated'] = np.zeros((size,len(temperature_extrapolated)))
-                if len(self.cloud_vars) != 0:
-                    pt_profiles['pressures_cloud_top'] = np.zeros((size,len([pressure_cloud_top])))
-                    pt_profiles['temperatures_cloud_top'] = np.zeros((size,len([temperature_cloud_top])))
-
-            # Save the results
-            save = i-ind_start
-            pt_profiles['pressures'][save,:] = self.press
-            pt_profiles['temperatures'][save,:] = self.temp
-            pt_profiles['pressures_extrapolated'][save,:] = pressure_extrapolated
-            pt_profiles['temperatures_extrapolated'][save,:] = temperature_extrapolated
-            if len(self.cloud_vars) != 0:
-                pt_profiles['pressures_cloud_top'][save,:] = pressure_cloud_top
-                pt_profiles['temperatures_cloud_top'][save,:] = temperature_cloud_top
-
-            # Print status of calculation
-            if process == 0:
-                t_end = t.time()
-                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
-                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of PT-profiles calculated. Estimated time remaining: '+str(remain_time//3600)+
-                        ' h, '+str((remain_time%3600)//60)+' min.        ', end = "\r")
-
-        # Print status of calculation
-        if process == 0:
-            print('\nPT-profile calculation completed.')
-
-        return pt_profiles
-
-
-
-    def parallel_spectrum_calculation(self,parameter_samples,skip = 1,n_processes=None,process=None):
-        '''
-        Function to calculate the fluxes corresponding to the retrieved posterior distributions
-        for subsequent plotting in the flux plotting functions.
+        This function generates a corner plot for the retrieved parameters.
         '''
 
-        # Iterate over the equal weighted posterior and Split up the jobs onto the multiple processes
-        dimension = np.shape(parameter_samples)[0]//skip
-        process,ind_start,ind_end = task_assignment('Spectrum',n_processes,dimension,process)
+        # get the indices of all parameters shown in the corner plot
+        parameters_plotted = []
+        for parameter in self.parameters:
+            if (self.parameters[parameter]['type'] == 'TEMPERATURE PARAMETERS') and plot_pt:
+                parameters_plotted += [parameter]
+            elif (self.parameters[parameter]['type'] == 'PHYSICAL PARAMETERS') and plot_physparam:
+                parameters_plotted += [parameter]
+            elif (self.parameters[parameter]['type'] == 'CHEMICAL COMPOSITION PARAMETERS') and plot_chemcomp:        
+                parameters_plotted += [parameter]
+            elif (self.parameters[parameter]['type'] == 'CLOUD PARAMETERS') and plot_clouds:
+                parameters_plotted += [parameter]
+            elif (self.parameters[parameter]['type'] == 'SCATTERING PARAMETERS') and plot_scatt:
+                parameters_plotted += [parameter]
+            elif (self.parameters[parameter]['type'] == 'MOON PARAMETERS') and plot_moon:
+                parameters_plotted += [parameter]
 
-        # Initialize the RT object and read the data
-        with contextlib.redirect_stdout(None):
-            self.petitRADTRANS_initialization()
+        # Copy the relevant data
+        local_post = self.posteriors.copy()
+        local_truths = {parameter:self.parameters[parameter]['truth'] for parameter in parameters_plotted}
 
-        # Print status of calculation
-        if process == 0:
-            print('Starting spectrum calculation.')
-            print('\t0.00 % of spectra calculated.', end = "\r")
+        # Generate the titles
+        Generate_Parameter_Titles(self)
+        local_titles = {i:self.parameters[i]['title'] for i in parameters_plotted}
+        for parameter in parameters_plotted:
+            if parameter in custom_parameter_titles:
+                local_titles[parameter] = custom_parameter_titles[parameter]
 
-        spectra = {}
-        t_start = t.time()
-        for i in range(ind_start,ind_end):
-            ind = skip*i
+        # Unit conversions for plotting if units=None retrieval units are plotted
+        # if units='input' the units in the input.ini file are plotted
+        retrieval_unit =  {i:self.parameters[i]['unit'] for i in parameters_plotted}
+        if parameter_units == 'input':
+            local_units = {i:self.parameters[i]['input_unit'] for i in parameters_plotted}
+        else:
+            local_units = retrieval_unit.copy()
+            for parameter in parameters_plotted:
+                if parameter in parameter_units:
+                    local_units[parameter] = parameter_units[parameter]
 
-            # Fetch the known parameters and a sample of retrieved
-            # parameters from the posteriors
-            self.assign_cube_to_parameters(parameter_samples[ind,:])
-            self.phys_vars = calculate_gravity(self.phys_vars,self.config)
-            
-            if "log_P0" not in self.parameters.keys():
-                self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
+        # Add the units to the titles
+        for parameter in parameters_plotted:
+            if not f"{local_units[parameter]:latex}" == '$\\mathrm{}$':
+                unit = '\\left['+f"{local_units[parameter]:latex}"[1:-1]+'\\right]'
+            else:
+                unit = ''
+            if parameter in custom_unit_titles:
+                unit = '\\left['+custom_unit_titles[parameter][1:-1]+'\\right]'
+            local_titles[parameter] = local_titles[parameter][:-1]+unit+'$'
 
-            # Test the values of P0 and g and change to required values if necessary
-            #self.g_test()
-            #self.P0_test()
+        # Convert the units of the posterior and the true value
+        for parameter in parameters_plotted:
+            local_post[parameter]   = self.units.truth_unit_conversion(parameter,retrieval_unit[parameter],local_units[parameter],local_post[parameter].to_numpy(),printing=False)
+            local_truths[parameter] = self.units.truth_unit_conversion(parameter,retrieval_unit[parameter],local_units[parameter],local_truths[parameter],printing=False)
 
-            # Calculate the pressure temperature profile corresponding to the set of parameters
-            self.calculate_pt_profile(
-                parameterization=self.settings["parameterization"],
-                log_ground_pressure=self.phys_vars["log_P0"],
-                log_top_pressure=self.settings["log_top_pressure"],
-                layers=self.settings["n_layers"],
-                )
+        # Adust the local copy of the posteriors according to the users desires
+        local_post, local_truths, local_titles = Scale_Posteriors(self,local_post, local_truths, local_titles, parameters_plotted,
+                                                                  log_pressures=log_pressures, log_mass=log_mass,
+                                                                  log_abundances=log_abundances, log_particle_radii=log_particle_radii)
 
-            self.calculate_spectrum()
-            self.distance_scale_spectrum()
-         
-            # Store the calculated spectra
-            if i == 0:
-                spectra['wavelengths'] = self.rt_object.wavelength
-            if i==ind_start:
-                size = ind_end-ind_start
+        # Check if there were ULU posteriors
+        ULU = [parameter for parameter in parameters_plotted if self.parameters[parameter]['prior']['kind'] == 'ULU']
 
-                # Initialize the arrays for storage
-                spectra['fluxes'] = np.zeros((size,len(self.rt_object.flux)))
-                spectra['emission_contribution'] = np.zeros((size,np.shape(self.rt_object.contr_em)[0],np.shape(self.rt_object.contr_em)[1]))
-                if self.settings['include_moon'] == 'True':
-                    spectra['moon_fluxes'][save,:] = np.zeros((size,len(self.rt_object.flux)))
+        # If wanted add the bond albedo and the equilibrium temperature to the plot
+        if plot_bond is not None:
+            parameters_plotted += ['Teq','A_b']
+            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20, plot=False)
+            local_post['Teq'], local_post['A_b'] = self.ret_opaque_T.copy(), self.A_Bond_ret.copy()
+            local_truths['Teq'], local_truths['A_b'] = T_equ_true, A_Bond_true
+            local_titles['Teq'], local_truths['A_b'] = '$\mathrm{T_{eq,\,Planet}\left[\mathrm{K}\\right]}$', '$\mathrm{A_{B,\,Planet}}$'
 
-            # Save the calculated spectra
-            save = i-ind_start
-            spectra['fluxes'][save,:] = self.rt_object.flux
-            spectra['emission_contribution'][save,:,:] = self.rt_object.contr_em
-            if self.settings['include_moon'] == 'True':
-                spectra['moon_fluxes'][save,:] = self.moon_flux
-            
-            # Print status of calculation
-            if process == 0:
-                t_end = t.time()
-                remain_time = (t_end-t_start)/((i+1)/(ind_end-ind_start))-(t_end-t_start)
-                print('\t'+str(np.round((i+1)/(ind_end-ind_start)*100,2))+' % of spectra calculated. Estimated time remaining: '+str(remain_time//3600)+
-                        ' h, '+str((remain_time%3600)//60)+' min.            ', end = "\r")
+        if plot_corner:
+            fig, axs = Corner_Plot(parameters_plotted,local_post,local_titles,local_truths,quantiles1d=quantiles1d,bins=bins,color=color,
+                                            add_table=add_table,color_truth=color_truth,ULU=ULU if ULU != [] else None,ULU_lim=ULU_lim)
+            if save:
+                plt.savefig(self.results_directory+'Plots_New/plot_corner.pdf', bbox_inches='tight')
+            else:
+                return fig, axs
+        else:
+            if not os.path.exists(self.results_directory + 'Plots_New/Posteriors/'):
+                os.makedirs(self.results_directory + 'Plots_New/Posteriors/')
+            for parameter in parameters_plotted:
+                fig, axs = Posterior_Plot(local_post[parameter],local_titles[parameter],local_truths[parameter],
+                                    quantiles1d=quantiles1d,bins=bins,color=color,ULU=(parameter in ULU),ULU_lim=ULU_lim)
 
-        # Print status of calculation
-        if process == 0:
-            print('\nSpectrum calculation completed.')
+                if save:
+                    plt.savefig(self.results_directory+'/Plots_New/Posteriors/'+parameter+'.pdf', bbox_inches='tight')
+                else:
+                    return fig, axs
 
-        #return the calculated results
-        return spectra
-    
 
 
 
