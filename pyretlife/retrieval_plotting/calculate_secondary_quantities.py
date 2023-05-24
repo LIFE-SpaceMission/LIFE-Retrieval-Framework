@@ -7,12 +7,16 @@ __status__ = "Development"
 # -----------------------------------------------------------------------------
 # IMPORTS
 # -----------------------------------------------------------------------------
-
+import sys
 import numpy as np
 import time as t
 import contextlib
+import astropy.constants as apc
+import astropy.units as u
+import scipy as sp
 
 from pyretlife.retrieval.atmospheric_variables import calculate_gravity
+from pyretlife.retrieval.radiative_transfer import scale_flux_to_distance
 
 
 
@@ -228,3 +232,101 @@ def print_task_assignment(calculation_type,n_processes,dimension):
     for proc_ind in range(n_processes):
         print('\tProcess '+str(proc_ind)+':\t'+str(calculation_type)+':\t'+str(proc_ind*dimension//n_processes+1)+'-'+str(min(dimension,(proc_ind+1)*dimension//n_processes)))
     print('\n-----------------------------------------------------\n')
+
+
+
+# Routine that calculates the bond albedo of a planet
+def bond_albedo_calculation(rp_object,
+                            stellar_luminosity,
+                            error_stellar_luminosity,
+                            planet_star_separation,
+                            error_planet_star_separation):
+
+    wavelengths = rp_object.retrieved_wavelengths*rp_object.units.retrieval_units['wavelength']
+    planet_radius = rp_object.posteriors['R_pl'].to_numpy()*rp_object.units.retrieval_units['R_pl']
+    posterior_dimension = rp_object.posteriors['R_pl'].size
+
+    # Generating random data for the stellar luminosity and the panet separation
+    stellar_luminosities = stellar_luminosity*apc.L_sun + error_stellar_luminosity*np.random.randn(posterior_dimension)*apc.L_sun
+    planet_star_separations = planet_star_separation*apc.au + error_planet_star_separation*np.random.randn(posterior_dimension)*apc.au
+
+    # initializing arrays to store the calculation results
+    retrieved_equilibrium_temperature = np.zeros(posterior_dimension)
+    retrieved_bond_albedo = np.zeros(posterior_dimension)
+
+    # function to calculate the BB spectrum given a temperature
+    def blackbody_lam(x, temperature):
+        exponent = apc.h*apc.c/(wavelengths.to(u.m)*apc.k_B*temperature*u.K)
+        BB_flux = (2*np.pi*apc.h*apc.c**2/(wavelengths.to(u.m)**5*(np.exp(exponent) - 1)))
+        return [sp.integrate.simps(BB_flux.value,wavelengths.to(u.m).value)]
+
+    # calculate the equilibrium temperature for all points in the posterior
+    for i in range(np.size(retrieved_equilibrium_temperature)):
+        rescaled_retrieved_flux = scale_flux_to_distance(rp_object.retrieved_fluxes[i,:],rp_object.knowns['d_syst']['truth'],planet_radius[i].to(u.m).value)*rp_object.units.retrieval_units['flux']
+        converted_retrieved_flux = rescaled_retrieved_flux.to(u.J/(u.m**3*u.s),equivalencies=u.spectral_density(wavelengths))
+        integrated_retrieved_flux = sp.integrate.simps(converted_retrieved_flux.value,wavelengths.to(u.m).value)
+
+        retrieved_equilibrium_temperature[i], cov = sp.optimize.curve_fit(blackbody_lam, [1], integrated_retrieved_flux,p0=[300])
+        retrieved_bond_albedo[i] = 1 - 16*np.pi*planet_star_separations[i]**2*apc.sigma_sb*(retrieved_equilibrium_temperature[i]*u.K)**4/stellar_luminosities[i]
+
+    return retrieved_equilibrium_temperature, retrieved_bond_albedo
+
+"""
+
+    wavelengths = rp_object.retrieved_wavelengths*rp_object.units.retrieval_units['wavelength']
+    planet_radius = rp_object.posteriors['R_pl'].to_numpy()*rp_object.units.retrieval_units['R_pl']
+
+    retrieved_equilibrium_temperature = np.zeros_like(planet_radius.value)#*u.K
+
+    def blackbody_lam(x,temperature):
+
+        exponent = apc.h*apc.c/(wavelengths.to(u.m)*apc.k_B*temperature*u.K)
+        BB_flux = 2*np.pi*apc.h*apc.c**2 / (wavelengths.to(u.m)**5 * (np.exp(exponent) - 1)) # calculate the BB flux
+
+        return [sp.integrate.simps(BB_flux.value,wavelengths.to(u.m))]
+
+    print(rp_object.knowns)
+
+    for index in range(np.size(planet_radius)):
+        factor = 1e7/1e6/(rp_object.petitRADTRANS.nat_cst.c/rp_object.retrieved_wavelengths*1e4)*1e6*rp_object.retrieved_wavelengths*1e-6*(planet_radius[index].value*1e2)**2/(rp_object.knowns['d_syst']['truth'])**2
+        int_f = sp.integrate.simps(np.ndarray.flatten(rp_object.retrieved_fluxes[index])/factor,wavelengths.to(u.m))
+
+
+        retrieved_equilibrium_temperature[index], cov = sp.optimize.curve_fit(blackbody_lam, [1], int_f,p0=[300])#*u.K
+        print(retrieved_equilibrium_temperature[index])
+    sys.exit()
+
+            self.ret_opaque_T[index], cov = sp.optimize.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
+
+
+
+
+
+
+
+
+        # Generating random data for the stellar luminosity and the panet separation
+        L_star_data = L_star + sigma_L_star*np.random.randn(*self.ret_opaque_T.shape)
+        sep_planet_data = sep_planet + sigma_sep_planet*np.random.randn(*self.ret_opaque_T.shape)
+
+
+
+
+
+        # Defining constants needed for the calculations
+        L_sun = 3.826*1e26
+        AU = 1.495978707*1e11
+        sigma_SBoltzmann = 5.670374419*1e-8
+
+        # Converting stellar luminosity and planet separation to SI
+        L_star_data_SI = L_star_data * L_sun
+        sep_planet_data_SI = sep_planet_data * AU
+
+        # Calculate the bond albedo
+        self.A_Bond_ret = 1 - 16*np.pi*sep_planet_data_SI**2*sigma_SBoltzmann*self.ret_opaque_T**4/L_star_data_SI
+        A_Bond_true = 1 - 16*np.pi*(sep_planet * AU)**2*sigma_SBoltzmann*T_equ_true**4/(L_star*L_sun)
+
+        return A_Bond_true, T_equ_true
+"""
+
+

@@ -82,6 +82,7 @@ from pyretlife.retrieval_plotting.parallel_computation import (
 from pyretlife.retrieval_plotting.calculate_secondary_quantities import(
     parallel_pt_profile_calculation,
     parallel_spectrum_calculation,
+    bond_albedo_calculation
 )
 
 from pyretlife.retrieval_plotting.color_handling import (
@@ -160,6 +161,8 @@ class retrieval_plotting_object(RetrievalObject):
 
 
         truths = np.array([[self.parameters[parameter]['truth'] for parameter in self.parameters.keys()]])
+
+        print(self.parameters)
         
         #print(truths)
         #self.posteriors['M_pl']=self.posteriors['M_pl']*5.972167867791379e+27
@@ -321,7 +324,37 @@ class retrieval_plotting_object(RetrievalObject):
             pickle.dump(result_combined, save_file, protocol=4)
             save_file.close()
             print('Saved calculated '+data_name+' in '+self.results_directory+'Plots_New/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl.\n')
-    
+
+
+
+    def calculate_bond_albedo(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation,true_equilibrium_temperature = None,true_bond_albedo = None):
+        '''
+        gets the PT profiles corresponding to the parameter values
+        of the equal weighted posteriors.
+        '''
+
+        # calculate the bond albedo and add to the posteriors
+        print('Calculating equilibrium temperatures and Bond albedos.')
+        self.posteriors['T_eq'],self.posteriors['A_b'] = bond_albedo_calculation(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation)
+        print('Equilibrium temperatures and Bond albedos successfully calculated.\n')
+
+        # add the bond albedo to the parameters
+        self.parameters['T_eq'] = {'input_unit':u.K,
+                                   'unit':u.K,
+                                   'input_truth':true_equilibrium_temperature,
+                                   'truth':true_equilibrium_temperature,
+                                   'type':'BOND ALBEDO',
+                                   'title':'$\mathrm{T_{eq,\,Planet}}$',
+                                   'prior':{'kind':None}}
+        
+        self.parameters['A_b'] = {'input_unit':u.dimensionless_unscaled,
+                                  'unit':u.dimensionless_unscaled,
+                                  'input_truth':true_bond_albedo,
+                                  'truth':true_bond_albedo,
+                                  'type':'BOND ALBEDO',
+                                  'title':'$\mathrm{A_{B,\,Planet}}$',
+                                  'prior':{'kind':None}}
+
 
 
 
@@ -337,7 +370,7 @@ class retrieval_plotting_object(RetrievalObject):
 
 
     def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_bond=None, bins=20, quantiles1d=[0.16, 0.5, 0.84],
+                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_bond=True, bins=20, quantiles1d=[0.16, 0.5, 0.84],
                     color='k',add_table=False,color_truth='C3',ULU_lim=[-0.15,0.75],parameter_units='input',custom_unit_titles={},custom_parameter_titles={}):
         '''
         This function generates a corner plot for the retrieved parameters.
@@ -355,6 +388,8 @@ class retrieval_plotting_object(RetrievalObject):
             elif (self.parameters[parameter]['type'] == 'CLOUD PARAMETERS') and plot_clouds:
                 parameters_plotted += [parameter]
             elif (self.parameters[parameter]['type'] == 'SCATTERING PARAMETERS') and plot_scatt:
+                parameters_plotted += [parameter]
+            elif (self.parameters[parameter]['type'] == 'BOND ALBEDO') and plot_bond:
                 parameters_plotted += [parameter]
             elif (self.parameters[parameter]['type'] == 'MOON PARAMETERS') and plot_moon:
                 parameters_plotted += [parameter]
@@ -403,14 +438,6 @@ class retrieval_plotting_object(RetrievalObject):
 
         # Check if there were ULU posteriors
         ULU = [parameter for parameter in parameters_plotted if self.parameters[parameter]['prior']['kind'] == 'ULU']
-
-        # If wanted add the bond albedo and the equilibrium temperature to the plot
-        if plot_bond is not None:
-            parameters_plotted += ['Teq','A_b']
-            A_Bond_true, T_equ_true = self.Plot_Ret_Bond_Albedo(*plot_bond[:-2],A_Bond_true = plot_bond[-1], T_equ_true=plot_bond[-2],save = True,bins=20, plot=False)
-            local_post['Teq'], local_post['A_b'] = self.ret_opaque_T.copy(), self.A_Bond_ret.copy()
-            local_truths['Teq'], local_truths['A_b'] = T_equ_true, A_Bond_true
-            local_titles['Teq'], local_truths['A_b'] = '$\mathrm{T_{eq,\,Planet}\left[\mathrm{K}\\right]}$', '$\mathrm{A_{B,\,Planet}}$'
 
         if plot_corner:
             fig, axs = Corner_Plot(parameters_plotted,local_post,local_titles,local_truths,quantiles1d=quantiles1d,bins=bins,color=color,

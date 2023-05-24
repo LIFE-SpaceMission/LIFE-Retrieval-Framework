@@ -54,6 +54,13 @@ if __name__ == "__main__":
     plotting.calculate_posterior_spectrum(n_processes=50,reevaluate_spectra=False)
     plotting.calculate_true_spectrum()
 
+    plotting.calculate_bond_albedo(stellar_luminosity=1,
+                                   error_stellar_luminosity=0.05,
+                                   planet_star_separation=1,
+                                   error_planet_star_separation=0.05,
+                                   true_equilibrium_temperature = 255,
+                                   true_bond_albedo = 0.29)
+
     unit_titles = {'R_pl':'$\mathrm{R_{Earth}}$','M_pl':'$\mathrm{M_{Earth}}$'}
 
     plotting.Posteriors(save=True,

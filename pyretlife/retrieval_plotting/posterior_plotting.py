@@ -29,39 +29,40 @@ def Generate_Parameter_Titles(rp_object):
         '''
 
         for key in rp_object.parameters.keys():
-            # Define the titles such that they work well for the chemical abundances
-            if rp_object.parameters[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
-                        
-            # Define the titles such that they work well for the physical parameters
-            elif rp_object.parameters[key]['type'] == 'PHYSICAL PARAMETERS':
-                s = key.split('_')
-                try:
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+s[0]+'_{'+s[1]+'}}$'
-                except:
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$'
+            if 'title' not in rp_object.parameters[key].keys():
+                # Define the titles such that they work well for the chemical abundances
+                if rp_object.parameters[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                    rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
+                            
+                # Define the titles such that they work well for the physical parameters
+                elif rp_object.parameters[key]['type'] == 'PHYSICAL PARAMETERS':
+                    s = key.split('_')
+                    try:
+                        rp_object.parameters[key]['title'] = '$\\mathrm{'+s[0]+'_{'+s[1]+'}}$'
+                    except:
+                        rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$'
 
-            # Define the titles such that they work well for the temperature parameters    
-            elif rp_object.parameters[key]['type'] == 'TEMPERATURE PARAMETERS':
-                # Define the titles such that they work well for the pt parameters
-                rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
-                        
-            # Define the titles such that they work well for the cloud parameters
-            elif rp_object.parameters[key]['type'] == 'CLOUD PARAMETERS':
-                temp = key.split('_')
-                if 'H2SO4' in temp[0]:
-                    temp[0] = 'H2SO4(c)'
-                temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
-                temp.pop(1)
-                rp_object.parameters[key]['title'] = '\n'.join(temp)
+                # Define the titles such that they work well for the temperature parameters    
+                elif rp_object.parameters[key]['type'] == 'TEMPERATURE PARAMETERS':
+                    # Define the titles such that they work well for the pt parameters
+                    rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+                            
+                # Define the titles such that they work well for the cloud parameters
+                elif rp_object.parameters[key]['type'] == 'CLOUD PARAMETERS':
+                    temp = key.split('_')
+                    if 'H2SO4' in temp[0]:
+                        temp[0] = 'H2SO4(c)'
+                    temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
+                    temp.pop(1)
+                    rp_object.parameters[key]['title'] = '\n'.join(temp)
 
-            # Define the titles such that they work well for the Moon        
-            elif rp_object.parameters[key]['type'] == 'MOON PARAMETERS':
-                rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+                # Define the titles such that they work well for the Moon        
+                elif rp_object.parameters[key]['type'] == 'MOON PARAMETERS':
+                    rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
 
-            # Define standard titles for any other parameters 
-            else:
-                rp_object.parameters[key]['title'] = str(key)
+                # Define standard titles for any other parameters 
+                else:
+                    rp_object.parameters[key]['title'] = str(key)
 
 
 
