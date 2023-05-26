@@ -140,7 +140,7 @@ CHEMICAL COMPOSITION PARAMETERS:
       prior_specs:
         log_lower: -15
         log_upper: 0
-    truth: 3e-07
+    truth: 3.e-07
   CO:
     lines:
       - CO_main_HN20_air_C25
