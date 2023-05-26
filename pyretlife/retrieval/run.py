@@ -232,7 +232,7 @@ class RetrievalObject:
             )
 
     def assign_prior_functions(self):
-        self.parameters = read_input_prior(self.parameters)
+        #self.parameters = read_input_prior(self.parameters)
         self.parameters = assign_priors(self.parameters)
         # TODO Check that all priors are valid (invalid_prior function in priors.py otherwise)
 
