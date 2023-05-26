@@ -111,3 +111,47 @@ def validate_config(config_file: dict):
 #      if self.settings["moon"] == "True":
 #          if "R_m" not in self.phys_vars:
 #              raise RuntimeError("ERROR! Moon radius is missing!")
+
+#def ground_pressure_test(self, ind=None):
+#    # TODO check function
+#    """
+#    Function to check if the surface pressure is provided or can
+#    be calculated from the provided parameters and brings it to
+#    the correct format for petit radtrans
+#    """
+#
+#    # Case dependant setting of the surface pressure
+#    print(self.config)
+#    if self.settings["clouds"] == "opaque":
+#        # Choose a surface pressure below the lower cloud deck
+#        if not (("log_P0" in self.phys_vars) or ("P0" in self.phys_vars)):
+#            self.phys_vars["log_P0"] = 4
+#        else:
+#            if ("log_P0" in self.knowns) or ("P0" in self.knowns):
+#                if ind is not None:
+#                    if ind == 0:
+#                        if "P0" in self.knowns:
+#                            self.phys_vars["log_P0"] = np.log10(
+#                                self.knowns["P0"]["value"]
+#                            )
+#                        else:
+#                            self.phys_vars["log_P0"] = self.knowns["log_P0"][
+#                                "value"
+#                            ]
+#                    else:
+#                        self.phys_vars["log_P0"] = 4
+#                else:
+#                    self.phys_vars["log_P0"] = 4
+#            else:
+#                raise RuntimeError(
+#                    "ERROR! For opaque cloud models, the surface pressure "
+#                    "P0 is not retrievable!"
+#                )
+
+#    else:
+#        if "log_P0" not in self.phys_vars:
+#            if "P0" in self.phys_vars:
+#                self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
+#            else:
+#                print("ERROR! Either log_P0 or P0 is needed!")
+#                sys.exit()

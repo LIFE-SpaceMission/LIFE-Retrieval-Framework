@@ -15,7 +15,9 @@ import astropy.constants as apc
 import astropy.units as u
 import scipy as sp
 
-from pyretlife.retrieval.atmospheric_variables import calculate_gravity
+from pyretlife.retrieval.atmospheric_variables import (
+    calculate_gravity,
+    set_log_ground_pressure)
 from pyretlife.retrieval.radiative_transfer import scale_flux_to_distance
 
 
@@ -24,7 +26,7 @@ from pyretlife.retrieval.radiative_transfer import scale_flux_to_distance
 # DEFINITIONS
 # -----------------------------------------------------------------------------
 
-def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=500,p_surf=4,n_processes=None,process=None):
+def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=500,p_surf=4,n_processes=None,process=None,use_truth=False):
     '''
     Function to calculate the PT profiles corresponding to the retrieved posterior distributions
     for subsequent plotting in the flux PT plotting functions.
@@ -47,10 +49,7 @@ def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=
         # Fetch the known parameters and a sample of retrieved
         # parameters from the posteriors
         rp_object.assign_cube_to_parameters(parameter_samples[ind,:])
-        #self.P0_test(ind=i)
-
-        if "log_P0" not in rp_object.parameters.keys():
-            rp_object.phys_vars["log_P0"] = np.log10(rp_object.phys_vars["P0"])
+        rp_object.phys_vars = set_log_ground_pressure(rp_object.phys_vars, rp_object.config, rp_object.knowns, use_truth = use_truth)
 
         # Calculate the cloud bottom pressure from the cloud thickness parameter
         cloud_tops = []
@@ -122,7 +121,7 @@ def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=
 
 
 
-def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_processes=None,process=None):
+def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_processes=None,process=None,use_truth=False):
     '''
     Function to calculate the fluxes corresponding to the retrieved posterior distributions
     for subsequent plotting in the flux plotting functions.
@@ -150,13 +149,7 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
         # parameters from the posteriors
         rp_object.assign_cube_to_parameters(parameter_samples[ind,:])
         rp_object.phys_vars = calculate_gravity(rp_object.phys_vars,rp_object.config)
-            
-        if "log_P0" not in rp_object.parameters.keys():
-            rp_object.phys_vars["log_P0"] = np.log10(rp_object.phys_vars["P0"])
-
-        # Test the values of P0 and g and change to required values if necessary
-        #self.g_test()
-        #self.P0_test()
+        rp_object.phys_vars = set_log_ground_pressure(rp_object.phys_vars, rp_object.config, rp_object.knowns, use_truth = use_truth)
 
         # Calculate the pressure temperature profile corresponding to the set of parameters
         rp_object.calculate_pt_profile(
@@ -271,62 +264,17 @@ def bond_albedo_calculation(rp_object,
 
     return retrieved_equilibrium_temperature, retrieved_bond_albedo
 
-"""
-
-    wavelengths = rp_object.retrieved_wavelengths*rp_object.units.retrieval_units['wavelength']
-    planet_radius = rp_object.posteriors['R_pl'].to_numpy()*rp_object.units.retrieval_units['R_pl']
-
-    retrieved_equilibrium_temperature = np.zeros_like(planet_radius.value)#*u.K
-
-    def blackbody_lam(x,temperature):
-
-        exponent = apc.h*apc.c/(wavelengths.to(u.m)*apc.k_B*temperature*u.K)
-        BB_flux = 2*np.pi*apc.h*apc.c**2 / (wavelengths.to(u.m)**5 * (np.exp(exponent) - 1)) # calculate the BB flux
-
-        return [sp.integrate.simps(BB_flux.value,wavelengths.to(u.m))]
-
-    print(rp_object.knowns)
-
-    for index in range(np.size(planet_radius)):
-        factor = 1e7/1e6/(rp_object.petitRADTRANS.nat_cst.c/rp_object.retrieved_wavelengths*1e4)*1e6*rp_object.retrieved_wavelengths*1e-6*(planet_radius[index].value*1e2)**2/(rp_object.knowns['d_syst']['truth'])**2
-        int_f = sp.integrate.simps(np.ndarray.flatten(rp_object.retrieved_fluxes[index])/factor,wavelengths.to(u.m))
 
 
-        retrieved_equilibrium_temperature[index], cov = sp.optimize.curve_fit(blackbody_lam, [1], int_f,p0=[300])#*u.K
-        print(retrieved_equilibrium_temperature[index])
-    sys.exit()
-
-            self.ret_opaque_T[index], cov = sp.optimize.curve_fit(blackbody_lam, [1], np.sum(np.ndarray.flatten(self.retrieved_fluxes[i])/factor),p0=[300])
-
-
-
-
-
-
-
-
-        # Generating random data for the stellar luminosity and the panet separation
-        L_star_data = L_star + sigma_L_star*np.random.randn(*self.ret_opaque_T.shape)
-        sep_planet_data = sep_planet + sigma_sep_planet*np.random.randn(*self.ret_opaque_T.shape)
-
-
-
-
-
-        # Defining constants needed for the calculations
-        L_sun = 3.826*1e26
-        AU = 1.495978707*1e11
-        sigma_SBoltzmann = 5.670374419*1e-8
-
-        # Converting stellar luminosity and planet separation to SI
-        L_star_data_SI = L_star_data * L_sun
-        sep_planet_data_SI = sep_planet_data * AU
-
-        # Calculate the bond albedo
-        self.A_Bond_ret = 1 - 16*np.pi*sep_planet_data_SI**2*sigma_SBoltzmann*self.ret_opaque_T**4/L_star_data_SI
-        A_Bond_true = 1 - 16*np.pi*(sep_planet * AU)**2*sigma_SBoltzmann*T_equ_true**4/(L_star*L_sun)
-
-        return A_Bond_true, T_equ_true
-"""
-
+def add_secondary_parameter_to_parameters(parameters,name,unit,title,true_value=None):
+        # add the bond albedo to the parameters
+        parameters[name] = {'input_unit':unit,
+                            'unit':unit,
+                            'input_truth':true_value,
+                            'truth':true_value,
+                            'type':'SECONDARY PARAMETERS',
+                            'title':title,
+                            'prior':{'kind':None}}
+        
+        return parameters
 

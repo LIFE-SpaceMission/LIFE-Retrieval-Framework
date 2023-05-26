@@ -30,6 +30,10 @@ class UnitsUtil:
             # MOON PARAMETERS
             "T_m": u.K,
             "R_m": u.pRT_R_earth,
+            # CLOUD PARAMETERS
+            "H2SO484(c)_am_top_pressure": u.bar,
+            "H2SO484(c)_am_thickness": u.bar,
+            "H2SO484(c)_am_particle_radius": u.cm,
             # Input Files
             "wavelength": u.micron,
             "flux": u.erg / u.s / u.Hz / u.m**2,
@@ -53,6 +57,10 @@ class UnitsUtil:
             # MOON PARAMETERS
             "T_m": u.K,
             "R_m": u.cm,
+            # CLOUD PARAMETERS
+            "H2SO484(c)_am_top_pressure": u.bar,
+            "H2SO484(c)_am_thickness": u.bar,
+            "H2SO484(c)_am_particle_radius": u.cm,
             # Input Files
             "wavelength": u.micron,
             "flux": u.erg / u.s / u.Hz / u.m**2,

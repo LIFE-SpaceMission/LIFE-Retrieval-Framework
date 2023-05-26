@@ -14,6 +14,8 @@ from pyretlife.retrieval_plotting.run_plotting import retrieval_plotting_object
 
 import astropy.units as u
 
+import sys
+
 
 # -----------------------------------------------------------------------------
 # DEFINITIONS
@@ -46,22 +48,41 @@ if __name__ == "__main__":
 
     # Initializes a RetrievalObject (the pyret_ship)
     plotting = retrieval_plotting_object(results_directory = args.res_dir)
+    #addition for old venus runs
+    plotting.posteriors['M_pl']=plotting.posteriors['M_pl']*5.972167867791379e+27
+    plotting.posteriors['R_pl']=plotting.posteriors['R_pl']*637810000.0
 
     # Calculates and saves the PT profiles and spectra for plotting and 
     plotting.calculate_posterior_pt_profile(n_processes=10,reevaluate_PT=False)
     plotting.calculate_true_pt_profile()
 
-    plotting.calculate_posterior_spectrum(n_processes=50,reevaluate_spectra=False)
     plotting.calculate_true_spectrum()
+
+
+    plotting.calculate_posterior_spectrum(n_processes=50,reevaluate_spectra=False)
+
+    #plotting.calculate_bond_albedo(stellar_luminosity=1,
+    #                               error_stellar_luminosity=0.05,
+    #                               planet_star_separation=1,
+    #                               error_planet_star_separation=0.05,
+    #                               true_equilibrium_temperature = 255,
+    #                               true_bond_albedo = 0.29)
 
     plotting.calculate_bond_albedo(stellar_luminosity=1,
                                    error_stellar_luminosity=0.05,
-                                   planet_star_separation=1,
-                                   error_planet_star_separation=0.05,
-                                   true_equilibrium_temperature = 255,
-                                   true_bond_albedo = 0.29)
+                                   planet_star_separation=0.723,
+                                   error_planet_star_separation=0.723*0.05,
+                                   true_equilibrium_temperature = 226,
+                                   true_bond_albedo = 0.77)
 
     unit_titles = {'R_pl':'$\mathrm{R_{Earth}}$','M_pl':'$\mathrm{M_{Earth}}$'}
+    custom_parameter_titles = {'H2SO484(c)_am':r'$\mathrm{Species^{cloud}})$',
+                               'H2SO484(c)_am_top_pressure':r'$P^\mathrm{cloud}_\mathrm{top}$',
+                               'H2SO484(c)_am_thickness':r'$P^\mathrm{cloud}_\mathrm{span}$',
+                               'H2SO484(c)_am_particle_radius':r'$\bar{R}^\mathrm{cloud}$',
+                               'H2SO484(c)_am_sigma_lnorm':r'$\sigma^\mathrm{cloud}$'
+                               }
+
 
     plotting.Posteriors(save=True,
                         plot_corner=True,
@@ -79,7 +100,9 @@ if __name__ == "__main__":
                         color='#009e73',
                         color_truth='k',
                         parameter_units='input',
-                        custom_unit_titles=unit_titles)#,plot_bond=[1,0.05,1,0.05,255,0.31]) # plot_bond=[1,0.05,0.723,0.723*0.05,226,0.77]
+                        custom_parameter_titles=custom_parameter_titles,
+                        custom_unit_titles=unit_titles,
+                        ULU_lim=[-1.8,3])#,plot_bond=[1,0.05,1,0.05,255,0.31]) # plot_bond=[1,0.05,0.723,0.723*0.05,226,0.77]
 
 
 
@@ -120,7 +143,7 @@ if __name__ == "__main__":
             true_cloud_top=[None,None],
 
             plot_residual = False,
-            plot_clouds =False,
+            plot_clouds =True,
             plot_unit_temperature=None,
             plot_unit_pressure=None,)
     

@@ -25,6 +25,40 @@ def calculate_gravity(phys_vars: dict,config: dict) -> dict:
     return phys_vars
 
 
+def set_log_ground_pressure(phys_vars: dict,config: dict, knowns: dict, use_truth: bool = False): #knowns: dict, parameters: dict, opaque_clouds: bool, use_truth: bool = False) -> dict:
+    """
+    Function to check if the surface pressure is provided or can
+    be calculated from the provided parameters and brings it to
+    the correct format for petit radtrans
+    """
+
+    # Case dependant setting of the surface pressure
+    if config['CLOUD PARAMETERS']['settings_clouds'] == 'opaque':
+        # Choose a surface pressure below the lower cloud deck
+        if not (("log_P0" in config['PHYSICAL PARAMETERS'].keys()) or ("P0" in config['PHYSICAL PARAMETERS'].keys())):
+            phys_vars["log_P0"] = 4
+        else:
+            if ("log_P0" in knowns) or ("P0" in knowns):
+                if use_truth:
+                    if "P0" in knowns:
+                        phys_vars["log_P0"] = np.log10(knowns["P0"]["truth"])
+                else:
+                    phys_vars["log_P0"] = 4
+            else:
+                raise RuntimeError(
+                    "ERROR! For opaque cloud models, the surface pressure "
+                    "P0 is not retrievable!"
+                )
+    else:
+        if not "log_P0" in config['PHYSICAL PARAMETERS'].keys():
+            if "P0" in config['PHYSICAL PARAMETERS'].keys():
+                phys_vars["log_P0"] = np.log10(phys_vars["P0"])
+            else:
+                raise RuntimeError("ERROR! Either log_P0 or P0 is needed!")
+    
+    return phys_vars
+
+
 def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     return np.array(
         np.polyval(
@@ -158,15 +192,14 @@ def assign_cloud_parameters(
     cloud_radii = {}
     cloud_lnorm = 0
     for cloud in cloud_vars.keys():
-        abundances[cloud.split("_")[0]][
-            np.where(
-                (press < cloud_vars[cloud]["bottom_pressure"])
-                & (press > cloud_vars[cloud]["top_pressure"])
-            )
-        ] = cloud_vars[cloud]["abundance"]
         cloud_vars[cloud]["bottom_pressure"] = (
             cloud_vars[cloud]["top_pressure"] + cloud_vars[cloud]["thickness"]
         )
+
+        # set the abundance outside of the cloud layer to 0
+        abundances[cloud.split("_")[0]][np.where(press > cloud_vars[cloud]["bottom_pressure"])] = 0
+        abundances[cloud.split("_")[0]][np.where(press < cloud_vars[cloud]["top_pressure"])] = 0
+
         cloud_radii[cloud.split("_")[0]] = cloud_vars[cloud]["particle_radius"]
         # TODO is it the same for all clouds then?
         cloud_lnorm = cloud_vars[cloud]["sigma_lnorm"]

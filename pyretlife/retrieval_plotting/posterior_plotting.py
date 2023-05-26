@@ -138,7 +138,7 @@ def Corner_Plot(parameters,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quan
     # Start of plotting routine
     fig, axs = plt.subplots(dimension, dimension,figsize=(dimension*2.5,dimension*2.5))
     fig.subplots_adjust(hspace=0.0,wspace=0.0)
-    fs = 24
+    fs = 16
     
     # Iterate over the equal weighted posteriors of all retrieved parameters.
     # Diagonal histogram plots
@@ -251,27 +251,17 @@ def Corner_Plot(parameters,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quan
                         round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
                         if round>=0.5:
                             if add_table:
-                                if truths[param] is not None:
-                                    table.append([str(int(truths[param])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$'])
-                                else:
-                                    table.append(['-',str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$'])
-
+                                table[j] = [str(int(truths[param_j])),str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$']
                             else:
-                                axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
+                                axs[j,j].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
                         else:
                             if add_table:
-                                if truths[param] is not None:
-                                    table.append([str(np.round(truths[param],int(-np.floor(round-0.5)))),
+                                table[j] = [str(np.round(truths[param_j],int(-np.floor(round-0.5)))),
                                         str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
-                                        str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$'])
-                                else:
-                                    table.append(['-',
-                                        str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
-                                        str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
-                                        str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$'])
+                                        str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$']
                             else:
-                                axs[i,i].set_title(str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
+                                axs[j,j].set_title(str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
 
@@ -315,7 +305,6 @@ def Corner_Plot(parameters,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quan
                                 axs[i,i].set_title(str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$',fontsize=fs)
-
     for param_i in parameters:
         i = parameters.index(param_i)
         for param_j in parameters:

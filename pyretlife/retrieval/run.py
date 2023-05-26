@@ -30,6 +30,7 @@ from pyretlife.retrieval.atmospheric_variables import (
     calculate_madhuseager_profile,
     calculate_mod_madhuseager_profile,
     calculate_abundances,
+    set_log_ground_pressure,
     assign_cloud_parameters,
     calc_mmw,
 )
@@ -427,8 +428,7 @@ class RetrievalObject:
             return -1e99
         
         self.phys_vars = calculate_gravity(self.phys_vars,self.config)
-        if "log_P0" not in self.parameters.keys():
-            self.phys_vars["log_P0"] = np.log10(self.phys_vars["P0"])
+        self.phys_vars = set_log_ground_pressure(self.phys_vars, self.config, self.knowns)
 
         if self.settings["parameterization"] != "input":
             self.calculate_pt_profile(
