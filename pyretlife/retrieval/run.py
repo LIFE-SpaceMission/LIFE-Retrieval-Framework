@@ -511,6 +511,8 @@ class RetrievalObject:
         make_output_folder(self.settings["output_folder"])
         save_input_spectra(self.settings["data_files"],
                            self.settings["output_folder"])
+        save_configuration(input_path = Path("configs/config_default.yaml"),
+                           output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_default_config.yaml'))
         save_configuration(input_path = config_file,
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_new.yaml'))
         save_github_commit_string(self.input_retrieval_path,self.settings["output_folder"])

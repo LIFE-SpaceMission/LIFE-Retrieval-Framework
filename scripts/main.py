@@ -50,9 +50,6 @@ if __name__ == "__main__":
     pyret_ship.assign_prior_functions()
     pyret_ship.vae_initialization()
     pyret_ship.petitRADTRANS_initialization()
-
-    # TODO Paste the full config file (including the default arguments) to the output directory (and also other things
-    #  e.g. retrieval version, github commit string, environment variables for future backtracing)
     pyret_ship.saving_inputs_to_folder(config_file=args.config)
 
     # # Run MultiNest
