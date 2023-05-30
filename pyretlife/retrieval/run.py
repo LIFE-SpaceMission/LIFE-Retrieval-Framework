@@ -20,6 +20,7 @@ import os
 import sys
 from pathlib import Path
 import numpy as np
+from typing import Union, Tuple
 
 from pyretlife.retrieval.atmospheric_variables import (
     calculate_gravity,
@@ -37,6 +38,11 @@ from pyretlife.retrieval.atmospheric_variables import (
 from pyretlife.retrieval.configuration_ingestion import (
     read_config_file,
     check_if_configs_match,
+    save_configuration,
+    save_input_spectra,
+    save_github_commit_string,
+    save_retrieved_parameters,
+    save_environment_variables,
     populate_dictionaries,
     make_output_folder,
     load_data,
@@ -500,33 +506,16 @@ class RetrievalObject:
                 + "/vae_pt_models/Flow/flow-state-dict.pt",
             )
 
-    def saving_inputs_to_folder(self):
+    def saving_inputs_to_folder(self,config_file: Union[Path, str]):
+
         make_output_folder(self.settings["output_folder"])
-        for data_file in self.settings["data_files"].keys():
-            input_string = self.settings["data_files"][data_file]["path"]
-            os.system(
-                "cp "
-                + input_string
-                + " "
-                + self.settings["output_folder"]
-                + "/input_"
-                + input_string.split("/")[-1]
-            )
+        save_input_spectra(self.settings["data_files"],
+                           self.settings["output_folder"])
+        save_configuration(input_path = config_file,
+                           output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_new.yaml'))
+        save_github_commit_string(self.input_retrieval_path,self.settings["output_folder"])
+        save_retrieved_parameters(list(self.parameters.keys()),
+                                  self.settings["output_folder"])
+        save_environment_variables(os.environ,
+                                   self.settings["output_folder"])
 
-        # SAVE GITHUB COMMIT STRING
-        if self.input_retrieval_path != "":
-            os.system(
-                "git -C "
-                + self.input_retrieval_path
-                + " show --name-status >"
-                + self.settings["output_folder"]
-                + "/git_commit.txt"
-            )
-
-        with open("%s/params.json" % self.settings["output_folder"], "w") as f:
-            json.dump(list(self.parameters.keys()), f, indent=2)
-        # save_config_file()
-        # save_instrument_data()
-        # save_converted_dictionaries()
-        # save_environment_variables()
-        # save_github_commit_string()

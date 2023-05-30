@@ -30,6 +30,8 @@ def assign_priors(dictionary: dict) -> dict:
             dictionary[parameter]["prior"]["function"] = uniform_prior
         elif prior_kind == "log-uniform":
             dictionary[parameter]["prior"]["function"] = log_uniform_prior
+        elif prior_kind == "upper-log-uniform":
+            dictionary[parameter]["prior"]["function"] = upper_log_uniform_prior
         elif prior_kind == "gaussian":
             dictionary[parameter]["prior"]["function"] = gaussian_prior
         elif prior_kind == "log-gaussian":
@@ -112,6 +114,13 @@ def log_uniform_prior(r, prior_specs):
         "upper": prior_specs["log_upper"],
     }
     return np.power(10, uniform_prior(r, prior_logspace))
+
+def upper_log_uniform_prior(r, prior_specs):
+    prior_logspace = {
+        "lower": prior_specs["log_lower"],
+        "upper": prior_specs["log_upper"],
+    }
+    return 1 - np.power(10, uniform_prior(r, prior_logspace))
 
 
 def log_gaussian_prior(r, prior_specs):

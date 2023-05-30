@@ -49,8 +49,8 @@ if __name__ == "__main__":
     # Initializes a RetrievalObject (the pyret_ship)
     plotting = retrieval_plotting_object(results_directory = args.res_dir)
     #addition for old venus runs
-    plotting.posteriors['M_pl']=plotting.posteriors['M_pl']*5.972167867791379e+27
-    plotting.posteriors['R_pl']=plotting.posteriors['R_pl']*637810000.0
+    #plotting.posteriors['M_pl']=plotting.posteriors['M_pl']*5.972167867791379e+27
+    #plotting.posteriors['R_pl']=plotting.posteriors['R_pl']*637810000.0
 
     # Calculates and saves the PT profiles and spectra for plotting and 
     plotting.calculate_posterior_pt_profile(n_processes=10,reevaluate_PT=False)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     plotting.calculate_true_spectrum()
 
 
-    plotting.calculate_posterior_spectrum(n_processes=50,reevaluate_spectra=False)
+    plotting.calculate_posterior_spectrum(n_processes=50,reevaluate_spectra=True)
 
     #plotting.calculate_bond_albedo(stellar_luminosity=1,
     #                               error_stellar_luminosity=0.05,

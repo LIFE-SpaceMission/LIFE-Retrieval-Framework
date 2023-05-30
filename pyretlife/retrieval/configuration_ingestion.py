@@ -3,10 +3,12 @@ Read in configuration files.
 """
 import os
 import sys
+import shutil
 import glob
 import numpy as np
 import subprocess
 import astropy.units as u
+import json
 
 # -----------------------------------------------------------------------------
 # IMPORTS
@@ -106,6 +108,59 @@ def make_output_folder(folder_path: Union[Path, str]) -> None:
     if not os.path.isdir(folder_path):
         os.mkdir(folder_path)
 
+
+def save_configuration(input_path: Union[Path, str],
+                       output_path: Union[Path, str]):
+    
+    if not os.path.exists(output_path):
+        shutil.copyfile(input_path, output_path)
+
+
+def save_input_spectra(input_files: dict,
+                       output_path: Union[Path, str]):
+    
+    for data_file in input_files.keys():
+        input_file  = input_files[data_file]["path"]
+        target_file = output_path+ "/input_"+ input_file.split("/")[-1]
+        if not os.path.exists(target_file):
+            os.system(
+                "cp "
+                + input_file
+                + " "
+                + target_file 
+            )
+
+
+def save_github_commit_string(input_retrieval_path: Union[Path, str],
+                              output_path: Union[Path, str]):
+    
+    if not os.path.exists(output_path + "/git_commit.txt"): 
+        if input_retrieval_path != "":
+            os.system(
+                "git -C "
+                + input_retrieval_path
+                + " show --name-status >"
+                + output_path
+                + "/git_commit.txt"
+            )
+
+
+def save_retrieved_parameters(parameter_keys:list,
+                              output_path: Union[Path, str]):
+    
+    if not os.path.exists(output_path + "/params.json"): 
+        with open(output_path + "/params.json", "w") as f:
+            json.dump(parameter_keys, f, indent=2)
+    
+    
+def save_environment_variables(environment_variables: dict,
+                               output_path: Union[Path, str]):
+
+    if not os.path.exists(output_path + "/environment_variables.json"):
+        pyretlife_variables = {variable:environment_variables[variable] for variable in environment_variables.keys() if 'PYRETLIFE' in variable} 
+        with open(output_path + "/environment_variables.json", "w") as f:
+            json.dump(pyretlife_variables, f, indent=2)
+            
 
 def populate_dictionaries(
     config: dict,
