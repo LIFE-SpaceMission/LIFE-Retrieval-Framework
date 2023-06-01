@@ -144,7 +144,7 @@ class RetrievalObject:
     def load_configuration(self, config_file: str):
         # Load standard configurations (hard-coded)
         self.config_default = read_config_file(
-            file_path=Path("configs/config_default.yaml")
+            file_path=Path(self.input_retrieval_path+"/configs/config_default.yaml")
         )
         # Read in the configuration and check if there is already one in the file
         self.config = read_config_file(file_path=Path(config_file))
@@ -509,15 +509,20 @@ class RetrievalObject:
     def saving_inputs_to_folder(self,config_file: Union[Path, str]):
 
         make_output_folder(self.settings["output_folder"])
+
         save_input_spectra(self.settings["data_files"],
                            self.settings["output_folder"])
+        
         save_configuration(input_path = Path("configs/config_default.yaml"),
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_default_config.yaml'))
         save_configuration(input_path = config_file,
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_new.yaml'))
+        
         save_github_commit_string(self.input_retrieval_path,self.settings["output_folder"])
+
         save_retrieved_parameters(list(self.parameters.keys()),
                                   self.settings["output_folder"])
+        
         save_environment_variables(os.environ,
                                    self.settings["output_folder"])
 

@@ -10,6 +10,8 @@ from argparse import ArgumentParser, Namespace
 
 from pymultinest.solve import solve
 
+from mpi4py import MPI
+
 from pyretlife.retrieval.run import RetrievalObject
 
 
@@ -39,6 +41,9 @@ if __name__ == "__main__":
     # warnings.simplefilter("ignore")
     #
 
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
 
@@ -50,7 +55,11 @@ if __name__ == "__main__":
     pyret_ship.assign_prior_functions()
     pyret_ship.vae_initialization()
     pyret_ship.petitRADTRANS_initialization()
-    pyret_ship.saving_inputs_to_folder(config_file=args.config)
+    comm.Barrier()
+
+    if rank == 0:
+        pyret_ship.saving_inputs_to_folder(config_file=args.config)
+    comm.Barrier()
 
     # # Run MultiNest
     result = solve(

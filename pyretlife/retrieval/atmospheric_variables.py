@@ -33,22 +33,29 @@ def set_log_ground_pressure(phys_vars: dict,config: dict, knowns: dict, use_trut
     """
 
     # Case dependant setting of the surface pressure
-    if config['CLOUD PARAMETERS']['settings_clouds'] == 'opaque':
-        # Choose a surface pressure below the lower cloud deck
-        if not (("log_P0" in config['PHYSICAL PARAMETERS'].keys()) or ("P0" in config['PHYSICAL PARAMETERS'].keys())):
-            phys_vars["log_P0"] = 4
-        else:
-            if ("log_P0" in knowns) or ("P0" in knowns):
-                if use_truth:
-                    if "P0" in knowns:
-                        phys_vars["log_P0"] = np.log10(knowns["P0"]["truth"])
-                else:
-                    phys_vars["log_P0"] = 4
+    if 'CLOUD PARAMETERS' in config.keys():
+        if config['CLOUD PARAMETERS']['settings_clouds'] == 'opaque':
+            # Choose a surface pressure below the lower cloud deck
+            if not (("log_P0" in config['PHYSICAL PARAMETERS'].keys()) or ("P0" in config['PHYSICAL PARAMETERS'].keys())):
+                phys_vars["log_P0"] = 4
             else:
-                raise RuntimeError(
-                    "ERROR! For opaque cloud models, the surface pressure "
-                    "P0 is not retrievable!"
-                )
+                if ("log_P0" in knowns) or ("P0" in knowns):
+                    if use_truth:
+                        if "P0" in knowns:
+                            phys_vars["log_P0"] = np.log10(knowns["P0"]["truth"])
+                    else:
+                        phys_vars["log_P0"] = 4
+                else:
+                    raise RuntimeError(
+                        "ERROR! For opaque cloud models, the surface pressure "
+                        "P0 is not retrievable!"
+                    )
+        else:
+            if not "log_P0" in config['PHYSICAL PARAMETERS'].keys():
+                if "P0" in config['PHYSICAL PARAMETERS'].keys():
+                    phys_vars["log_P0"] = np.log10(phys_vars["P0"])
+                else:
+                    raise RuntimeError("ERROR! Either log_P0 or P0 is needed!")
     else:
         if not "log_P0" in config['PHYSICAL PARAMETERS'].keys():
             if "P0" in config['PHYSICAL PARAMETERS'].keys():

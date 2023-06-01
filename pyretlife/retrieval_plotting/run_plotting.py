@@ -149,15 +149,6 @@ class retrieval_plotting_object(RetrievalObject):
         self.load_configuration(config_file=self.results_directory+'/input_new.yaml')
         self.unit_conversion()
         self.assign_knowns()
-
-        # Legacy Code & Variables
-        #self.truths = None #list
-        #self.priors = None #list
-        #self.priors_range = None #list
-        #self.params_names = None #dict
-        #self.generate_titles()
-        #print(self.settings)
-
         self.load_posteriors()
 
 
@@ -262,23 +253,6 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def calculate_bond_albedo(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation,true_equilibrium_temperature = None,true_bond_albedo = None):
-        '''
-        gets the PT profiles corresponding to the parameter values
-        of the equal weighted posteriors.
-        '''
-
-        # calculate the bond albedo and add to the posteriors
-        print('Calculating equilibrium temperatures and Bond albedos.')
-        self.posteriors['T_eq'],self.posteriors['A_b'] = bond_albedo_calculation(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation)
-        print('Equilibrium temperatures and Bond albedos successfully calculated.\n')
-
-        # add the bond albedo to the parameters
-        self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='T_eq',unit=u.K,title='$\mathrm{T_{eq,\,Planet}}$',true_value=true_equilibrium_temperature)
-        self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='A_b',unit=u.dimensionless_unscaled,title='$\mathrm{A_{B,\,Planet}}$',true_value=true_bond_albedo)
-
-
-
     def __evaluate_posteriors(self,data_type,data_name,function_name,function_args,force_evaluate=False):
         '''
         gets the data corresponding to the parameter values
@@ -341,6 +315,61 @@ class retrieval_plotting_object(RetrievalObject):
             print('Saved calculated '+data_name+' in '+self.results_directory+'Plots_New/Ret_'+data_type+'_Skip_'+str(function_args['skip'])+'.pkl.\n')
 
 
+
+    def deduce_bond_albedo(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation,true_equilibrium_temperature = None,true_bond_albedo = None, reevaluate_bond_albedo=False):
+
+        # check if the data for the specified skip
+        # values are already calculated
+        try:
+            if reevaluate_bond_albedo:
+                raise ValueError('Forced recalculation of Bond albedos.')
+
+            # Try loading previously calculated data
+            load_file = open(self.results_directory+'Plots_New/Ret_Bond_Albedo.pkl', "rb")
+            results = pickle.load(load_file)
+            load_file.close()
+
+            print('Loaded previously calculated Bond albedos from '+self.results_directory+'Plots_New/Ret_bond_albedo.pkl.\n')
+
+        # If not calculated or the revaluation is desired
+        # Calculate from scratch
+        except:
+            print('Calculating retrieved Bond albedos from scratch.')
+
+            # Start the calculation
+            equilibrium_temperatures, bond_albedos = bond_albedo_calculation(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation)
+            results = {'T_eq':equilibrium_temperatures,'A_b':bond_albedos}
+
+            # Save the calculated data in a pickle file for later reloading to save time
+            save_file = open(self.results_directory+'Plots_New/Ret_Bond_Albedo.pkl', "wb")
+            pickle.dump(results, save_file, protocol=4)
+            save_file.close()
+            print('Saved calculated Bond albedos in '+self.results_directory+'Plots_New/Ret_Bond_Albedo.pkl.\n')
+
+        # add the bond albedo to the parameters and the posterior
+        self.posteriors['T_eq'], self.posteriors['A_b'] = results['T_eq'], results['A_b'] 
+        self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='T_eq',unit=u.K,title='$\mathrm{T_{eq,\,Planet}}$',true_value=true_equilibrium_temperature)
+        self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='A_b',unit=u.dimensionless_unscaled,title='$\mathrm{A_{B,\,Planet}}$',true_value=true_bond_albedo)
+
+
+
+    def deduce_gravity(self, true_gravity = None):
+
+        # take the surface gravityfrom the spectrum calculation
+        self.posteriors['g'] = self.retrieved_gravity
+
+        # add the bond albedo to the parameters
+        self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='g',unit=u.cm/u.s/u.s,title='$\mathrm{g}$',true_value=true_gravity)
+
+
+
+    def deduce_surface_temperature(self, true_surface_temperature = None):
+
+        # take the temperature in the lowest layer of the retrieved P-T profiles
+        self.posteriors['T_0'] = self.retrieved_temperatures[:,-1]
+
+        # add the bond albedo to the parameters
+        self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='T_0',unit=u.K,title='$\mathrm{T_{0}}$',true_value=true_surface_temperature)
 
 
 

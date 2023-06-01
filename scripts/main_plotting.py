@@ -68,12 +68,14 @@ if __name__ == "__main__":
     #                               true_equilibrium_temperature = 255,
     #                               true_bond_albedo = 0.29)
 
-    plotting.calculate_bond_albedo(stellar_luminosity=1,
+    plotting.deduce_bond_albedo(stellar_luminosity=1,
                                    error_stellar_luminosity=0.05,
                                    planet_star_separation=0.723,
                                    error_planet_star_separation=0.723*0.05,
                                    true_equilibrium_temperature = 226,
                                    true_bond_albedo = 0.77)
+    plotting.deduce_gravity(true_gravity = 887)
+    plotting.deduce_surface_temperature(true_surface_temperature = 737)
 
     unit_titles = {'R_pl':'$\mathrm{R_{Earth}}$','M_pl':'$\mathrm{M_{Earth}}$'}
     custom_parameter_titles = {'H2SO484(c)_am':r'$\mathrm{Species^{cloud}})$',

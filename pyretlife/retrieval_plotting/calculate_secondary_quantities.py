@@ -169,6 +169,7 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
             size = ind_end-ind_start
 
             # Initialize the arrays for storage
+            spectra['gravity'] = np.zeros(size)
             spectra['fluxes'] = np.zeros((size,len(rp_object.rt_object.flux)))
             spectra['emission_contribution'] = np.zeros((size,np.shape(rp_object.rt_object.contr_em)[0],np.shape(rp_object.rt_object.contr_em)[1]))
             if rp_object.settings['include_moon'] == 'True':
@@ -176,6 +177,7 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
 
         # Save the calculated spectra
         save = i-ind_start
+        spectra['gravity'][save] = rp_object.phys_vars["g"]
         spectra['fluxes'][save,:] = rp_object.rt_object.flux
         spectra['emission_contribution'][save,:,:] = rp_object.rt_object.contr_em
         if rp_object.settings['include_moon'] == 'True':
