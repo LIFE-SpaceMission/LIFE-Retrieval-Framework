@@ -14,6 +14,8 @@ from mpi4py import MPI
 
 from pyretlife.retrieval.run import RetrievalObject
 
+import sys
+
 
 # -----------------------------------------------------------------------------
 # DEFINITIONS

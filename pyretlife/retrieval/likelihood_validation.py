@@ -48,8 +48,12 @@ def validate_positive_temperatures(temp: ndarray) -> bool:
         return False
 
 
-def validate_sum_of_abundances(chem_vars: dict) -> bool:
-    if sum(chem_vars.values()) > 1:
+def validate_sum_of_abundances(abundances: dict) -> bool:
+    total = np.zeros_like(abundances[list(abundances.keys())[0]])
+    for abundance in abundances.keys():
+        total = total + abundances[abundance]
+
+    if np.any(total>1.0):
         return True
     else:
         return False

@@ -355,10 +355,7 @@ class RetrievalObject:
 
         return
     
-    def calculate_spectrum(self):
-        self.inert = (1 - sum(self.chem_vars.values())) * np.ones_like(
-            self.press
-        )
+    def calculate_abundances(self):
 
         self.abundances = calculate_abundances(self.chem_vars, self.press)
         (
@@ -369,6 +366,13 @@ class RetrievalObject:
         ) = assign_cloud_parameters(
             self.abundances, self.cloud_vars, self.press
         )
+
+    def calculate_spectrum(self):
+
+        total = np.zeros_like(self.abundances[list(self.abundances.keys())[0]])
+        for abundance in self.abundances.keys():
+            total = total + self.abundances[abundance]
+        self.inert = (np.ones_like(self.abundances[list(self.abundances.keys())[0]]) - total)
 
         self.MMW = calc_mmw(self.abundances, self.settings, self.inert)
 
@@ -446,7 +450,9 @@ class RetrievalObject:
 
         if validate_positive_temperatures(self.temp):
             return -1e99
-        if validate_sum_of_abundances(self.chem_vars):
+        
+        self.calculate_abundances()
+        if validate_sum_of_abundances(self.abundances):
             return -1e99
 
         self.calculate_spectrum()
@@ -513,7 +519,7 @@ class RetrievalObject:
         save_input_spectra(self.settings["data_files"],
                            self.settings["output_folder"])
         
-        save_configuration(input_path = Path("configs/config_default.yaml"),
+        save_configuration(input_path = Path(self.input_retrieval_path+"configs/config_default.yaml"),
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_default_config.yaml'))
         save_configuration(input_path = config_file,
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_new.yaml'))

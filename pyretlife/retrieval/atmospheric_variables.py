@@ -3,6 +3,7 @@ from astropy.constants import G
 import numpy as np
 from typing import Tuple
 from numpy import ndarray
+import sys
 
 
 def calculate_gravity(phys_vars: dict,config: dict) -> dict:
@@ -187,8 +188,15 @@ def calculate_mod_madhuseager_profile(pressure: ndarray, temp_vars: dict) -> nda
 def calculate_abundances(chem_vars: dict, press: ndarray) -> dict:
     abundances = {}
 
-    for name in chem_vars.keys():
-        abundances[name] = np.ones_like(press) * chem_vars[name]
+    slopes = [parameter for parameter in chem_vars.keys() if 'Slope' in parameter]
+    molecules = [parameter for parameter in chem_vars.keys() if 'Slope' not in parameter]
+
+    for molecule in molecules:
+        if 'Slope_' + molecule in slopes:
+            abundances[molecule] = 10**(np.log10(press) * chem_vars['Slope_' + molecule] + np.log10(chem_vars[molecule]))
+        else:
+            abundances[molecule] = np.ones_like(press) * chem_vars[molecule]
+
     return abundances
 
 

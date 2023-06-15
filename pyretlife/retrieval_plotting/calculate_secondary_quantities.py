@@ -159,6 +159,8 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
                 layers=rp_object.settings["n_layers"],
                 )
 
+        rp_object.calculate_abundances()
+
         rp_object.calculate_spectrum()
         rp_object.distance_scale_spectrum()
          

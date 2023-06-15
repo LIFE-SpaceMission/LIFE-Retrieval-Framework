@@ -677,6 +677,7 @@ class retrieval_plotting_object(RetrievalObject):
                     
                     true_cloud_top=[None,None],
 
+                    plot_truth = False,
                     plot_residual = False,
                     plot_clouds = False,
                     plot_unit_temperature=None,
@@ -741,6 +742,7 @@ class retrieval_plotting_object(RetrievalObject):
             map, norm, levels = generate_color_map_from_levels(Z,color_levels,level_thresholds)
             contour = plt.contour((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,levels=np.array(levels),alpha=1,zorder=2).allsegs[:-1]
             p_max = np.max(contour[0][0][:,1])
+            plt.clf()
 
             # iterate over all contours
             for i in range(len(contour)):
@@ -784,6 +786,7 @@ class retrieval_plotting_object(RetrievalObject):
             ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
         else:
             pass
+        ax.set_yscale('log')
 
         # If wanted: plotting the retrieved cloud top
         if plot_clouds:
@@ -810,41 +813,42 @@ class retrieval_plotting_object(RetrievalObject):
                 ax.hlines([cloud_top_quantiles[i],cloud_top_quantiles[-i-1]],xmin = -10000, xmax = 10000,color = tuple(color_levels_c[i, :]),ls=':',zorder=2)
 
         # Plotting the true/input profile (interpolation for smoothing)
-        if plot_residual:
-            y = np.nanquantile(local_retrieved_temperatures_extrapolated,0.5,axis=0)
-            x = np.nanquantile(local_retrieved_pressures_extrapolated,0.5,axis=0)
-            yinterp = np.interp(local_true_pressures, x, y)
-            smooth_T_true = sp.ndimage.filters.gaussian_filter1d(local_true_temperatures-yinterp,sigma = 5)
-            smooth_T_true[np.where(local_true_pressures>p_max)]=np.nan
+        if plot_truth:
+            if plot_residual:
+                y = np.nanquantile(local_retrieved_temperatures_extrapolated,0.5,axis=0)
+                x = np.nanquantile(local_retrieved_pressures_extrapolated,0.5,axis=0)
+                yinterp = np.interp(local_true_pressures, x, y)
+                smooth_T_true = sp.ndimage.filters.gaussian_filter1d(local_true_temperatures-yinterp,sigma = 5)
+                smooth_T_true[np.where(local_true_pressures>p_max)]=np.nan
 
-            # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
-            if np.isnan(smooth_T_true[-10]):
-                num_nan = np.count_nonzero(np.isnan(smooth_T_true))
-                ax.semilogy(smooth_T_true[:-num_nan-30],local_true_pressures[:-num_nan-30],color ='black', label = 'P-T Profile')
-                ax.semilogy(smooth_T_true[-num_nan-30:],local_true_pressures[-num_nan-30:],color ='black', ls = ':')
+                # Check if the retrieved PT profile reaches al the way to the true surface and plot accordingly.
+                if np.isnan(smooth_T_true[-10]):
+                    num_nan = np.count_nonzero(np.isnan(smooth_T_true))
+                    ax.semilogy(smooth_T_true[:-num_nan-30],local_true_pressures[:-num_nan-30],color ='black', label = 'P-T Profile')
+                    ax.semilogy(smooth_T_true[-num_nan-30:],local_true_pressures[-num_nan-30:],color ='black', ls = ':')
+                else:
+                    ax.semilogy(smooth_T_true,local_true_pressures,color ='black', label = 'P-T Profile')
+
+                    # Plotting the true/input surface temperature/pressure
+                    ax.plot(local_true_temperatures[-1]-yinterp[-1],local_true_pressures[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+
+                # If wanted: plotting the true/input cloud top temperature/pressure
+                try:
+                    ind_ct = (np.argmin(np.abs(np.log10(local_true_pressures_cloud_top)-np.log10(local_true_pressures))))
+                    ax.plot(smooth_T_true[ind_ct],local_true_pressures_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
+                except:
+                    pass
             else:
-                ax.semilogy(smooth_T_true,local_true_pressures,color ='black', label = 'P-T Profile')
+                ax.semilogy(local_true_temperatures,local_true_pressures,color ='black', label = 'P-T Profile')
 
                 # Plotting the true/input surface temperature/pressure
-                ax.plot(local_true_temperatures[-1]-yinterp[-1],local_true_pressures[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+                ax.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
 
-            # If wanted: plotting the true/input cloud top temperature/pressure
-            try:
-                ind_ct = (np.argmin(np.abs(np.log10(local_true_pressures_cloud_top)-np.log10(local_true_pressures))))
-                ax.plot(smooth_T_true[ind_ct],local_true_pressures_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
-            except:
-                pass
-        else:
-            ax.semilogy(local_true_temperatures,local_true_pressures,color ='black', label = 'P-T Profile')
-
-            # Plotting the true/input surface temperature/pressure
-            ax.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
-
-            # If wanted: plotting the true/input cloud top temperature/pressure
-            try:
-                ax.plot(local_true_temperatures_cloud_top,local_true_pressures_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
-            except:
-                pass
+                # If wanted: plotting the true/input cloud top temperature/pressure
+                try:
+                    ax.plot(local_true_temperatures_cloud_top,local_true_pressures_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
+                except:
+                    pass
 
         # If it is a single plot show the axes titles
         if ax_arg is None:
@@ -899,11 +903,12 @@ class retrieval_plotting_object(RetrievalObject):
         contour = ax2.contourf((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,cmap=map,norm=norm,levels=np.array(levels))
 
         # plot the true values that were used to generate the input spectrum
-        ax2.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
-        try:
-            ax2.plot(local_true_temperatures_cloud_top,(local_true_pressures_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
-        except:
-            pass
+        if plot_truth:
+            ax2.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
+            try:
+                ax2.plot(local_true_temperatures_cloud_top,(local_true_pressures_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
+            except:
+                pass
         
         # Arange the ticks for the inlay
         add_inlay_plot_labels(ax2,ax2_xlabel,ax2_ylabel,inlay_loc)
@@ -975,12 +980,20 @@ class retrieval_plotting_object(RetrievalObject):
             patch_labels = quantiles_title
             
         # Add the legend
-        if case_identifier=='':
-            lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
-                            handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
+        if plot_truth:
+            if case_identifier=='':
+                lgd = ax.legend(['Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ']+patch_labels+[' ',' ']+labels,\
+                                handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
+            else:
+                lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ',' ']+patch_labels+[' ',' ']+labels,\
+                                handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
         else:
-            lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles+[' ','Truth:']+handles,[' ',' ']+patch_labels+[' ',' ']+labels,\
-                            handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=legend_n_col,loc=legend_loc,frameon=False)
+            if case_identifier=='':
+                lgd = ax.legend(['Retrieval:']+patch_handles,[' ']+patch_labels,\
+                                handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
+            else:
+                lgd = ax.legend([case_identifier,'Retrieval:']+patch_handles,[' ',' ']+patch_labels,\
+                                handler_map={str:  Handles(), MulticolorPatch:  MulticolorPatchHandler()}, ncol=1,loc=legend_loc,frameon=False)
 
         # Save or pass back the figure
         if ax_arg is not None:
@@ -990,6 +1003,6 @@ class retrieval_plotting_object(RetrievalObject):
                 plt.savefig(self.results_directory+'Plots_New/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
             else:
                 plt.savefig(self.results_directory+'Plots_New/plot_pt_structure.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
-            return figure, ax
+            return figure, ax, ax2
         else:
-            return figure, ax
+            return figure, ax, ax2

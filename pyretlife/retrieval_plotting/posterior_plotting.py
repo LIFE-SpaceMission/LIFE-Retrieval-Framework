@@ -77,10 +77,11 @@ def Scale_Posteriors(rp_object, local_post, local_truths, local_titles, paramete
         if log_abundances:    
             # Adjust retrieved abundances for the line absorbers
             if rp_object.parameters[param]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                local_post[param] = np.log10(local_post[param])
-                local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
-                if not local_truths[param] is None:
-                    local_truths[param] = np.log10(local_truths[param])
+                if 'Slope' not in param:
+                    local_post[param] = np.log10(local_post[param])
+                    local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                    if not local_truths[param] is None:
+                        local_truths[param] = np.log10(local_truths[param])
             # Adjust retrieved abundances for the clod absorbers
             if rp_object.parameters[param]['type'] == 'CLOUD PARAMETERS':
                 if len(param.split('_')) == 2:
