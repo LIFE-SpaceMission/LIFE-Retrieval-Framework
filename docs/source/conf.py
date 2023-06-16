@@ -16,6 +16,7 @@ release = '0.1'
 
 extensions = ['sphinx.ext.napoleon',
               'sphinx.ext.autodoc',
+"sphinx_autodoc_typehints",
 'sphinx.ext.autosummary',
               'sphinx.ext.intersphinx',
     'sphinx.ext.duration',

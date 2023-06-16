@@ -11,8 +11,8 @@ def calculate_gravity(phys_vars: dict, config: dict) -> dict:
     The calculate_gravity function calculates the surface gravity of a planet given its mass and radius.
         If the surface gravity is already provided, it will skip this step.
 
-    :param phys_vars: dict: The dictionary of all the physical variables
-    :param config: dict:  The dictionary containing all the config file settings/known values/parameters.
+    :param phys_vars: The dictionary of all the physical variables
+    :param config:  The dictionary containing all the config file settings/known values/parameters.
     :return: The updated phys_vars dictionary
     """
 
@@ -36,9 +36,9 @@ def set_log_ground_pressure(
     provided parameters and brings it to the correct format for petitRADTRANS. A specific calculation is made in the
     case of settings_clouds='opaque'.
 
-    :param phys_vars: dict: The dictionary of all the physical variables
-    :param config: dict: The dictionary containing all the config file settings/known values/parameters.
-    :param knowns: dict: The dictionary containing all known quantities.
+    :param phys_vars: The dictionary of all the physical variables
+    :param config: The dictionary containing all the config file settings/known values/parameters.
+    :param knowns: The dictionary containing all known quantities.
     :param use_truth: bool: A boolean that allows to use the true value of the pressure rather than 10^{-4}.
         Used for plotting, for opaque cloudy cases only.
     :return: The updated phys_vars dictionary
@@ -89,9 +89,9 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     and returns an array of temperatures corresponding to the pressures. The function uses the numpy polyval function
     to calculate these temperatures.
 
-    :param pressure: ndarray: The pressure values
-    :param temp_vars: dict: The dictionary of a_i coefficients to calculate the polynomial.
-    :return: ndarray: The log10 of the pressure profile
+    :param pressure: The pressure values
+    :param temp_vars: The dictionary of a_i coefficients to calculate the polynomial.
+    :return: The log10 of the pressure profile
     """
     return np.array(
         np.polyval(
@@ -117,9 +117,9 @@ def calculate_vae_profile(
     also takes in a dictionary of temperature variables that are used to calculate the
     temperatures.
 
-    :param pressure: ndarray: The pressure values
+    :param pressure: The pressure values
     :param vae_pt: Access the get_temperatures function from the vae_pt object
-    :param temp_vars: dict: The dictionary of temperature coefficients
+    :param temp_vars: The dictionary of temperature coefficients
     :return: The temperature profile for the given pressure levels
     """
     return vae_pt.get_temperatures(
@@ -136,9 +136,9 @@ def calculate_guillot_profile(
     """
     The calculate_guillot_profile function calculates the Guillot profile for a given set of parameters.
 
-    :param pressure: ndarray: The pressure array
+    :param pressure: The pressure array
     :param prt_instance: The instance of petitRADTRANS
-    :param temp_vars: dict: The dictionary of temperature parameters to calculate the Guillot profile.
+    :param temp_vars: The dictionary of temperature parameters to calculate the Guillot profile.
     :return: The temperature profile for the given pressure levels
     """
     return prt_instance.nat_cst.guillot_modif(
@@ -156,8 +156,8 @@ def calculate_isothermal_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     """
     The calculate_isothermal_profile function calculates the temperature profile for an isothermal atmosphere.
 
-    :param pressure: ndarray: The pressure array
-    :param temp_vars: dict: The dictionary of temperature parameters to calculate an isothermal profile.
+    :param pressure: The pressure array
+    :param temp_vars: The dictionary of temperature parameters to calculate an isothermal profile.
     :return: The temperature profile for the given pressure levels
     """
     return temp_vars["T_eq"] * np.ones_like(pressure)
@@ -178,11 +178,11 @@ def madhuseager_temperature_calculator(
     value for T(p). Temperature_i is the initial (or reference) atmospheric level's corresponding temperature value
     at p = p(initial). Alpha and beta are constants that
 
-    :param pressure_m: float: Calculate the temperature at a given pressure
-    :param pressure_i: float: Set the initial pressure
-    :param temperature_i: float: Set the initial temperature
-    :param alpha: float: Calculate the temperature gradient, and beta is used to calculate the adiabatic lapse rate
-    :param beta: float: Calculate the temperature of a gas at a given pressure
+    :param pressure_m:  Calculate the temperature at a given pressure
+    :param pressure_i:  Set the initial pressure
+    :param temperature_i:  Set the initial temperature
+    :param alpha:  Calculate the temperature gradient, and beta is used to calculate the adiabatic lapse rate
+    :param beta:  Calculate the temperature of a gas at a given pressure
     :return: The temperature at the pressure level m
     """
     return (np.log(pressure_m / pressure_i) / alpha) ** (
@@ -194,11 +194,11 @@ def calculate_madhuseager_profile(
     pressure: ndarray, temp_vars: dict
 ) -> ndarray:
     """
-    The calculate_madhuseager_profile function calculates the temperature profile of a planet using the Madhusudhan
-    &amp; Seager (2009) model.
+    The calculate_madhuseager_profile function calculates the temperature profile of a planet using the
+    Madhusudhan&Seager (2009) model.
 
-    :param pressure: ndarray: The pressure array
-    :param temp_vars: dict: The dictionary of temperature parameters to calculate the Madhusudhan&Seager profile.
+    :param pressure: The pressure array
+    :param temp_vars: The dictionary of temperature parameters to calculate the Madhusudhan&Seager profile.
     :return: The temperature profile for the given pressure levels
     """
 
@@ -256,8 +256,8 @@ def calculate_mod_madhuseager_profile(
     variables for calculating the temperature profile. It returns an array of temperatures corresponding to each
     pressure value.
 
-    :param pressure: ndarray: The pressure array
-    :param temp_vars: dict: The dictionary of temperature values to calculate the modified Madhusudhan-Seager model.
+    :param pressure: The pressure array
+    :param temp_vars: The dictionary of temperature values to calculate the modified Madhusudhan-Seager model.
     :return: The temperature array
     """
     beta1 = 0.5
@@ -304,8 +304,8 @@ def calculate_abundances(chem_vars: dict, press: ndarray) -> dict:
     and returns a dictionary with the abundances for each molecule.
     CHECK HOW IT WORKS FOR SLOPES
 
-    :param chem_vars: dict: The dictionary of chemical variables.
-    :param press: ndarray: The array of pressures.
+    :param chem_vars: The dictionary of chemical variables.
+    :param press: The array of pressures.
     :return: A dictionary of updated abundances.
     """
     abundances = {}
@@ -341,9 +341,9 @@ def assign_cloud_parameters(
     of condensate (i.e., no more information about the clouds themselves). Finally, it returns these three
     dictionaries as well as an integer representing lnorm.
 
-    :param abundances: dict: Store the abundances of each element in a dictionary
-    :param cloud_vars: dict: Set the cloud parameters
-    :param press: ndarray: Set the abundance outside the cloud layer to 0
+    :param abundances: Store the abundances of each element in a dictionary
+    :param cloud_vars: Set the cloud parameters
+    :param press: Set the abundance outside the cloud layer to 0
     :return: The abundances, cloud_vars, cloud_radii and cloud_lnorm
     """
     cloud_radii = {}
@@ -371,9 +371,9 @@ def calc_mmw(abundances: dict, settings: dict, inert: ndarray) -> ndarray:
     """
     The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
 
-    :param abundances: dict: The abundances dictionary
-    :param settings: dict: The settings dictionary
-    :param inert: ndarray: The weight of the inert gas
+    :param abundances: The abundances dictionary
+    :param settings: The settings dictionary
+    :param inert: The weight of the inert gas
     :return: The mean molecular weight of the gas in each layer
     """
     mmw = np.zeros_like(range(settings["n_layers"]), dtype=float)

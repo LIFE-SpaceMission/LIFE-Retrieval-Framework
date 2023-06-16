@@ -34,11 +34,8 @@ def read_config_file(file_path: Union[Path, str]) -> dict:
     """
     Read a configuration from a YAML file.
 
-    Args:
-        file_path: Path to a file with the configuration.
-
-    Returns:
-        The configuration as a dictionary.
+    :param file_path: Union[Path, str]: Path to a file with the configuration.
+    :return The configuration as a dictionary.
     """
 
     file_path = Path(file_path)
@@ -59,11 +56,8 @@ def check_if_configs_match(config: dict) -> bool:
     matches the input.yaml file that was used to run a previous simulation. If they match,
     the function returns True; otherwise, it returns False.
 
-    Args:
-        config [dict]: The configuration dictionary
-
-    Returns
-        True if the files are the same, False if they are different.
+    :param config: the configuration dictionary
+    :return True if the files are the same, False if they are different.
     """
     # Expected location of a config file; check if it exists
     retrieval_dir = Path(config["RUN SETTINGS"]["output_folder"])
