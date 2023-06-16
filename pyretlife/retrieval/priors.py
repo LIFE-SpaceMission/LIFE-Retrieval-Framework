@@ -24,6 +24,15 @@ from numpy import ndarray
 
 
 def assign_priors(dictionary: dict) -> dict:
+    """
+    The assign_priors function takes a dictionary of parameters and assigns the appropriate prior function to each parameter.
+    The prior functions are defined in the priors module. The assign_priors function is called by the read_parameters function, which reads in
+    the parameters from a .yaml file.
+
+
+    :param dictionary: Pass the dictionary containing all the parameters and their values
+    :return:  A dictionary with the prior function assigned to each parameter
+    """
     for parameter in dictionary.keys():
         prior_kind = dictionary[parameter]["prior"]["kind"]
         if prior_kind == "uniform":
