@@ -1,0 +1,23 @@
+﻿pyretlife
+=========
+
+.. automodule:: pyretlife
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+

@@ -14,11 +14,18 @@ release = '0.1'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = [
+extensions = ['sphinx.ext.napoleon',
+              'sphinx.ext.autodoc',
+'sphinx.ext.autosummary',
+              'sphinx.ext.intersphinx',
     'sphinx.ext.duration',
     'sphinx.ext.doctest',
-    'sphinx.ext.autodoc',
+    # 'sphinx.ext.autodoc',
 ]
+autodoc_member_order = 'bysource'
+
+autodoc_default_options = {
+    "members": True, "undoc-members": True, "show-inheritance": True}
 
 templates_path = ['_templates']
 exclude_patterns = []

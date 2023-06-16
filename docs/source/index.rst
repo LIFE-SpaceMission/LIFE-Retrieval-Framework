@@ -20,17 +20,40 @@ Indices and tables
 * :ref:`search`
 
 
+
+
+Class
+=====
+.. autoclass:: pyretlife.retrieval.run.RetrievalObject
+
+Atmospheric Variables
+=====================
+.. automodule:: pyretlife.retrieval.atmospheric_variables
+   :members:
+
+Configuration Ingestion
+=======================
+.. automodule:: pyretlife.retrieval.configuration_ingestion
+   :members:
+
+Likelihood Validation
+=====================
+.. automodule:: pyretlife.retrieval.likelihood_validation
+   :members:
+
 Priors
 ======
+.. automodule:: pyretlife.retrieval.priors
+   :members:
 
-.. autofunction:: pyretlife.retrieval.priors.assign_priors
-.. autofunction:: pyretlife.retrieval.priors.read_custom_prior
-.. autofunction:: pyretlife.retrieval.priors.uniform_prior
-.. autofunction:: pyretlife.retrieval.priors.gaussian_prior
-.. autofunction:: pyretlife.retrieval.priors.log_uniform_prior
-.. autofunction:: pyretlife.retrieval.priors.upper_log_uniform_prior
-.. autofunction:: pyretlife.retrieval.priors.log_gaussian_prior
-.. autofunction:: pyretlife.retrieval.priors.fourth_power_uniform_prior
-.. autofunction:: pyretlife.retrieval.priors.custom_prior
-.. autofunction:: pyretlife.retrieval.priors.invalid_prior
+Radiative Transfer
+==================
+.. automodule:: pyretlife.retrieval.radiative_transfer
+   :members:
+
+Units
+=====
+.. automodule:: pyretlife.retrieval.units
+   :members:
+
 
