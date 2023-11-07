@@ -98,13 +98,29 @@ def check_if_configs_match(config: dict) -> bool:
 
 
 def make_output_folder(folder_path: Union[Path, str]) -> None:
+    """
+    The function creates a new folder at the specified path if it does not already exist.
+    
+    :param folder_path: The `folder_path` parameter is the path to the folder where you want to create a new folder. It can be either a `Path` object or a string representing the path
+    :type folder_path: Union[Path, str]
+    """
     folder_path = Path(folder_path)
     if not os.path.isdir(folder_path):
         os.mkdir(folder_path)
 
 
-def save_configuration(input_path: Union[Path, str],
-                       output_path: Union[Path, str]):
+def save_configuration(input_path: Union[Path, str],output_path: Union[Path, str]):
+    """
+    The function `save_configuration` copies a file from the input path to the output path if the output
+    path does not already exist.
+    
+    :param input_path: The input_path parameter is the path to the configuration file that you want to
+    save. It can be either a Path object or a string representing the path to the file
+    :type input_path: Union[Path, str]
+    :param output_path: The output path is the path where the configuration file will be saved. It can
+    be either a `Path` object or a string representing the path
+    :type output_path: Union[Path, str]
+    """
     
     if not os.path.exists(output_path):
         shutil.copyfile(input_path, output_path)
@@ -112,6 +128,13 @@ def save_configuration(input_path: Union[Path, str],
 
 def save_input_spectra(input_files: dict,
                        output_path: Union[Path, str]):
+    """
+    The save_input_spectra function copies the input spectra to a new directory.
+    
+    :param input_files: dict: Define the input files to be copied
+    :param output_path: Union[Path: Specify the path to which the input spectra will be saved
+    :param str]: Specify that the output_path can be either a string or a path
+    """
     
     for data_file in input_files.keys():
         input_file  = input_files[data_file]["path"]

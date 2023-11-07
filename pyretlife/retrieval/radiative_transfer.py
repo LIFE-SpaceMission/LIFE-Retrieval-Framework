@@ -188,6 +188,7 @@ def calculate_emission_flux(
     # TODO implement better logging
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, "w")
+
     if not settings["include_scattering"]["direct_light"]:
         rt_object.calc_flux(
             temp,
@@ -201,21 +202,40 @@ def calculate_emission_flux(
             Pcloud=Pcloud
         )
     else:
-        rt_object.calc_flux(
-            temp,
-            abundances_MMR,
-            gravity,
-            mmw,
-            radius=cloud_radii,
-            sigma_lnorm=cloud_lnorm,
-            geometry=settings["geometry"],
-            Tstar=scat_vars["stellar_temperature"],
-            Rstar=scat_vars["stellar_radius"],
-            semimajoraxis=scat_vars["semimajor_axis"],
-            add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
-            contribution=em_contr,
-            Pcloud=Pcloud
-        )
+        if settings['geometry'] == 'quadrature':
+            rt_object.calc_flux(
+                temp,
+                abundances_MMR,
+                gravity,
+                mmw,
+                radius=cloud_radii,
+                sigma_lnorm=cloud_lnorm,
+                geometry='non-isotropic',
+                theta_star=77.756,
+                Tstar=scat_vars["stellar_temperature"],
+                Rstar=scat_vars["stellar_radius"],
+                semimajoraxis=scat_vars["semimajor_axis"],
+                add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
+                contribution=em_contr,
+                Pcloud=Pcloud
+            )
+        else:
+            rt_object.calc_flux(
+                temp,
+                abundances_MMR,
+                gravity,
+                mmw,
+                radius=cloud_radii,
+                sigma_lnorm=cloud_lnorm,
+                geometry=settings["geometry"],
+                Tstar=scat_vars["stellar_temperature"],
+                Rstar=scat_vars["stellar_radius"],
+                semimajoraxis=scat_vars["semimajor_axis"],
+                add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
+                contribution=em_contr,
+                Pcloud=Pcloud
+            )
+
     # sys.stdout = old_stdout
     return rt_object.freq.copy(), rt_object.flux.copy()
 

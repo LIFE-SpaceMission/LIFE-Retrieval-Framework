@@ -73,17 +73,17 @@ def assign_priors(dictionary: dict) -> dict:
 
     return dictionary
 
-
-def read_custom_prior(path: Union[str, Path]) -> ndarray:
-    """
-    The read_custom_prior function reads in a custom prior from the path specified by the user.
-    The function takes one argument, which is a string or Path object specifying where to find the file containing
-    the custom prior. The function returns a ndarray containing the data from the custom prior distribution.
-
-    :param path: Specify that the path parameter can be either a string or a path object
-    :return:  A dictionary with the prior function assigned to each parameter
-    """
-    return np.loadtxt(path)
+#
+# def read_custom_prior(path: Union[str, Path]) -> ndarray:
+#     """
+#     The read_custom_prior function reads in a custom prior from the path specified by the user.
+#     The function takes one argument, which is a string or Path object specifying where to find the file containing
+#     the custom prior. The function returns a ndarray containing the data from the custom prior distribution.
+#
+#     :param path: Specify that the path parameter can be either a string or a path object
+#     :return:  A dictionary with the prior function assigned to each parameter
+#     """
+#     return np.loadtxt(path)
 
 
 def uniform_prior(r: float, prior_specs: dict) -> float:
