@@ -17,7 +17,7 @@ def validate_pt_profile(
             < phys_vars["log_P0"]
         ):
             result = True
-    if settings["parameterization"] == "mod_madhuseager":
+    elif settings["parameterization"] == "mod_madhuseager":
         if (
             not settings["log_top_pressure"]
             < temp_vars["log_P1"]
@@ -27,7 +27,7 @@ def validate_pt_profile(
             result = True
 
     # Check: Return -inf if parameters for the Guillot model are bad
-    if settings["parameterization"] == "guillot":
+    elif settings["parameterization"] == "guillot":
         if temp_vars["alpha"] < -1:
             result = True
 
@@ -47,11 +47,25 @@ def validate_positive_temperatures(temp: ndarray) -> bool:
     else:
         return False
 
+def validate_clouds(press: ndarray, temp: ndarray, cloud_vars: dict) -> bool:
+    if 'Pcloud' in cloud_vars.keys():
+        if cloud_vars['Pcloud']>press[-1]:
+            return True
+        if temp[-1] < temp[np.argmin(np.abs(np.log10(press)-np.log10(cloud_vars['Pcloud'])))]:
+            return True
+    else:
+        return False
 
-def validate_sum_of_abundances(abundances: dict) -> bool:
-    total = np.zeros_like(abundances[list(abundances.keys())[0]])
-    for abundance in abundances.keys():
-        total = total + abundances[abundance]
+def validate_abundances(abundances_VMR: ndarray, chem_vars: dict) -> bool:
+    if abundances_VMR['H2O'][-1] != chem_vars['H2O']:
+        return True
+    else:
+        return False
+
+def validate_sum_of_abundances(abundances_VMR: dict) -> bool:
+    total = np.zeros_like(abundances_VMR[list(abundances_VMR.keys())[0]])
+    for abundance_VMR in abundances_VMR.keys():
+        total = total + abundances_VMR[abundance_VMR]
 
     if np.any(total>1.0):
         return True

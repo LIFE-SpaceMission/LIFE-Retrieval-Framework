@@ -49,12 +49,15 @@ def Generate_Parameter_Titles(rp_object):
                             
                 # Define the titles such that they work well for the cloud parameters
                 elif rp_object.parameters[key]['type'] == 'CLOUD PARAMETERS':
-                    temp = key.split('_')
-                    if 'H2SO4' in temp[0]:
-                        temp[0] = 'H2SO4(c)'
-                    temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
-                    temp.pop(1)
-                    rp_object.parameters[key]['title'] = '\n'.join(temp)
+                    if (key in ['cloud_fraction','Pcloud']) or ('_cloud_top' in key):
+                        rp_object.parameters[key]['title'] = key
+                    else:
+                        temp = key.split('_')
+                        if 'H2SO4' in temp[0]:
+                            temp[0] = 'H2SO4(c)'
+                        temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
+                        temp.pop(1)
+                        rp_object.parameters[key]['title'] = '\n'.join(temp)
 
                 # Define the titles such that they work well for the Moon        
                 elif rp_object.parameters[key]['type'] == 'MOON PARAMETERS':
@@ -84,7 +87,9 @@ def Scale_Posteriors(rp_object, local_post, local_truths, local_titles, paramete
                         local_truths[param] = np.log10(local_truths[param])
             # Adjust retrieved abundances for the clod absorbers
             if rp_object.parameters[param]['type'] == 'CLOUD PARAMETERS':
-                if len(param.split('_')) == 2:
+                if (param in ['cloud_fraction','Pcloud']) or ('_cloud_top' in param):
+                    pass
+                elif len(param.split('_')) == 2:
                     local_post[param] = np.log10(local_post[param])
                     local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
                     if not local_truths[param] is None:

@@ -13,6 +13,9 @@ class UnitsUtil:
         # mentioned here are assumed to be dimensionless
 
         self.std_input_units = {
+            # GENERAL
+            "pressure": u.bar,
+            "temperature": u.K,            
             # LAMBDA RANGE
             "WMIN": u.micron,
             "WMAX": u.micron,
@@ -34,6 +37,7 @@ class UnitsUtil:
             "H2SO484(c)_am_top_pressure": u.bar,
             "H2SO484(c)_am_thickness": u.bar,
             "H2SO484(c)_am_particle_radius": u.cm,
+            'Pcloud':u.bar,
             # Input Files
             "wavelength": u.micron,
             "flux": u.erg / u.s / u.Hz / u.m**2,
@@ -42,6 +46,9 @@ class UnitsUtil:
         # Units for the retrieval (mostly cgs). All parameters not
         # mentioned here are assumed to be dimensionless
         self.retrieval_units = {
+            # GENERAL
+            "pressure": u.bar,
+            "temperature": u.K,
             # LAMBDA RANGE
             "WMIN": u.micron,
             "WMAX": u.micron,
@@ -61,6 +68,7 @@ class UnitsUtil:
             "H2SO484(c)_am_top_pressure": u.bar,
             "H2SO484(c)_am_thickness": u.bar,
             "H2SO484(c)_am_particle_radius": u.cm,
+            'Pcloud':u.bar,
             # Input Files
             "wavelength": u.micron,
             "flux": u.erg / u.s / u.Hz / u.m**2,

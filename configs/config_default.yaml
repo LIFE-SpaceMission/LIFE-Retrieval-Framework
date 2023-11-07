@@ -12,3 +12,7 @@ RUN SETTINGS:
   n_layers: 100
   log_top_pressure: -6
   live_points: 600
+
+CHEMICAL COMPOSITION PARAMETERS:
+  condensation: False
+  abundance_units: MMR

@@ -170,13 +170,14 @@ def calculate_emission_flux(
     rt_object,
     settings: dict,
     temp: ndarray,
-    abundances: dict,
+    abundances_MMR: dict,
     gravity: float,
     mmw: ndarray,
     cloud_radii: dict,
     cloud_lnorm: int,
     scat_vars: dict,
     em_contr=False,
+    Pcloud=None,
 ) -> Tuple[ndarray, ndarray]:
     """
     Creates the pressure-temperature profile for the current atmosphere
@@ -190,18 +191,19 @@ def calculate_emission_flux(
     if not settings["include_scattering"]["direct_light"]:
         rt_object.calc_flux(
             temp,
-            abundances,
+            abundances_MMR,
             gravity,
             mmw,
             radius=cloud_radii,
             sigma_lnorm=cloud_lnorm,
             add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
             contribution=em_contr,
+            Pcloud=Pcloud
         )
     else:
         rt_object.calc_flux(
             temp,
-            abundances,
+            abundances_MMR,
             gravity,
             mmw,
             radius=cloud_radii,
@@ -212,15 +214,17 @@ def calculate_emission_flux(
             semimajoraxis=scat_vars["semimajor_axis"],
             add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
             contribution=em_contr,
+            Pcloud=Pcloud
         )
     # sys.stdout = old_stdout
-    return rt_object.freq, rt_object.flux
+    return rt_object.freq.copy(), rt_object.flux.copy()
 
 
 def scale_flux_to_distance(
     flux: ndarray, radius: float, distance: float
 ) -> ndarray:
     # Scale the fluxes to the desired separation
+    # TODO: add limb darkening factor option
     flux = flux * radius**2 / distance**2
     return flux
 

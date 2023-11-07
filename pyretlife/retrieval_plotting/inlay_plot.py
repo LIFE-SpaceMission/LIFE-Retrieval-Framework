@@ -23,7 +23,7 @@ import sys
 # DEFINITIONS
 # -----------------------------------------------------------------------------
 
-def add_inlay_plot(loc_surface,figure,ax_arg,ax,h_cover=0.45,Off_h=0.02):
+def add_inlay_plot(loc_surface,ax,h_cover=0.45,Off_h=0.02):
     bbox = ax.get_window_extent()
     width, height = bbox.width, bbox.height
     w_cover = h_cover*height/width

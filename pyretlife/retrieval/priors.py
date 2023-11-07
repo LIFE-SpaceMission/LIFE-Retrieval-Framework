@@ -49,6 +49,14 @@ def assign_priors(dictionary: dict) -> dict:
             dictionary[parameter]["prior"][
                 "function"
             ] = fourth_power_uniform_prior
+        elif prior_kind == "third-uniform":
+            dictionary[parameter]["prior"][
+                "function"
+            ] = third_power_uniform_prior
+        elif prior_kind == "second-uniform":
+            dictionary[parameter]["prior"][
+                "function"
+            ] = second_power_uniform_prior
         elif prior_kind == "custom":
             dictionary[parameter]["prior"]["function"] = custom_prior
 
@@ -176,7 +184,39 @@ def fourth_power_uniform_prior(r: float, prior_specs: dict) -> float:
         "lower": prior_specs["fourth_lower"],
         "upper": prior_specs["fourth_upper"],
     }
-    return np.power(uniform_prior(r, prior_fourth), 4)
+    return np.sign(uniform_prior(r, prior_fourth))*np.power(uniform_prior(r, prior_fourth), 4)
+
+
+def third_power_uniform_prior(r: float, prior_specs: dict) -> float:
+    """
+    The fourth_power_uniform_prior function takes in a random number and prior specifications. It then returns the
+    fourth power of a uniform distribution with lower and upper bounds specified by the prior_specs.
+
+    :param r: A random float generated from the uniform prior between [0, 1].
+    :param prior_specs: A dictionary of prior_specs containing the keywords "fourth_lower" and "fourth_upper"
+    :return: A random number like x^4 where x is generated from a uniform prior between [x1, x2]
+    """
+    prior_fourth = {
+        "lower": prior_specs["third_lower"],
+        "upper": prior_specs["third_upper"],
+    }
+    return np.power(uniform_prior(r, prior_fourth), 3)
+
+
+def second_power_uniform_prior(r: float, prior_specs: dict) -> float:
+    """
+    The fourth_power_uniform_prior function takes in a random number and prior specifications. It then returns the
+    fourth power of a uniform distribution with lower and upper bounds specified by the prior_specs.
+
+    :param r: A random float generated from the uniform prior between [0, 1].
+    :param prior_specs: A dictionary of prior_specs containing the keywords "fourth_lower" and "fourth_upper"
+    :return: A random number like x^4 where x is generated from a uniform prior between [x1, x2]
+    """
+    prior_fourth = {
+        "lower": prior_specs["second_lower"],
+        "upper": prior_specs["second_upper"],
+    }
+    return np.sign(uniform_prior(r, prior_fourth))*np.power(uniform_prior(r, prior_fourth), 2)
 
 
 def custom_prior(r: float, prior_specs: dict) -> float:

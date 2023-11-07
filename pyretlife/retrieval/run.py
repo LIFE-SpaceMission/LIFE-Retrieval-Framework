@@ -30,10 +30,14 @@ from pyretlife.retrieval.atmospheric_variables import (
     calculate_isothermal_profile,
     calculate_madhuseager_profile,
     calculate_mod_madhuseager_profile,
+    calculate_spline_profile,
     calculate_abundances,
+    condense_water,
     set_log_ground_pressure,
     assign_cloud_parameters,
-    calc_mmw,
+    calculate_mmw_VMR,
+    calculate_inert,
+    convert_VMR_to_MMR,
 )
 from pyretlife.retrieval.configuration_ingestion import (
     read_config_file,
@@ -57,6 +61,8 @@ from pyretlife.retrieval.likelihood_validation import (
     validate_positive_temperatures,
     validate_sum_of_abundances,
     validate_spectrum_goodness,
+    validate_clouds,
+    validate_abundances,
 )
 from pyretlife.retrieval.priors import assign_priors
 from pyretlife.retrieval.radiative_transfer import (
@@ -209,23 +215,26 @@ class RetrievalObject:
             elif self.knowns[par]["type"] == "PHYSICAL PARAMETERS":
                 self.phys_vars[par] = self.knowns[par]["truth"]
             elif self.knowns[par]["type"] == "CLOUD PARAMETERS":
-                # TODO review this snippet
-                if (
-                    not "_".join(par.split("_", 2)[:2])
-                    in self.cloud_vars.keys()
-                ):
-                    self.cloud_vars["_".join(par.split("_", 2)[:2])] = {}
-                try:
-                    self.cloud_vars["_".join(par.split("_", 2)[:2])][
-                        par.split("_", 2)[2]
-                    ] = self.knowns[par]["truth"]
-                except:
-                    self.cloud_vars["_".join(par.split("_", 2)[:2])][
-                        "abundance"
-                    ] = self.knowns[par]["truth"]
-                    self.chem_vars[par.split("_", 1)[0]] = self.knowns[par][
-                        "truth"
-                    ]
+                if ('Pcloud' in par) or (par == 'cloud_fraction') or ('_cloud_top' in par):
+                    self.cloud_vars[par] = self.knowns[par]["truth"]
+                else:
+                    # TODO review this snippet
+                    if (
+                        not "_".join(par.split("_", 2)[:2])
+                        in self.cloud_vars.keys()
+                    ):
+                        self.cloud_vars["_".join(par.split("_", 2)[:2])] = {}
+                    try:
+                        self.cloud_vars["_".join(par.split("_", 2)[:2])][
+                            par.split("_", 2)[2]
+                        ] = self.knowns[par]["truth"]
+                    except:
+                        self.cloud_vars["_".join(par.split("_", 2)[:2])][
+                            "abundance"
+                        ] = self.knowns[par]["truth"]
+                        self.chem_vars[par.split("_", 1)[0]] = self.knowns[par][
+                            "truth"
+                        ]
             elif self.knowns[par]["type"] == "SCATTERING PARAMETERS":
                 self.scat_vars[par] = self.knowns[par]["truth"]
             elif self.knowns[par]["type"] == "MOON PARAMETERS":
@@ -256,9 +265,10 @@ class RetrievalObject:
         )
 
         # TODO implement verbose output
-        # old_stdout = sys.stdout
-        # sys.stdout = open(os.devnull, "w")
+        old_stdout = sys.stdout
+        sys.stdout = open(os.devnull, "w")
         ls = sorted(used_line_species)[::-1]
+
         self.rt_object = self.petitRADTRANS.Radtrans(
             line_species=ls,
             rayleigh_species=sorted(used_rayleigh_species),
@@ -266,9 +276,10 @@ class RetrievalObject:
             cloud_species=sorted(used_cloud_species),
             wlen_bords_micron=self.settings["wavelength_range"],
             mode="c-k",
-            do_scat_emis=True in self.settings["include_scattering"].values(),
+            do_scat_emis=False,#True in self.settings["include_scattering"].values(),
         )
-        # sys.stdout = old_stdout
+        sys.stdout = old_stdout
+
         self.rt_object.setup_opa_structure(
             np.logspace(
                 self.settings["log_top_pressure"],
@@ -299,20 +310,23 @@ class RetrievalObject:
             elif self.parameters[par]["type"] == "PHYSICAL PARAMETERS":
                 self.phys_vars[par] = cube[idx]
             elif self.parameters[par]["type"] == "CLOUD PARAMETERS":
-                if (
-                    not "_".join(par.split("_", 2)[:2])
-                    in self.cloud_vars.keys()
-                ):
-                    self.cloud_vars["_".join(par.split("_", 2)[:2])] = {}
-                try:
-                    self.cloud_vars["_".join(par.split("_", 2)[:2])][
-                        par.split("_", 2)[2]
-                    ] = cube[idx]
-                except:
-                    self.cloud_vars["_".join(par.split("_", 2)[:2])][
-                        "abundance"
-                    ] = cube[idx]
-                    self.chem_vars[par.split("_", 1)[0]] = cube[idx]
+                if ('Pcloud' in par) or (par == 'cloud_fraction') or ('_cloud_top' in par):
+                    self.cloud_vars[par] = cube[idx]
+                else:
+                    if (
+                        not "_".join(par.split("_", 2)[:2])
+                        in self.cloud_vars.keys()
+                    ):
+                        self.cloud_vars["_".join(par.split("_", 2)[:2])] = {}
+                    try:
+                        self.cloud_vars["_".join(par.split("_", 2)[:2])][
+                            par.split("_", 2)[2]
+                        ] = cube[idx]
+                    except:
+                        self.cloud_vars["_".join(par.split("_", 2)[:2])][
+                            "abundance"
+                        ] = cube[idx]
+                        self.chem_vars[par.split("_", 1)[0]] = cube[idx]
             elif self.parameters[par]["type"] == "SCATTERING PARAMETERS":
                 self.scat_vars[par] = cube[idx]
             elif self.parameters[par]["type"] == "MOON PARAMETERS":
@@ -346,9 +360,10 @@ class RetrievalObject:
             self.temp = calculate_madhuseager_profile(self.press, self.temp_vars)
 
         elif self.settings["parameterization"] == "mod_madhuseager":
-            self.temp = calculate_mod_madhuseager_profile(
-                self.press, self.temp_vars
-            )
+            self.temp = calculate_mod_madhuseager_profile(self.press, self.temp_vars)
+
+        elif self.settings["parameterization"] == "spline":
+            self.temp = calculate_spline_profile(self.press, self.temp_vars, self.phys_vars, self.settings)
 
         else:
             raise ValueError("Unknown PT setting!")
@@ -357,24 +372,31 @@ class RetrievalObject:
     
     def calculate_abundances(self):
 
-        self.abundances = calculate_abundances(self.chem_vars, self.press)
+        self.abundances_VMR = calculate_abundances(self.chem_vars, self.press, self.settings)
+        self.median_cond_pressure = None
+        if self.settings['condensation']:
+            if 'H2O_Drying' in self.chem_vars.keys():
+                self.abundances_VMR, self.median_cond_pressure = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=self.chem_vars['H2O_Drying'])
+            else:
+                self.abundances_VMR, self.median_cond_pressure = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=0)
+        
         (
-            self.abundances,
+            self.abundances_VMR,
             self.cloud_vars,
             self.cloud_radii,
             self.cloud_lnorm,
+            self.cloud_Pcloud,
+            self.cloud_fraction
         ) = assign_cloud_parameters(
-            self.abundances, self.cloud_vars, self.press
+            self.abundances_VMR, self.cloud_vars, self.press, self.phys_vars, self.median_cond_pressure
         )
 
     def calculate_spectrum(self):
 
-        total = np.zeros_like(self.abundances[list(self.abundances.keys())[0]])
-        for abundance in self.abundances.keys():
-            total = total + self.abundances[abundance]
-        self.inert = (np.ones_like(self.abundances[list(self.abundances.keys())[0]]) - total)
+        self.inert = calculate_inert(self.abundances_VMR)
+        self.MMW = calculate_mmw_VMR(self.abundances_VMR, self.settings, self.inert)
 
-        self.MMW = calc_mmw(self.abundances, self.settings, self.inert)
+        abundances_MMR, inert_MMR = convert_VMR_to_MMR(self.abundances_VMR, self.settings, self.inert, self.MMW)
 
         # initialize calculated pressure
         self.rt_object.setup_opa_structure(self.press)
@@ -395,14 +417,25 @@ class RetrievalObject:
 
         # Calculate the forward model; this returns the frequency
         # and the flux F_nu in erg/cm^2/s/Hz.
-        self.rt_object.freq, self.rt_object.flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
-                                                                           self.abundances, self.phys_vars["g"],
-                                                                           self.MMW, self.cloud_radii, self.cloud_lnorm,
-                                                                           self.scat_vars, em_contr=False)
+        freq, cloud_free_flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
+                                                                    abundances_MMR, self.phys_vars["g"],
+                                                                    self.MMW, self.cloud_radii, self.cloud_lnorm,
+                                                                    self.scat_vars, em_contr=False,Pcloud=None)
 
-        self.rt_object.wavelength = (
-            self.petitRADTRANS.nat_cst.c / self.rt_object.freq * 1e4
+        if self.cloud_fraction is not None:
+            freq, cloudy_flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
+                                                                            abundances_MMR, self.phys_vars["g"],
+                                                                            self.MMW, self.cloud_radii, self.cloud_lnorm,
+                                                                            self.scat_vars, em_contr=False,Pcloud=self.cloud_Pcloud)
+            mixed_flux = cloud_free_flux*(1-self.cloud_fraction) + cloudy_flux*self.cloud_fraction
+        else:
+            mixed_flux = cloud_free_flux
+
+        wavelength = (
+            self.petitRADTRANS.nat_cst.c / freq * 1e4
         )
+
+        return wavelength, mixed_flux
     
     def distance_scale_spectrum(self):
         if self.phys_vars["d_syst"] is not None:
@@ -429,6 +462,7 @@ class RetrievalObject:
         # and add the known parameters as well as a sample of the
         # retrieved parameters to them
         self.assign_cube_to_parameters(cube)
+        self.phys_vars = set_log_ground_pressure(self.phys_vars, self.config, self.knowns)
         # TODO expand on tests here
 
         # test goodness of random draw
@@ -438,7 +472,6 @@ class RetrievalObject:
             return -1e99
         
         self.phys_vars = calculate_gravity(self.phys_vars,self.config)
-        self.phys_vars = set_log_ground_pressure(self.phys_vars, self.config, self.knowns)
 
         if self.settings["parameterization"] != "input":
             self.calculate_pt_profile(
@@ -452,10 +485,15 @@ class RetrievalObject:
             return -1e99
         
         self.calculate_abundances()
-        if validate_sum_of_abundances(self.abundances):
+
+        if validate_abundances(self.abundances_VMR,self.chem_vars):
+            return -1e99
+        if validate_clouds(self.press, self.temp, self.cloud_vars):
+            return -1e99
+        if validate_sum_of_abundances(self.abundances_VMR):
             return -1e99
 
-        self.calculate_spectrum()
+        self.rt_object.wavelength, self.rt_object.flux = self.calculate_spectrum()
         if validate_spectrum_goodness(self.rt_object.flux):
             return -1e99
 
@@ -503,7 +541,6 @@ class RetrievalObject:
         if self.settings["parameterization"] == "vae_pt_flow":
             from pyretlife.retrieval import pt_vae as vae
 
-            print("flow")
             self.vae_pt = vae.VAE_PT_Model_Flow(
                 os.path.dirname(os.path.realpath(__file__))
                 + "/vae_pt_models/Flow/"

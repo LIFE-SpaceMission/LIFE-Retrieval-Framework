@@ -1,9 +1,11 @@
 from typing import Tuple
 import scipy.ndimage as sci
+import scipy as scp
 import numpy as np
 from astropy.constants import G
 from molmass import Formula
 from numpy import ndarray
+import sys
 
 
 def calculate_gravity(phys_vars: dict, config: dict) -> dict:
@@ -93,7 +95,7 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     :param temp_vars: The dictionary of a_i coefficients to calculate the polynomial.
     :return: The log10 of the pressure profile
     """
-    return np.array(
+    temperature = np.array(
         np.polyval(
             np.array(
                 [
@@ -104,6 +106,43 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
             np.log10(pressure),
         )
     )
+    return temperature # np.maximum(temperature,0.01)
+
+
+def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict, settings: dict) -> ndarray:
+    """
+    The calculate_spline_profile function takes in a pressure array and a dictionary of temperature variables,
+    and returns an array of temperatures corresponding to the pressures. The function uses the scipy.interpolate.make_interp_spline
+    function to calculate these temperatures.
+
+    :param pressure: The pressure values
+    :param temp_vars: The dictionary of a_i coefficients to calculate the polynomial.
+    :return: The temperature profile for the given pressure levels
+    """
+    
+    pressure_points = [phys_vars['log_P0']]
+    for i in range(1,settings['spline_points']-1):
+        pressure_points += [pressure_points[i-1] + temp_vars['Position_P'+str(i)] * (np.log10(pressure[0]) - pressure_points[i-1])]
+    pressure_points += [np.log10(pressure[0])]
+
+    temperature_points  = [temp_vars['T'+str(i)] for i in range(settings['spline_points'])]
+
+    spline = scp.interpolate.make_interp_spline(pressure_points[::-1],temperature_points[::-1],k=settings['spline_degree_k'])
+
+    if 'spline_smoothing' in temp_vars.keys():
+        if len(pressure) == settings['n_layers']:
+            temperature = scp.ndimage.gaussian_filter1d(spline(np.log10(pressure)),temp_vars['spline_smoothing'],mode='nearest')
+        else:
+            true_inds = np.where(np.log10(pressure)<=phys_vars['log_P0'])
+            smoothing_factor = len(true_inds[0])/settings['n_layers']
+            temperature = spline(np.log10(pressure))
+            temperature[np.where(np.log10(pressure)>phys_vars['log_P0'])]=temp_vars['T0']
+            temperature = scp.ndimage.gaussian_filter1d(temperature,temp_vars['spline_smoothing']*smoothing_factor,mode='nearest')
+
+    else:
+        temperature = spline(np.log10(pressure))
+
+    return temperature
 
 
 # TODO typeset vae_pt
@@ -243,7 +282,6 @@ def calculate_madhuseager_profile(
         elif pressure[i] > pressure_3:
             temperature[i] = temperature_3
 
-    temperature = sci.gaussian_filter1d(temperature, 20.0, mode="nearest")
     return temperature
 
 
@@ -297,7 +335,7 @@ def calculate_mod_madhuseager_profile(
     return temperature
 
 
-def calculate_abundances(chem_vars: dict, press: ndarray) -> dict:
+def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> dict:
     """
     TBD
     The calculate_abundances function takes a dictionary of chemical variables and an array of pressures,
@@ -310,27 +348,98 @@ def calculate_abundances(chem_vars: dict, press: ndarray) -> dict:
     """
     abundances = {}
 
-    slopes = [
-        parameter for parameter in chem_vars.keys() if "Slope" in parameter
-    ]
-    molecules = [
-        parameter for parameter in chem_vars.keys() if "Slope" not in parameter
-    ]
-
-    for molecule in molecules:
-        if "Slope_" + molecule in slopes:
-            abundances[molecule] = 10 ** (
-                np.log10(press) * chem_vars["Slope_" + molecule]
-                + np.log10(chem_vars[molecule])
-            )
-        else:
+    for molecule in chem_vars.keys():
+        if 'Drying' not in molecule:
             abundances[molecule] = np.ones_like(press) * chem_vars[molecule]
 
-    return abundances
+    if settings['abundance_units']=='MMR':
+        inert = calculate_inert(abundances)
+        mmw = calculate_mmw_MMR(abundances, settings, inert)
+        abundances, inert = convert_MMR_to_VMR(abundances, settings, inert, mmw)
+        return abundances
+    
+    else:
+        return abundances
+
+
+
+def calculate_inert(abundances: dict):
+    total = np.zeros_like(abundances[list(abundances.keys())[0]])
+    for key in abundances.keys():
+            total = total + abundances[key]
+    return 1.0 - total
+
+
+
+def water_ice_vapor_pressure(T,T_ST=373.15,p_ST=1.01325,T_0=273.16,p_i0=6.1173*1e-3):
+    
+    #Calculated using the Goff–Gratch equation (see wikipedia)
+    if (T >= T_0):
+        # Goff–Gratch equation for Water
+        term1 = -7.90298*(T_ST/T-1.)
+        term2 = 5.02808*np.log10(T_ST/T)
+        term3 = -1.3816e-7*(10**(11.344*(1.-T/T_ST))-1.)
+        term4 = 8.1328*10**(-3)*(10**(-3.49149*(T_ST/T-1.))-1.)
+        term5 = np.log10(p_ST)
+        p_vp = 10.**(term1+term2+term3+term4+term5)
+    else:
+        # Goff–Gratch equation for Ice
+        term1 = -9.09718*(T_0/T-1)
+        term2 = -3.56654*np.log10(T_0/T)
+        term3 = 0.876793*(1-T/T_0)
+        term4 = np.log10(p_i0)
+        p_vp = 10**(term1+term2+term3+term4)
+    return p_vp
+
+
+    
+def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying=0.0):
+
+    # Convert mass mixing ration to volume mixing ratio
+    # and calculate the partial pressure of water
+    PP_Water = abundances_VMR['H2O']*pressure
+
+    # Calculate the vapor pressure of water at all pressures
+    VP_Water = np.zeros_like(pressure)
+    for index in range(len(VP_Water)):
+        VP_Water[index]=water_ice_vapor_pressure(temperature[index])
+
+    # Calculation of the variable water partial pressure profile.
+    # If water partial pressure exceeds vapor pressure the water condenses 
+    # condensation_pressures stores the layers wher condensation occurrs
+    condensation_pressures = []
+    if len(pressure) == settings['n_layers']:
+        above_surface = range(settings['n_layers'])
+        below_surface = None
+    else:
+        above_surface = np.where(np.log10(pressure) <= phys_vars['log_P0'])[0]
+        below_surface = np.where(np.log10(pressure) >  phys_vars['log_P0'])[0]
+        drying = drying*settings['n_layers']/len(above_surface)
+    for index in above_surface:
+        if PP_Water[index] >= VP_Water[index]:
+            PP_Water[index:] = (VP_Water[index]/pressure[index])*pressure[index:]
+            VP_Water = 10**(np.log10(VP_Water)-drying)
+            condensation_pressures += [pressure[index]]
+
+    # Calculate theVMR of the Water in the atmosphere
+    VMR_Water = PP_Water/pressure
+    if below_surface is not None:
+        VMR_Water[below_surface] = VMR_Water[above_surface[0]]
+
+    # retrun the new abundances
+    abundances_VMR['H2O'] = VMR_Water[::-1]
+
+    if len(condensation_pressures) == 0:
+        median_cond_pressure = None
+    else: 
+        median_cond_pressure = np.median(condensation_pressures)
+
+    return abundances_VMR, median_cond_pressure
+
 
 
 def assign_cloud_parameters(
-    abundances: dict, cloud_vars: dict, press: ndarray
+    abundances_VMR: dict, cloud_vars: dict, press: ndarray,phys_vars: dict, median_cond_pressure: float,
 ) -> Tuple[dict, dict, dict, int]:
     # TODO test that it works
     """
@@ -348,26 +457,48 @@ def assign_cloud_parameters(
     """
     cloud_radii = {}
     cloud_lnorm = 0
+    cloud_Pcloud = None
+    cloud_fraction = None
     for cloud in cloud_vars.keys():
-        cloud_vars[cloud]["bottom_pressure"] = (
-            cloud_vars[cloud]["top_pressure"] + cloud_vars[cloud]["thickness"]
-        )
+        if cloud =='cloud_fraction':
+            cloud_fraction = cloud_vars['cloud_fraction']
+            if not (('Pcloud' in cloud_vars.keys()) or ('Position_Pcloud' in cloud_vars.keys())):
+                cloud_Pcloud = median_cond_pressure
+        elif cloud =='Pcloud':
+            cloud_Pcloud = cloud_vars['Pcloud']
+        elif cloud == 'Position_Pcloud':
+            cloud_Pcloud = 10**(phys_vars['log_P0'] + cloud_vars['Position_Pcloud'] * (np.log10(press[0]) - phys_vars['log_P0']))
+        elif ('_cloud_top' in cloud):
+            ind_cltp = np.argmin(np.abs(np.log10(press)-np.log10(cloud_vars['Pcloud'])))
+            ind_surf = len(press)-1
+            if ind_surf == ind_cltp:
+                ind_cltp -= 1
+            slope = (np.log10(abundances_VMR[cloud.split('_cloud_top')[0]][0]) - np.log10(cloud_vars[cloud]))/(ind_surf-ind_cltp)
+            abundances_VMR[cloud.split('_cloud_top')[0]]=10 ** (
+                (ind_surf-np.arange(0,len(press),1)) * slope
+                + np.log10(abundances_VMR[cloud.split('_cloud_top')[0]][0])
+            )
+            abundances_VMR[cloud.split('_cloud_top')[0]][press<cloud_vars['Pcloud']]=cloud_vars[cloud]
+        else:
+            cloud_vars[cloud]["bottom_pressure"] = (
+                cloud_vars[cloud]["top_pressure"] + cloud_vars[cloud]["thickness"]
+            )
 
-        # set the abundance outside the cloud layer to 0
-        abundances[cloud.split("_")[0]][
-            np.where(press > cloud_vars[cloud]["bottom_pressure"])
-        ] = 0
-        abundances[cloud.split("_")[0]][
-            np.where(press < cloud_vars[cloud]["top_pressure"])
-        ] = 0
+            # set the abundance outside the cloud layer to 0
+            abundances_VMR[cloud.split("_")[0]][
+                np.where(press > cloud_vars[cloud]["bottom_pressure"])
+            ] = 0
+            abundances_VMR[cloud.split("_")[0]][
+                np.where(press < cloud_vars[cloud]["top_pressure"])
+            ] = 0
 
-        cloud_radii[cloud.split("_")[0]] = cloud_vars[cloud]["particle_radius"]
-        # TODO is it the same for all clouds then?
-        cloud_lnorm = cloud_vars[cloud]["sigma_lnorm"]
-    return abundances, cloud_vars, cloud_radii, cloud_lnorm
+            cloud_radii[cloud.split("_")[0]] = cloud_vars[cloud]["particle_radius"]
+            # TODO is it the same for all clouds then?
+            cloud_lnorm = cloud_vars[cloud]["sigma_lnorm"]
+    return abundances_VMR, cloud_vars, cloud_radii, cloud_lnorm, cloud_Pcloud, cloud_fraction
 
 
-def calc_mmw(abundances: dict, settings: dict, inert: ndarray) -> ndarray:
+def calculate_mmw_VMR(abundances_VMR: dict, settings: dict, inert: ndarray) -> ndarray:
     """
     The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
 
@@ -376,16 +507,81 @@ def calc_mmw(abundances: dict, settings: dict, inert: ndarray) -> ndarray:
     :param inert: The weight of the inert gas
     :return: The mean molecular weight of the gas in each layer
     """
-    mmw = np.zeros_like(range(settings["n_layers"]), dtype=float)
-    for layer in range(settings["n_layers"]):
-        for key in abundances.keys():
-            mmw[layer] = mmw[layer] + abundances[key][layer] * get_mm(key)
+    mm = {key: get_mm(key) for key in abundances_VMR.keys()}
+    size = np.size(abundances_VMR[list(abundances_VMR.keys())[0]])
+    mmw = np.zeros_like(range(size), dtype=float)
+    for layer in range(size):
+        for key in abundances_VMR.keys():
+            mmw[layer] = mmw[layer] + abundances_VMR[key][layer] * mm[key]
 
         if "mmw_inert" in settings.keys():
             mmw[layer] = mmw[layer] + inert[layer] * float(
                 settings["mmw_inert"]
             )
     return mmw
+
+def calculate_mmw_MMR(abundances_MMR: dict, settings: dict, inert: ndarray) -> ndarray:
+    """
+    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+
+    :param abundances: The abundances dictionary
+    :param settings: The settings dictionary
+    :param inert: The weight of the inert gas
+    :return: The mean molecular weight of the gas in each layer
+    """
+    mm = {key: get_mm(key) for key in abundances_MMR.keys()}
+    size = np.size(abundances_MMR[list(abundances_MMR.keys())[0]])
+    mmw = np.zeros_like(range(size), dtype=float)
+    for layer in range(size):
+        for key in abundances_MMR.keys():
+            mmw[layer] = mmw[layer] + abundances_MMR[key][layer] / mm[key]
+
+        if "mmw_inert" in settings.keys():
+            mmw[layer] = mmw[layer] + inert[layer] / float(
+                settings["mmw_inert"]
+            )
+    return 1.0 / mmw
+
+def convert_VMR_to_MMR(abundances_VMR: dict, settings: dict, inert_VMR: ndarray, mmw: ndarray) -> Tuple[dict, ndarray]:
+    """
+    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+
+    :param abundances: The abundances dictionary
+    :param settings: The settings dictionary
+    :param inert: The weight of the inert gas
+    :return: The mean molecular weight of the gas in each layer
+    """
+    abundances_MMR = {}#copy.deepcopy(abundances_VMR)
+
+    for key in abundances_VMR.keys():
+        abundances_MMR[key] = abundances_VMR[key]*get_mm(key)/mmw
+
+    if "mmw_inert" in settings.keys():
+        inert_MMR = inert_VMR*settings["mmw_inert"]/mmw
+    
+    return abundances_MMR, inert_MMR
+
+
+
+def convert_MMR_to_VMR(abundances_MMR: dict, settings: dict, inert_MMR: ndarray, mmw: ndarray) ->  Tuple[dict, ndarray]:
+    """
+    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+
+    :param abundances: The abundances dictionary
+    :param settings: The settings dictionary
+    :param inert: The weight of the inert gas
+    :return: The mean molecular weight of the gas in each layer
+    """
+    abundances_VMR = {}#abundances_MMR.copy()
+
+    for key in abundances_VMR.keys():
+        abundances_VMR[key] = abundances_MMR[key]/get_mm(key)*mmw
+
+    if "mmw_inert" in settings.keys():
+        inert_VMR = inert_MMR/settings["mmw_inert"]*mmw
+    
+    return abundances_VMR, inert_VMR
+
 
 
 def get_mm(species: str) -> float:

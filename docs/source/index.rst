@@ -56,4 +56,9 @@ Units
 .. automodule:: pyretlife.retrieval.units
    :members:
 
+Plotting
+========
+.. automodule:: pyretlife.retrieval_plotting.posterior_plotting
+   :members:
+
 

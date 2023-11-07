@@ -39,8 +39,12 @@ from pyretlife.retrieval.atmospheric_variables import (
     calculate_madhuseager_profile,
     calculate_mod_madhuseager_profile,
     calculate_abundances,
+    condense_water,
+    set_log_ground_pressure,
     assign_cloud_parameters,
     calc_mmw,
+    convert_MMR_to_VMR,
+    convert_VMR_to_MMR,
 )
 from pyretlife.retrieval.configuration_ingestion import (
     read_config_file,
@@ -83,7 +87,10 @@ from pyretlife.retrieval_plotting.calculate_secondary_quantities import(
     parallel_pt_profile_calculation,
     parallel_spectrum_calculation,
     bond_albedo_calculation,
-    add_secondary_parameter_to_parameters
+    add_secondary_parameter_to_parameters,
+    abundance_profile_calculation,
+    calculate_profile_contours,
+    calculate_profile_contours_new,
 )
 
 from pyretlife.retrieval_plotting.color_handling import (
@@ -329,7 +336,7 @@ class retrieval_plotting_object(RetrievalObject):
             results = pickle.load(load_file)
             load_file.close()
 
-            print('Loaded previously calculated Bond albedos from '+self.results_directory+'Plots_New/Ret_bond_albedo.pkl.\n')
+            print('Loaded previously calculated Bond albedos from '+self.results_directory+'Plots_New/Ret_Bond_Albedo.pkl.\n')
 
         # If not calculated or the revaluation is desired
         # Calculate from scratch
@@ -350,6 +357,37 @@ class retrieval_plotting_object(RetrievalObject):
         self.posteriors['T_eq'], self.posteriors['A_b'] = results['T_eq'], results['A_b'] 
         self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='T_eq',unit=u.K,title='$\mathrm{T_{eq,\,Planet}}$',true_value=true_equilibrium_temperature)
         self.parameters = add_secondary_parameter_to_parameters(self.parameters,name='A_b',unit=u.dimensionless_unscaled,title='$\mathrm{A_{B,\,Planet}}$',true_value=true_bond_albedo)
+
+
+
+    def deduce_abundance_profiles(self, reevaluate_abundance_profiles=False):
+
+        # check if the data for the specified skip
+        # values are already calculated
+        try:
+            if reevaluate_abundance_profiles:
+                raise ValueError('Forced recalculation of abundance profiles.')
+
+            # Try loading previously calculated data
+            load_file = open(self.results_directory+'Plots_New/Ret_Abundance_Profiles.pkl', "rb")
+            self.abundance_profiles = pickle.load(load_file)
+            load_file.close()
+
+            print('Loaded previously calculated abundance profiles from '+self.results_directory+'Plots_New/Ret_Abundance_Profiles.pkl.\n')
+
+        # If not calculated or the revaluation is desired
+        # Calculate from scratch
+        except:
+            print('Calculating retrieved abundance profiles from scratch.')
+
+            # Calculation of profiles
+            self.abundance_profiles = abundance_profile_calculation(self)
+
+            # Save the calculated data in a pickle file for later reloading to save time
+            save_file = open(self.results_directory+'Plots_New/Ret_Abundance_Profiles.pkl', "wb")
+            pickle.dump(self.abundance_profiles, save_file, protocol=4)
+            save_file.close()
+            print('Saved calculated abundance profiles in '+self.results_directory+'Plots_New/Ret_Abundance_Profiles.pkl.\n')
 
 
 
@@ -673,7 +711,7 @@ class retrieval_plotting_object(RetrievalObject):
 
     def plot_retrieved_pt_profile(self, save=False,  x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
                     quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
-                    legend_n_col = 2, legend_loc = 'best',n_processes=50,figsize=(6.4, 4.8),h_cover=0.45,reevaluate_PT = False,
+                    legend_n_col = 2, legend_loc = 'best',figsize=(6.4, 4.8),h_cover=0.45,
                     
                     true_cloud_top=[None,None],
 
@@ -688,7 +726,7 @@ class retrieval_plotting_object(RetrievalObject):
         '''
 
         # Unit conversions for the x and y scales of the graph
-        retrieval_units = {'x_unit':u.K, 'y_unit':u.bar}
+        retrieval_units = {'x_unit':self.units.retrieval_units['temperature'], 'y_unit':self.units.retrieval_units['pressure']}
         local_units = {'x_unit':retrieval_units['x_unit'] if plot_unit_temperature is None else plot_unit_temperature,
                        'y_unit':retrieval_units['y_unit'] if plot_unit_pressure is None else plot_unit_pressure}
         unit_titles = {i:'$\\left['+f"{local_units[i]:latex}"[1:-1]+'\\right]$' for i in local_units}
@@ -710,82 +748,42 @@ class retrieval_plotting_object(RetrievalObject):
         else:
             local_true_temperatures_cloud_top,local_true_pressures_cloud_top = true_cloud_top[1],true_cloud_top[0]
 
-        # find the quantiles for the different pressures and temperatures
-        p_layers_quantiles = [np.nanquantile(local_retrieved_pressures_extrapolated,q,axis=0) for q in quantiles]
-        if plot_residual:
-            T_layers_quantiles = [np.nanquantile(local_retrieved_temperatures_extrapolated,q,axis=0)-np.nanquantile(local_retrieved_temperatures_extrapolated,0.5,axis=0) for q in quantiles]
-        else:
-            T_layers_quantiles = [np.nanquantile(local_retrieved_temperatures_extrapolated,q,axis=0) for q in quantiles]
+        # Generate colorlevels for the different quantiles
+        color_levels, level_thresholds, N_levels = generate_quantile_color_levels(color,quantiles)
+        color_levels_c, level_thresholds_c, N_levels_c = generate_quantile_color_levels('#898989',quantiles)
 
-        # Merge the P-T profile quantiles with the surface pressure if retrieved
-        p_max = 1e6
-        p_layers_bottom = len(quantiles)//2*[[]]
-        T_layers_bottom = len(quantiles)//2*[[]]
-        if not self.settings['include_scattering']['clouds'] == True: #self.settings['clouds'] == 'opaque':
+        # Calculate the 2d quantile contours for the P-T profiles
+        p_contours, T_contours, p_max = calculate_profile_contours(self,
+                                                                   local_retrieved_pressures_extrapolated,
+                                                                   local_retrieved_pressures,
+                                                                   local_retrieved_temperatures_extrapolated,
+                                                                   local_retrieved_temperatures,
+                                                                   quantiles,
+                                                                   plot_residual=plot_residual,
+                                                                   ax=ax)
 
-            if plot_residual:
-                mean_S_T = np.median(local_retrieved_temperatures[:,-1])
-            else:
-                mean_S_T = 0
-
-            # Define limits and make a 2d histogram of the surface pressures and temperatures
-            t_lim = [np.min(local_retrieved_temperatures[:,-1])-mean_S_T,np.max(local_retrieved_temperatures[:,-1])-mean_S_T]
-            t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(local_retrieved_pressures[:,-1])),np.max(np.log10(local_retrieved_pressures[:,-1]))]
-            p_range = p_lim[1]-p_lim[0]
-
-            # Calculate Contours for the surface pressure
-            Z,X,Y=np.histogram2d(local_retrieved_temperatures[:,-1]-mean_S_T,np.log10(local_retrieved_pressures[:,-1]),bins=100,
-                            range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
-            Z = sp.ndimage.filters.gaussian_filter(Z, [7,7], mode='reflect')
-            color_levels, level_thresholds, N_levels = generate_quantile_color_levels(color,quantiles)
-            map, norm, levels = generate_color_map_from_levels(Z,color_levels,level_thresholds)
-            contour = plt.contour((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,levels=np.array(levels),alpha=1,zorder=2).allsegs[:-1]
-            p_max = np.max(contour[0][0][:,1])
-            plt.clf()
-
-            # iterate over all contours
-            for i in range(len(contour)):
-                # Calculate the distance between the contour and the P-T profile quantiles
-                dist  = sp.spatial.distance.cdist(np.array([contour[i][0][:,0]/1000,(np.log10(contour[i][0][:,1])+6)/10]).T,
-                                                    np.array([T_layers_quantiles[-(i+1)]/1000,(np.log10(p_layers_quantiles[-(i+1)])+6)/10]).T)
-                dist2 = sp.spatial.distance.cdist(np.array([contour[i][0][:,0]/1000,(np.log10(contour[i][0][:,1])+6)/10]).T,
-                                                    np.array([T_layers_quantiles[i]/1000,(np.log10(p_layers_quantiles[i])+6)/10]).T)
-
-                # Find the points of minimal distance on the contour (use 6 points to get bot minimas)
-                num = 6
-                s  = np.shape(dist)
-                s2 = np.shape(dist2)
-                ind  = np.array([[i//s[1] ,i%s[1] ] for i in np.argsort(dist , axis=None)[:num]])
-                ind2 = np.array([[i//s2[1],i%s2[1]] for i in np.argsort(dist2, axis=None)[:num]])
-                ind  = [ind[np.argmax(p_layers_quantiles[-(i+1)][ind[:,1]])],ind[np.argmin(p_layers_quantiles[-(i+1)][ind[:,1]])]]
-                ind2 = [ind2[np.argmax(p_layers_quantiles[i][ind2[:,1]])],   ind2[np.argmin(p_layers_quantiles[i][ind2[:,1]])]]
-
-                # Save the segments of the contours for later plotting
-                p_layers_bottom[i] = contour[i][0][ind[0][0]:ind2[0][0],1]
-                T_layers_bottom[i] = contour[i][0][ind[0][0]:ind2[0][0],0]
-
-                # Reject P-T quantiles with pressures higher than the surface pressure
-                p_layers_quantiles[-(i+1)]= p_layers_quantiles[-(i+1)][:ind[0][1]]
-                T_layers_quantiles[-(i+1)]= T_layers_quantiles[-(i+1)][:ind[0][1]]
-                p_layers_quantiles[i]     = p_layers_quantiles[i][:ind2[0][1]]
-                T_layers_quantiles[i]     = T_layers_quantiles[i][:ind2[0][1]]
+        #volume_percentages = [1-level for level in level_thresholds[:-1]]
+        #contours = calculate_profile_contours_new(local_retrieved_temperatures_extrapolated,
+        #                                          local_retrieved_pressures_extrapolated,
+        #                                          local_retrieved_pressures,
+        #                                          volume_percentages = volume_percentages[::-1],
+        #                                          smoothing = 3,
+        #                                          data_lim = [0,700],
+        #                                          log_data = False,
+        #                                          log_pressure = True,
+        #                                          bins_data=1000)
             
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
             cloud_top_quantiles = [np.quantile(local_retrieved_pressures_cloud_top,q) for q in quantiles]
 
-        # Generate colorlevels for the different quantiles
-        color_levels, level_thresholds, N_levels = generate_quantile_color_levels(color,quantiles)
-        color_levels_c, level_thresholds_c, N_levels_c = generate_quantile_color_levels('#898989',quantiles)
-
         # Start of the plotting
-        ax_arg = ax
         if ax is None:
+            ax_arg = None
             figure = plt.figure(figsize=figsize)
-            ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
+            ax = figure.add_axes([0.15, 0.12, 0.84, 0.85])
         else:
-            pass
+            ax_arg = True
         ax.set_yscale('log')
 
         # If wanted: plotting the retrieved cloud top
@@ -795,14 +793,14 @@ class retrieval_plotting_object(RetrievalObject):
             for i in range(N_levels_c):
                 ax.hlines([cloud_top_quantiles[i],cloud_top_quantiles[-i-1]],xmin = -10000, xmax = 10000,color = tuple(color_levels_c[i, :]),ls='-',zorder=0)
 
-        # Plotting the retrieved PT profile
+        # Plotting the contours of the retrieved PT profile
         for i in range(N_levels):
-            if self.settings['include_scattering']['clouds'] == True: #self.settings['clouds'] == 'opaque':
-                ax.fill(np.append(np.append(sp.ndimage.filters.gaussian_filter1d(T_layers_quantiles[i], 5, mode='nearest'),T_layers_bottom[i][::-1]),np.flip(sp.ndimage.filters.gaussian_filter1d(T_layers_quantiles[-i-1], 5, mode='nearest'))),
-                        np.append(np.append(p_layers_quantiles[i],p_layers_bottom[i][::-1]),np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
-            else:
-                ax.fill(sp.ndimage.filters.gaussian_filter1d(np.append(np.append(T_layers_quantiles[i],T_layers_bottom[i][::-1]),np.flip(T_layers_quantiles[-i-1])), 10, mode='nearest'),
-                        np.append(np.append(p_layers_quantiles[i],p_layers_bottom[i][::-1]),np.flip(p_layers_quantiles[-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+            ax.fill(T_contours[i],p_contours[i],color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+
+        # Plotting the contours of the retrieved PT profile
+        #for i in range(len(volume_percentages)):
+        #    key = str(np.round(volume_percentages[i],3))
+        #    ax.fill(contours[key]['data_values'],contours[key]['pressure_values'],color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
         if plot_residual:
             ax.semilogy([0,0], y_lim,color ='black', linestyle=':')
             ax.annotate('Retrieved\nP-T Median',[0+0.035*x_lim[1],10**(0.975*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(y_lim[0]))],color = 'black',rotation=0,ha='left')
@@ -865,7 +863,7 @@ class retrieval_plotting_object(RetrievalObject):
 
         # Inlay plot
         # generate and position the inlay plot
-        ax2 = add_inlay_plot(inlay_loc,figure,ax_arg,ax,h_cover=h_cover)
+        ax2 = add_inlay_plot(inlay_loc,ax,h_cover=h_cover)
 
         # Plotting the cloud top temperature/pressure
         if self.settings['include_scattering']['clouds'] == True: #self.settings['clouds'] == 'opaque':
@@ -997,7 +995,7 @@ class retrieval_plotting_object(RetrievalObject):
 
         # Save or pass back the figure
         if ax_arg is not None:
-            pass
+            return ax, ax2
         elif save:
             if plot_residual:
                 plt.savefig(self.results_directory+'Plots_New/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
@@ -1006,3 +1004,67 @@ class retrieval_plotting_object(RetrievalObject):
             return figure, ax, ax2
         else:
             return figure, ax, ax2
+
+
+
+
+
+    def plot_abundance_profiles(self,
+                                quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                                plot_unit_abundance='VMR',
+                                plot_unit_pressure=None,
+                                color = 'C2',
+                                figsize=(5,20),
+                                x_lim = [1e-10,1e0],
+                                y_lim = [1e4,1e-6]):
+        
+        # Check that the abundance units are valid
+        if plot_unit_abundance not in ['VMR','MMR']:
+            raise ValueError(plot_unit_abundance + ' is not a valid abundance unit. Please either use \'VMR\' (volume mixing ratio) or \'MMR\' (mass mixing ratio).')
+
+        # Unit conversions for the x and y scales of the graph
+        retrieval_units = {'x_unit':self.units.retrieval_units['temperature'], 'y_unit':self.units.retrieval_units['pressure']}
+        local_units = {'x_unit':plot_unit_abundance,
+                       'y_unit':retrieval_units['y_unit'] if plot_unit_pressure is None else plot_unit_pressure}
+        unit_titles = {'x_unit':local_units['x_unit'],'y_unit':'$\\left['+f"{local_units['y_unit']:latex}"[1:-1]+'\\right]$'}
+
+        # Convert the units of the P-T profile posteriors and the true value
+        local_retrieved_pressures_extrapolated  = self.units.truth_unit_conversion('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.abundance_profiles['pressures_extrapolated'],printing=False)
+        local_retrieved_pressures               = self.units.truth_unit_conversion('Pressure',retrieval_units['y_unit'],local_units['y_unit'],self.abundance_profiles['pressures'],printing=False)
+
+        # Generate colorlevels for the different quantiles
+        color_levels, level_thresholds, N_levels = generate_quantile_color_levels(color,quantiles)
+
+        # Start of the abundance profile plotting
+        species = list(self.abundances_VMR.keys())
+        fig,ax = plt.subplots(1,len(species),figsize=figsize)
+        for index in range(len(species)):
+            print(species[index])
+
+            volume_percentages = [1-level for level in level_thresholds[:-1]]
+            contours = calculate_profile_contours_new(self.abundance_profiles[species[index]+'_'+plot_unit_abundance+'_extrapolated'],
+                                                      local_retrieved_pressures_extrapolated,
+                                                      local_retrieved_pressures,
+                                                      volume_percentages = volume_percentages[::-1],
+                                                      smoothing = 3,
+                                                      data_lim = [1e-11,1e1],
+                                                      log_data = True,
+                                                      log_pressure = True)
+            
+            # Plotting the retrieved abundance profile contours
+            for i in range(len(volume_percentages)):
+                key = str(np.round(volume_percentages[i],3))
+                ax[index].fill(contours[key]['data_values'],contours[key]['pressure_values'],color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+
+            ax[index].set_yscale('log')
+            ax[index].set_xscale('log')
+            ax[index].set_xlim(x_lim)
+            ax[index].set_ylim(y_lim)
+            ax[index].invert_yaxis()
+
+        return fig, ax
+
+
+
+        
+
