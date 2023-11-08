@@ -56,8 +56,8 @@ def validate_clouds(press: ndarray, temp: ndarray, cloud_vars: dict) -> bool:
     else:
         return False
 
-def validate_abundances(abundances_VMR: ndarray, chem_vars: dict) -> bool:
-    if abundances_VMR['H2O'][-1] != chem_vars['H2O']:
+def validate_abundances(abundances_VMR: ndarray, chem_vars_VMR: dict) -> bool:
+    if abundances_VMR['H2O'][-1] != chem_vars_VMR['H2O']:
         return True
     else:
         return False

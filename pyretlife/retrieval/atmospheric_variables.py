@@ -355,11 +355,12 @@ def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> dic
     if settings['abundance_units']=='MMR':
         inert = calculate_inert(abundances)
         mmw = calculate_mmw_MMR(abundances, settings, inert)
-        abundances, inert = convert_MMR_to_VMR(abundances, settings, inert, mmw)
-        return abundances
+        abundances_VMR, inert = convert_MMR_to_VMR(abundances, settings, inert, mmw)
+        chem_vars_VMR = {key: abundances_VMR[key][0] for key in abundances_VMR.keys()}
+        return abundances_VMR, chem_vars_VMR
     
     else:
-        return abundances
+        return abundances, chem_vars
 
 
 
@@ -574,7 +575,7 @@ def convert_MMR_to_VMR(abundances_MMR: dict, settings: dict, inert_MMR: ndarray,
     """
     abundances_VMR = {}#abundances_MMR.copy()
 
-    for key in abundances_VMR.keys():
+    for key in abundances_MMR.keys():
         abundances_VMR[key] = abundances_MMR[key]/get_mm(key)*mmw
 
     if "mmw_inert" in settings.keys():

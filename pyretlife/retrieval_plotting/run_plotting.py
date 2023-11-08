@@ -42,7 +42,7 @@ from pyretlife.retrieval.atmospheric_variables import (
     condense_water,
     set_log_ground_pressure,
     assign_cloud_parameters,
-    calc_mmw,
+    calculate_mmw_VMR,
     convert_MMR_to_VMR,
     convert_VMR_to_MMR,
 )

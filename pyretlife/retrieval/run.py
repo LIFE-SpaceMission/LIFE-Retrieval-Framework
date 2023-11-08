@@ -372,7 +372,7 @@ class RetrievalObject:
     
     def calculate_abundances(self):
 
-        self.abundances_VMR = calculate_abundances(self.chem_vars, self.press, self.settings)
+        self.abundances_VMR, self.chem_vars_VMR = calculate_abundances(self.chem_vars, self.press, self.settings)
         self.median_cond_pressure = None
         if self.settings['condensation']:
             if 'H2O_Drying' in self.chem_vars.keys():
@@ -485,8 +485,7 @@ class RetrievalObject:
             return -1e99
         
         self.calculate_abundances()
-
-        if validate_abundances(self.abundances_VMR,self.chem_vars):
+        if validate_abundances(self.abundances_VMR,self.chem_vars_VMR):
             return -1e99
         if validate_clouds(self.press, self.temp, self.cloud_vars):
             return -1e99
