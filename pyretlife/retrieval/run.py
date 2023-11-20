@@ -276,7 +276,7 @@ class RetrievalObject:
             cloud_species=sorted(used_cloud_species),
             wlen_bords_micron=self.settings["wavelength_range"],
             mode="c-k",
-            do_scat_emis=False,#True in self.settings["include_scattering"].values(),
+            do_scat_emis=True in self.settings["include_scattering"].values(),
         )
         sys.stdout = old_stdout
 

@@ -1016,7 +1016,8 @@ class retrieval_plotting_object(RetrievalObject):
                                 color = 'C2',
                                 figsize=(5,20),
                                 x_lim = [1e-10,1e0],
-                                y_lim = [1e4,1e-6]):
+                                y_lim = [1e4,1e-6],
+                                species = None):
         
         # Check that the abundance units are valid
         if plot_unit_abundance not in ['VMR','MMR']:
@@ -1035,11 +1036,13 @@ class retrieval_plotting_object(RetrievalObject):
         # Generate colorlevels for the different quantiles
         color_levels, level_thresholds, N_levels = generate_quantile_color_levels(color,quantiles)
 
+        # If not specified plot all species
+        if species is None:
+            species = [spec.split('_')[0] for spec in self.abundance_profiles.keys() if ((plot_unit_abundance in spec) and ('extrapolated' not in spec))]
+
         # Start of the abundance profile plotting
-        species = list(self.abundances_VMR.keys())
         fig,ax = plt.subplots(1,len(species),figsize=figsize)
         for index in range(len(species)):
-            print(species[index])
 
             volume_percentages = [1-level for level in level_thresholds[:-1]]
             contours = calculate_profile_contours_new(self.abundance_profiles[species[index]+'_'+plot_unit_abundance+'_extrapolated'],
@@ -1061,6 +1064,7 @@ class retrieval_plotting_object(RetrievalObject):
             ax[index].set_xlim(x_lim)
             ax[index].set_ylim(y_lim)
             ax[index].invert_yaxis()
+            ax[index].set_xlabel(species[index])
 
         return fig, ax
 

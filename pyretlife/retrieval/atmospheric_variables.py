@@ -403,11 +403,12 @@ def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying
     # Calculate the vapor pressure of water at all pressures
     VP_Water = np.zeros_like(pressure)
     for index in range(len(VP_Water)):
-        VP_Water[index]=water_ice_vapor_pressure(temperature[index])
+        VP_Water[index] = water_ice_vapor_pressure(temperature[index])
 
     # Calculation of the variable water partial pressure profile.
     # If water partial pressure exceeds vapor pressure the water condenses 
     # condensation_pressures stores the layers wher condensation occurrs
+    #layer_thickness = np.log10(pressure[0])-np.log10(pressure[1])
     condensation_pressures = []
     if len(pressure) == settings['n_layers']:
         above_surface = range(settings['n_layers'])
