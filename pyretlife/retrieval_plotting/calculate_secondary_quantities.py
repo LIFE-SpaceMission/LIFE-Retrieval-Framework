@@ -74,6 +74,7 @@ def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=
         # parameters from the posteriors
         rp_object.assign_cube_to_parameters(parameter_samples[ind,:])
         rp_object.phys_vars = set_log_ground_pressure(rp_object.phys_vars, rp_object.config, rp_object.knowns, use_truth = use_truth)
+        rp_object.phys_vars = calculate_gravity(rp_object.phys_vars,rp_object.config)
 
         # Calculate the cloud bottom pressure from the cloud thickness parameter
         cloud_tops = []
@@ -133,7 +134,7 @@ def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=
 
 
 
-def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_processes=None,process=None,use_truth=False):
+def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_processes=None,process=None,use_truth=False,emission_contribution=True):
     '''
     Function to calculate the fluxes corresponding to the retrieved posterior distributions
     for subsequent plotting in the flux plotting functions.
@@ -152,7 +153,8 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
     spectra = {}
     spectra['gravity'] = np.zeros(size)
     spectra['fluxes'] = np.zeros((size,len(rp_object.rt_object.freq)))
-    spectra['emission_contribution'] = np.zeros((size,rp_object.settings["n_layers"],len(rp_object.rt_object.freq)))
+    if emission_contribution:
+        spectra['emission_contribution'] = np.zeros((size,rp_object.settings["n_layers"],len(rp_object.rt_object.freq)))
     if rp_object.settings['include_moon'] == 'True':
         spectra['moon_fluxes'][save,:] = np.zeros((size,len(rp_object.rt_object.freq)))
 
@@ -181,7 +183,7 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
 
         # Abundance and spectrum calculation
         rp_object.calculate_abundances()
-        rp_object.rt_object.wavelength, rp_object.rt_object.flux = rp_object.calculate_spectrum()
+        rp_object.rt_object.wavelength, rp_object.rt_object.flux, rp_object.rt_object.contr_em = rp_object.calculate_spectrum(em_contr=True)
         rp_object.distance_scale_spectrum()
          
         # Store the calculated spectra
@@ -190,7 +192,8 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
             spectra['wavelengths'] = rp_object.rt_object.wavelength
         spectra['gravity'][save] = rp_object.phys_vars["g"]
         spectra['fluxes'][save,:] = rp_object.rt_object.flux
-        spectra['emission_contribution'][save,:,:] = rp_object.rt_object.contr_em
+        if emission_contribution:
+            spectra['emission_contribution'][save,:,:] = rp_object.rt_object.contr_em
         if rp_object.settings['include_moon'] == 'True':
             spectra['moon_fluxes'][save,:] = rp_object.moon_flux
             
@@ -421,17 +424,21 @@ def calculate_profile_contours(rp_object,pressures_extrapolated,pressures,parame
             mean_S_parameters = 0
 
         # Define limits and make a 2d histogram of the surface pressures and temperatures
-        parameter_lim = [np.min(parameters[:,-1])-mean_S_parameters,np.max(parameters[:,-1])-mean_S_parameters]
+        parameter_eb = np.quantile(parameters[:,-1],[0.16,0.5,0.84])
+        parameter_lim = [parameter_eb[1]-4*(parameter_eb[1]-parameter_eb[0]),parameter_eb[1]+4*(parameter_eb[2]-parameter_eb[1])]
+        pressure_eb = np.quantile(np.log10(pressures[:,-1]),[0.16,0.5,0.84])
+        pressure_lim = [pressure_eb[1]-4*(pressure_eb[1]-pressure_eb[0]),pressure_eb[1]+4*(pressure_eb[2]-pressure_eb[1])]
+        #parameter_lim = np.quantile(parameters[:,-1],[0.01,0.99])-mean_S_parameters
         parameter_range = parameter_lim[1]-parameter_lim[0]
-        pressure_lim = [np.min(np.log10(pressures[:,-1])),np.max(np.log10(pressures[:,-1]))]
+        #pressure_lim  = np.quantile(pressures[:,-1], [0.01,0.99])
         pressure_range = pressure_lim[1]-pressure_lim[0]
 
         # Calculate Contours for the surface pressure
-        Z,X,Y=np.histogram2d(parameters[:,-1]-mean_S_parameters,np.log10(pressures[:,-1]),bins=100,
+        Z,X,Y=np.histogram2d(parameters[:,-1]-mean_S_parameters,np.log10(pressures[:,-1]),bins=55,
                         range = [[parameter_lim[0]-0.1*parameter_range,parameter_lim[1]+0.1*parameter_range],[pressure_lim[0]-0.1*pressure_range,pressure_lim[1]+0.1*pressure_range]])
-        Z = sp.ndimage.filters.gaussian_filter(Z, [smoothing,smoothing], mode='reflect')
+        Z = sp.ndimage.filters.gaussian_filter(Z, [2.9,2.9], mode='constant')
         map, norm, levels = generate_color_map_from_levels(Z,color_levels,level_thresholds)
-        contour = plt.contour((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,levels=np.array(levels),alpha=0,zorder=0).allsegs[:-1]
+        contour = plt.contour((X[:-1]+X[1:])/2,10**((Y[:-1]+Y[1:])/2),Z.T,levels=np.array(levels)/3.0,alpha=0,zorder=0).allsegs[:-1]
         pressure_max = np.max(contour[0][0][:,1])
         if ax is None:
             plt.clf()

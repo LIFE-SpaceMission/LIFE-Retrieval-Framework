@@ -188,7 +188,7 @@ class retrieval_plotting_object(RetrievalObject):
 
     
 
-    def calculate_posterior_spectrum(self,skip=1,n_processes=50,reevaluate_spectra=False):
+    def calculate_posterior_spectrum(self,skip=1,n_processes=50,reevaluate_spectra=False,emission_contribution=True):
         '''
         gets the spectra corresponding to the parameter values
         of the equal weighted posteriors.
@@ -197,7 +197,7 @@ class retrieval_plotting_object(RetrievalObject):
         # If not yet done calculate the data corresponding
         # to the retrieved posterior distributions of partameters
         if not hasattr(self, 'retrieved_fluxes'):
-            function_args = {'parameter_samples':self.posteriors.to_numpy()[:,:-1],'skip':skip,'n_processes':n_processes}
+            function_args = {'parameter_samples':self.posteriors.to_numpy()[:,:-1],'skip':skip,'n_processes':n_processes,'emission_contribution':emission_contribution}
             self.__evaluate_posteriors(data_type='Spec',data_name='spectra',function_name='parallel_spectrum_calculation',function_args=function_args,force_evaluate=reevaluate_spectra)
 
 
@@ -597,13 +597,19 @@ class retrieval_plotting_object(RetrievalObject):
         else:
             instrument_plots = [list(retrieved_instrument_wavelengths.keys())]
 
-        ax_arg = ax
+
+        # Start of the plotting
+        if ax is None:
+            ax_arg = None
+        else:
+            ax_arg = True
 
         # Generate plots for different instrument configurations
         for instrument_plot in instrument_plots:
 
-            figure = plt.figure(figsize=figsize)
-            ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
+            if ax_arg is None:
+                figure = plt.figure(figsize=figsize)
+                ax = figure.add_axes([0.1, 0.1, 0.8, 0.8])
                 
             # Plotting the retrieved Spectra
             for instrument in instrument_plot:
@@ -687,7 +693,7 @@ class retrieval_plotting_object(RetrievalObject):
             
             # Save or pass back the figure
             if ax_arg is not None:
-                return
+                return color_levels
             else:
                 filename = 'full_range' if not plot_instruments_separately else instrument_plot[0]
                 if plot_residual:
@@ -710,8 +716,8 @@ class retrieval_plotting_object(RetrievalObject):
     
 
     def plot_retrieved_pt_profile(self, save=False,  x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 20,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
-                    legend_n_col = 2, legend_loc = 'best',figsize=(6.4, 4.8),h_cover=0.45,
+                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 15,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
+                    legend_n_col = 2, legend_loc = 'best',figsize=(6.4, 4.8),h_cover=0.45, smoothing = 4,
                     
                     true_cloud_top=[None,None],
 
@@ -719,7 +725,8 @@ class retrieval_plotting_object(RetrievalObject):
                     plot_residual = False,
                     plot_clouds = False,
                     plot_unit_temperature=None,
-                    plot_unit_pressure=None,):
+                    plot_unit_pressure=None,
+                    return_levels = False):
         '''
         This Function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input PT profile for the retrieval.
@@ -760,7 +767,8 @@ class retrieval_plotting_object(RetrievalObject):
                                                                    local_retrieved_temperatures,
                                                                    quantiles,
                                                                    plot_residual=plot_residual,
-                                                                   ax=ax)
+                                                                   ax=ax,
+                                                                   smoothing = smoothing)
 
         #volume_percentages = [1-level for level in level_thresholds[:-1]]
         #contours = calculate_profile_contours_new(local_retrieved_temperatures_extrapolated,
@@ -828,23 +836,23 @@ class retrieval_plotting_object(RetrievalObject):
                     ax.semilogy(smooth_T_true,local_true_pressures,color ='black', label = 'P-T Profile')
 
                     # Plotting the true/input surface temperature/pressure
-                    ax.plot(local_true_temperatures[-1]-yinterp[-1],local_true_pressures[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+                    ax.plot(local_true_temperatures[-1]-yinterp[-1],local_true_pressures[-1],color='white',ms=6,mew=1.5, markeredgecolor='black',lw=0,label = 'Surface')
 
                 # If wanted: plotting the true/input cloud top temperature/pressure
                 try:
                     ind_ct = (np.argmin(np.abs(np.log10(local_true_pressures_cloud_top)-np.log10(local_true_pressures))))
-                    ax.plot(smooth_T_true[ind_ct],local_true_pressures_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
+                    ax.plot(smooth_T_true[ind_ct],local_true_pressures_cloud_top,marker='o',color='white',ms=6,mew=2,lw=1.5, markeredgecolor='black',label = 'Cloud-Top')
                 except:
                     pass
             else:
                 ax.semilogy(local_true_temperatures,local_true_pressures,color ='black', label = 'P-T Profile')
 
                 # Plotting the true/input surface temperature/pressure
-                ax.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='C3',ms=7, markeredgecolor='black',lw=0,label = 'Surface')
+                ax.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='white',ms=6,mew=1.5, markeredgecolor='black',lw=0,label = 'Surface')
 
                 # If wanted: plotting the true/input cloud top temperature/pressure
                 try:
-                    ax.plot(local_true_temperatures_cloud_top,local_true_pressures_cloud_top,marker='o',color='C1',lw=0,ms=7, markeredgecolor='black',label = 'Cloud-Top')
+                    ax.plot(local_true_temperatures_cloud_top,local_true_pressures_cloud_top,marker='o',color='white',ms=6,mew=1.5,lw=0, markeredgecolor='black',label = 'Cloud-Top')
                 except:
                     pass
 
@@ -872,10 +880,18 @@ class retrieval_plotting_object(RetrievalObject):
             ax2_ylabel = '$P^\mathrm{cloud}_\mathrm{top}$ '+unit_titles['y_unit']
 
             # Define limits and make a 2d histogram of the cloud top pressures and temperatures
-            t_lim = [np.min(local_retrieved_temperatures_cloud_top),np.max(local_retrieved_temperatures_cloud_top)]
+            #t_lim = [np.min(local_retrieved_temperatures_cloud_top),np.max(local_retrieved_temperatures_cloud_top)]
+            #t_lim = np.quantile(local_retrieved_temperatures_cloud_top,[0.01,0.99])
+            t_eb = np.quantile(local_retrieved_temperatures_cloud_top,[0.16,0.5,0.84])
+            t_lim = [t_eb[1]-4*(t_eb[1]-t_eb[0]),t_eb[1]+4*(t_eb[2]-t_eb[1])]
             t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(local_retrieved_pressures_cloud_top)),np.max(np.log10(local_retrieved_pressures_cloud_top))]
+            #p_lim = [np.min(np.log10(local_retrieved_pressures_cloud_top)),np.max(np.log10(local_retrieved_pressures_cloud_top))]
+            #p_lim = np.quantile(np.log10(local_retrieved_pressures_cloud_top),[0.01,0.99])
+            p_eb = np.quantile(np.log10(local_retrieved_pressures_cloud_top),[0.16,0.5,0.84])
+            p_lim = [p_eb[1]-4*(p_eb[1]-p_eb[0]),p_eb[1]+4*(p_eb[2]-p_eb[1])]
             p_range = p_lim[1]-p_lim[0]
+
+            # Use previously defined limits to calculate a 2d histogram of the surface pressures and temperatures
             Z,X,Y=np.histogram2d(local_retrieved_temperatures_cloud_top[:,0],np.log10(local_retrieved_pressures_cloud_top)[:,0],bins=bins_inlay,
                 range = [[t_lim[0]-0.1*t_range,t_lim[1]+0.1*t_range],[p_lim[0]-0.1*p_range,p_lim[1]+0.1*p_range]])
 
@@ -885,9 +901,15 @@ class retrieval_plotting_object(RetrievalObject):
             ax2_ylabel = '$\mathrm{P_0}$ '+unit_titles['y_unit']
 
             # Define limits and make a 2d histogram of the surface pressures and temperatures
-            t_lim = [np.min(local_retrieved_temperatures[:,-1]),np.max(local_retrieved_temperatures[:,-1])]
+            #t_lim = [np.min(local_retrieved_temperatures[:,-1]),np.max(local_retrieved_temperatures[:,-1])]
+            #t_lim = np.quantile(local_retrieved_temperatures[:,-1],[0.01,0.99])
+            t_eb = np.quantile(local_retrieved_temperatures[:,-1],[0.16,0.5,0.84])
+            t_lim = [t_eb[1]-4*(t_eb[1]-t_eb[0]),t_eb[1]+4*(t_eb[2]-t_eb[1])]
             t_range = t_lim[1]-t_lim[0]
-            p_lim = [np.min(np.log10(local_retrieved_pressures[:,-1])),np.max(np.log10(local_retrieved_pressures[:,-1]))]
+            #p_lim = [np.min(np.log10(local_retrieved_pressures[:,-1])),np.max(np.log10(local_retrieved_pressures[:,-1]))]
+            #p_lim = np.quantile(np.log10(local_retrieved_pressures[:,-1]),[0.01,0.99])
+            p_eb = np.quantile(np.log10(local_retrieved_pressures[:,-1]),[0.16,0.5,0.84])
+            p_lim = [p_eb[1]-4*(p_eb[1]-p_eb[0]),p_eb[1]+4*(p_eb[2]-p_eb[1])]
             p_range = p_lim[1]-p_lim[0]
 
             # Use previously defined limits to calculate a 2d histogram of the surface pressures and temperatures
@@ -902,9 +924,9 @@ class retrieval_plotting_object(RetrievalObject):
 
         # plot the true values that were used to generate the input spectrum
         if plot_truth:
-            ax2.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='C3',lw=0,ms=7, markeredgecolor='black')
+            ax2.plot(local_true_temperatures[-1],local_true_pressures[-1],marker='s',color='white',ms=6,mew=1.5,lw=0, markeredgecolor='black')
             try:
-                ax2.plot(local_true_temperatures_cloud_top,(local_true_pressures_cloud_top),marker='o',color='C1',lw=0,ms=7, markeredgecolor='black')
+                ax2.plot(local_true_temperatures_cloud_top,(local_true_pressures_cloud_top),marker='o',color='white',ms=6,mew=1.5,lw=0, markeredgecolor='black')
             except:
                 pass
         
@@ -995,7 +1017,10 @@ class retrieval_plotting_object(RetrievalObject):
 
         # Save or pass back the figure
         if ax_arg is not None:
-            return ax, ax2
+            if return_levels:
+                return color_levels, color_levels_c ,ax2, [map, norm, levels] 
+            else:
+                return color_levels, color_levels_c ,ax2
         elif save:
             if plot_residual:
                 plt.savefig(self.results_directory+'Plots_New/plot_pt_structure_residual.pdf', bbox_inches='tight',bbox_extra_artists=(lgd,), transparent=True)
@@ -1017,7 +1042,8 @@ class retrieval_plotting_object(RetrievalObject):
                                 figsize=(5,20),
                                 x_lim = [1e-10,1e0],
                                 y_lim = [1e4,1e-6],
-                                species = None):
+                                species = None,
+                                smoothing = 3,):
         
         # Check that the abundance units are valid
         if plot_unit_abundance not in ['VMR','MMR']:

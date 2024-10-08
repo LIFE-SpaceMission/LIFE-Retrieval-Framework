@@ -7,6 +7,10 @@ import numpy as np
 import spectres
 from numpy import ndarray
 
+#from pyretlife.retrieval.atmospheric_variables import (
+#    get_mm
+#)
+
 
 def define_linelists(
     config: dict, settings: dict, input_opacity_path: Union[str, Path]
@@ -18,6 +22,7 @@ def define_linelists(
 
     species = list(config["CHEMICAL COMPOSITION PARAMETERS"].keys())
 
+    #rebin_opacity_linelists(settings, input_opacity_path, pRT)
     used_line_species = ingest_opacity_linelists(settings, input_opacity_path)
 
     tot_mols = [s.split("_")[0] for s in used_line_species]
@@ -64,6 +69,30 @@ def define_linelists(
         used_cia_species,
         used_cloud_species,
     )
+
+
+#def rebin_opacity_linelists(settings: dict, input_opacity_path: Union[str, Path], pRT):
+#    # get all folders and filter out the ones that are not r 1000
+#    line_species = os.listdir(Path(input_opacity_path)/"opacities"/"lines"/"corr_k")
+#    full_resolution_lists = []
+#    for line_list in line_species:
+#        if not '_R_' in line_list:
+#            full_resolution_lists += [line_list]
+
+#    # Load the molecular weights
+#    masses={}
+#    for species in full_resolution_lists:
+#        masses[species.split('_')[0]]=float(get_mm(species))
+#        print(masses)
+
+#    # Rebin if necessary
+#    for species in full_resolution_lists:
+#        for resolution in int(settings["resolution"]):    
+#            if not os.path.exists(Path(input_opacity_path)+'opacities/lines/corr_k/'+str(species)+"_R_"+str(resolution)):
+#                os.mkdir(Path(input_opacity_path)+'opacities/lines/corr_k/'+str(species)+"_R_"+str(resolution))
+
+#                temp_atmosphere = pRT.Radtrans(line_species = [str(species)], wlen_bords_micron = [0.1, 251.])
+#                temp_atmosphere.write_out_rebin(resolution, path = Path(input_opacity_path)+'opacities/lines/corr_k/', species =  [str(species)], masses = masses)
 
 
 def ingest_opacity_linelists(
@@ -161,6 +190,7 @@ def calculate_moon_flux(frequency: ndarray, prt_instance, moon_vars: dict):
 def assign_reflectance_emissivity(
     scat_vars: dict, frequency: ndarray
 ) -> Tuple[ndarray, ndarray]:
+
     reflectance = scat_vars["reflectance"] * np.ones_like(frequency)
     emissivity = scat_vars["emissivity"] * np.ones_like(frequency)
     return reflectance, emissivity
@@ -188,7 +218,6 @@ def calculate_emission_flux(
     # TODO implement better logging
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, "w")
-
     if not settings["include_scattering"]["direct_light"]:
         rt_object.calc_flux(
             temp,
@@ -237,7 +266,10 @@ def calculate_emission_flux(
             )
 
     # sys.stdout = old_stdout
-    return rt_object.freq.copy(), rt_object.flux.copy()
+    if em_contr:
+        return rt_object.freq.copy(), rt_object.flux.copy(), rt_object.contr_em.copy()
+    else:
+        return rt_object.freq.copy(), rt_object.flux.copy(), None
 
 
 def scale_flux_to_distance(

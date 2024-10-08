@@ -30,7 +30,9 @@ from pyretlife.retrieval.atmospheric_variables import (
     calculate_isothermal_profile,
     calculate_madhuseager_profile,
     calculate_mod_madhuseager_profile,
+    calculate_line_profile,
     calculate_spline_profile,
+    calculate_adiabat_profile,
     calculate_abundances,
     condense_water,
     set_log_ground_pressure,
@@ -261,7 +263,7 @@ class RetrievalObject:
             used_cia_species,
             used_cloud_species,
         ) = define_linelists(
-            self.config, self.settings, self.input_opacity_path
+            self.config, self.settings, self.input_opacity_path#, self.petitRADTRANS
         )
 
         # TODO implement verbose output
@@ -276,8 +278,7 @@ class RetrievalObject:
             cloud_species=sorted(used_cloud_species),
             wlen_bords_micron=self.settings["wavelength_range"],
             mode="c-k",
-            do_scat_emis=True in self.settings["include_scattering"].values(),
-        )
+            do_scat_emis= True in self.settings["include_scattering"].values(),)
         sys.stdout = old_stdout
 
         self.rt_object.setup_opa_structure(
@@ -365,6 +366,12 @@ class RetrievalObject:
         elif self.settings["parameterization"] == "spline":
             self.temp = calculate_spline_profile(self.press, self.temp_vars, self.phys_vars, self.settings)
 
+        elif self.settings["parameterization"] == "adiabat":
+            self.temp = calculate_adiabat_profile(self.press, self.temp_vars, self.phys_vars)
+        
+        elif self.settings["parameterization"] == "line":
+            self.temp = calculate_line_profile(self.press, self.temp_vars, self.phys_vars)
+
         else:
             raise ValueError("Unknown PT setting!")
 
@@ -373,12 +380,13 @@ class RetrievalObject:
     def calculate_abundances(self):
 
         self.abundances_VMR, self.chem_vars_VMR = calculate_abundances(self.chem_vars, self.press, self.settings)
-        self.median_cond_pressure = None
+        self.condensation_pressures = None
+
         if self.settings['condensation']:
             if 'H2O_Drying' in self.chem_vars.keys():
-                self.abundances_VMR, self.median_cond_pressure = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=self.chem_vars['H2O_Drying'])
+                self.abundances_VMR, self.condensation_pressures = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=self.chem_vars['H2O_Drying'])
             else:
-                self.abundances_VMR, self.median_cond_pressure = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=0)
+                self.abundances_VMR, self.condensation_pressures = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=0)
         
         (
             self.abundances_VMR,
@@ -388,10 +396,10 @@ class RetrievalObject:
             self.cloud_Pcloud,
             self.cloud_fraction
         ) = assign_cloud_parameters(
-            self.abundances_VMR, self.cloud_vars, self.press, self.phys_vars, self.median_cond_pressure
+            self.abundances_VMR, self.cloud_vars, self.press, self.phys_vars, self.condensation_pressures
         )
 
-    def calculate_spectrum(self):
+    def calculate_spectrum(self, em_contr=False):
 
         self.inert = calculate_inert(self.abundances_VMR)
         self.MMW = calculate_mmw_VMR(self.abundances_VMR, self.settings, self.inert)
@@ -417,25 +425,33 @@ class RetrievalObject:
 
         # Calculate the forward model; this returns the frequency
         # and the flux F_nu in erg/cm^2/s/Hz.
-        freq, cloud_free_flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
+        freq, cloud_free_flux, cloud_free_em_contr = calculate_emission_flux(self.rt_object, self.settings, self.temp,
                                                                     abundances_MMR, self.phys_vars["g"],
                                                                     self.MMW, self.cloud_radii, self.cloud_lnorm,
-                                                                    self.scat_vars, em_contr=False,Pcloud=None)
+                                                                    self.scat_vars, em_contr=em_contr,Pcloud=None)
 
         if self.cloud_fraction is not None:
-            freq, cloudy_flux = calculate_emission_flux(self.rt_object, self.settings, self.temp,
+            freq, cloudy_flux, cloudy_em_contr = calculate_emission_flux(self.rt_object, self.settings, self.temp,
                                                                             abundances_MMR, self.phys_vars["g"],
                                                                             self.MMW, self.cloud_radii, self.cloud_lnorm,
-                                                                            self.scat_vars, em_contr=False,Pcloud=self.cloud_Pcloud)
+                                                                            self.scat_vars, em_contr=em_contr,Pcloud=self.cloud_Pcloud)
             mixed_flux = cloud_free_flux*(1-self.cloud_fraction) + cloudy_flux*self.cloud_fraction
+            if em_contr:
+                mixed_em_contr = cloud_free_em_contr#*(1-self.cloud_fraction) + cloudy_em_contr*self.cloud_fraction
+
         else:
             mixed_flux = cloud_free_flux
+            if em_contr:
+                mixed_em_contr = cloud_free_em_contr
 
         wavelength = (
             self.petitRADTRANS.nat_cst.c / freq * 1e4
         )
 
-        return wavelength, mixed_flux
+        if em_contr:
+            return wavelength, mixed_flux, mixed_em_contr
+        else:
+            return wavelength, mixed_flux
     
     def distance_scale_spectrum(self):
         if self.phys_vars["d_syst"] is not None:
@@ -485,8 +501,8 @@ class RetrievalObject:
             return -1e99
         
         self.calculate_abundances()
-        if validate_abundances(self.abundances_VMR,self.chem_vars_VMR):
-            return -1e99
+        #if validate_abundances(self.abundances_VMR,self.chem_vars_VMR):
+        #    return -1e99
         if validate_clouds(self.press, self.temp, self.cloud_vars):
             return -1e99
         if validate_sum_of_abundances(self.abundances_VMR):
@@ -521,7 +537,8 @@ class RetrievalObject:
                     (rebinned_flux - self.instrument[inst]["flux"])
                     / self.instrument[inst]["error"]
                 )
-                ** 2.0
+                ** 2.0 
+                #+ np.log(2*np.pi*self.instrument[inst]["error"]**2)
             )
         return log_likelihood
 

@@ -103,6 +103,12 @@ def Scale_Posteriors(rp_object, local_post, local_truths, local_titles, paramete
                 if not local_truths[param] is None:
                     local_truths[param] = np.log10(local_truths[param])
 
+        if param in ['kappa','gamma1','gamma2']:
+                local_post[param] = np.log10(local_post[param])
+                local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
+                if not local_truths[param] is None:
+                    local_truths[param] = np.log10(local_truths[param])
+
         # If we want to use log mass in the corner plot
         if log_mass:
             if param == 'M_pl':

@@ -125,7 +125,10 @@ def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict
         pressure_points += [pressure_points[i-1] + temp_vars['Position_P'+str(i)] * (np.log10(pressure[0]) - pressure_points[i-1])]
     pressure_points += [np.log10(pressure[0])]
 
-    temperature_points  = [temp_vars['T'+str(i)] for i in range(settings['spline_points'])]
+    try:
+        temperature_points  = [temp_vars['T'+str(i)] for i in range(settings['spline_points'])]
+    except:
+        temperature_points  = [temp_vars['T'+str(i)] for i in range(settings['spline_points']-1)]+[temp_vars['T'+str(settings['spline_points']-2)]]
 
     spline = scp.interpolate.make_interp_spline(pressure_points[::-1],temperature_points[::-1],k=settings['spline_degree_k'])
 
@@ -143,6 +146,25 @@ def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict
         temperature = spline(np.log10(pressure))
 
     return temperature
+
+
+def calculate_adiabat_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict) -> ndarray:
+
+    beta = 2.0/(temp_vars['Gas_Deg_Freedom']+2.0)
+
+    temperature = temp_vars['Constant_Factor']**(1-beta) * pressure**beta
+
+    P_inv = 10**(np.log10(pressure[0]) -  temp_vars['Position_P_Switch']*(np.log10(pressure[0])-phys_vars['log_P0']))
+    
+    ind = np.where(pressure <= P_inv)
+    slope = ((temp_vars['Constant_Factor']**(1-beta) * P_inv**beta)-temp_vars['T_Top'])/(np.log10(P_inv)-np.log10(pressure[0]))
+    
+    temperature[ind] = temp_vars['Constant_Factor']**(1-beta) * P_inv**beta - slope * (np.log10(P_inv)-np.log10(pressure[ind]))
+
+    if 'spline_smoothing' in temp_vars.keys():
+        return scp.ndimage.gaussian_filter1d(temperature,temp_vars['adiabat_smoothing'],mode='nearest')
+    else:
+        return temperature
 
 
 # TODO typeset vae_pt
@@ -335,6 +357,114 @@ def calculate_mod_madhuseager_profile(
     return temperature
 
 
+
+
+
+def xi(gamma, tau):
+    """
+    Calculate Equation (14) of Line et al. (2013) Apj 775, 137
+
+    Parameters:
+    -----------
+    gamma: Float
+        Visible-to-thermal stream Planck mean opacity ratio.
+    tau: 1D float ndarray
+        Gray IR optical depth.
+
+    Modification History:
+    ---------------------
+    2014-12-10  patricio  Initial implemetation.
+    """
+    return (2.0/3) * \
+            (1 + (1./gamma) * (1 + (0.5*gamma*tau-1)*np.exp(-gamma*tau)) +
+            gamma*(1 - 0.5*tau**2) * scp.special.expn(2, gamma*tau)              )
+
+def calculate_line_profile(pressure: ndarray, temp_vars: dict , phys_vars: dict,
+                R_star = 6.995e8,   T_star = 5780.0, T_int = 0.0, sma = 1.0 * scp.constants.au):#,  T_int_type):
+    '''
+    Generates a PT profile based on input free parameters and pressure array.
+    If no inputs are provided, it will run in demo mode, using free
+    parameters given by the Line 2013 paper and some dummy pressure
+    parameters.
+
+    Inputs
+    ------
+    pressure: 1D float ndarray
+        Array of pressure values in bars.
+    kappa : float, in log10. Planck thermal IR opacity in units cm^2/gr
+    gamma1: float, in log10. Visible-to-thermal stream Planck mean opacity ratio.
+    gamma2: float, in log10. Visible-to-thermal stream Planck mean opacity ratio.
+    alpha : float.           Visible-stream partition (0.0--1.0).
+    beta  : float.           A 'catch-all' for albedo, emissivity, and day-night
+                            redistribution (on the order of unity)
+    R_star: Float
+        Stellar radius (in meters).
+    T_star: Float
+        Stellar effective temperature (in Kelvin degrees).
+    T_int:  Float
+        Planetary internal heat flux (in Kelvin degrees).
+    sma:    Float
+        Semi-major axis (in meters).
+    grav:   Float
+        Planetary surface gravity (at 1 bar) in cm/second^2.
+    T_int_type: string.
+        Method for determining `T_int`: 'const' (for a supplied constant value)
+                                        'thorngren' (to use Thorngren et al. 2019)
+
+    Returns
+    -------
+    T: temperature array
+
+    Developers:
+    -----------
+    Madison Stemm      astromaddie@gmail.com
+    Patricio Cubillos  pcubillos@fulbrightmail.org
+
+    Modification History:
+    ---------------------
+    2014-09-12  Madison   Initial version, adapted from equations (13)-(16)
+                            in Line et al. (2013), Apj, 775, 137.
+    2014-12-10  patricio  Reviewed and updated code.
+    2015-01-22  patricio  Receive log10 of free parameters now.
+    2019-02-13  mhimes    Replaced `params` arg with each parameter for 
+                            consistency with other PT models
+    2019-09-10  mhimes    Added T_int calculation from Thorngren et al. (2019)
+    '''
+
+    # Stellar input temperature (at top of atmosphere):
+    T_irr = temp_vars['beta'] * (R_star / (2.0*sma))**0.5 * T_star
+
+    # Gray IR optical depth:
+    tau = temp_vars['kappa'] * (pressure*1e6) / phys_vars['g'] # Convert bars to barye (CGS)
+
+    xi1 = xi(temp_vars['gamma1'], tau)
+    xi2 = xi(temp_vars['gamma2'], tau)
+
+    # Temperature profile (Eq. 13 of Line et al. 2013):
+    temperature = (0.75 * (T_int**4 * (2.0/3.0 + tau) +
+                            T_irr**4 * (1-temp_vars['alpha']) * xi1 +
+                            T_irr**4 * temp_vars['alpha']     * xi2 ) )**0.25
+
+    return temperature
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> dict:
     """
     TBD
@@ -393,8 +523,8 @@ def water_ice_vapor_pressure(T,T_ST=373.15,p_ST=1.01325,T_0=273.16,p_i0=6.1173*1
     return p_vp
 
 
-    
-def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying=0.0):
+
+def condense_water_old(abundances_VMR,pressure,temperature,phys_vars,settings,drying=0.0):
 
     # Convert mass mixing ration to volume mixing ratio
     # and calculate the partial pressure of water
@@ -417,11 +547,14 @@ def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying
         above_surface = np.where(np.log10(pressure) <= phys_vars['log_P0'])[0]
         below_surface = np.where(np.log10(pressure) >  phys_vars['log_P0'])[0]
         drying = drying*settings['n_layers']/len(above_surface)
+    drying_factor = 1
     for index in above_surface:
         if PP_Water[index] >= VP_Water[index]:
             PP_Water[index:] = (VP_Water[index]/pressure[index])*pressure[index:]
-            VP_Water = 10**(np.log10(VP_Water)-drying)
-            condensation_pressures += [pressure[index]]
+            VP_Water = VP_Water*(1-drying)
+            drying_factor *= (1-drying)
+            if drying_factor >= 0.1:
+                condensation_pressures += [pressure[index]]
 
     # Calculate theVMR of the Water in the atmosphere
     VMR_Water = PP_Water/pressure
@@ -431,17 +564,79 @@ def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying
     # retrun the new abundances
     abundances_VMR['H2O'] = VMR_Water[::-1]
 
-    if len(condensation_pressures) == 0:
-        median_cond_pressure = None
-    else: 
-        median_cond_pressure = np.median(condensation_pressures)
+    #if len(condensation_pressures) == 0:
+    #    median_cond_pressure = None
+    #else: 
+    #    median_cond_pressure = np.median(condensation_pressures)
 
-    return abundances_VMR, median_cond_pressure
+    return abundances_VMR, condensation_pressures
+
+def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying=0.0):
+
+    # Convert mass mixing ration to volume mixing ratio
+    # and calculate the partial pressure of water
+    PP_Water = abundances_VMR['H2O']*pressure
+
+    # Calculate the vapor pressure of water at all pressures
+    VP_Water = np.zeros_like(pressure)
+    for index in range(len(VP_Water)):
+        VP_Water[index] = water_ice_vapor_pressure(temperature[index]) #10**(np.log10(relative_humidity)-index*drying)*
+
+    # Calculation of the variable water partial pressure profile.
+    # If water partial pressure exceeds vapor pressure the water condenses 
+    # condensation_pressures stores the layers wher condensation occurrs
+    #layer_thickness = np.log10(pressure[0])-np.log10(pressure[1])
+    if len(pressure) == settings['n_layers']:
+        above_surface = range(settings['n_layers'])
+        below_surface = None
+    else:
+        above_surface = np.where(np.log10(pressure) <= phys_vars['log_P0'])[0]
+        below_surface = np.where(np.log10(pressure) >  phys_vars['log_P0'])[0]
+        #drying = drying*settings['n_layers']/len(above_surface)
+    condensation_levels = []
+    for index in above_surface:
+        if PP_Water[index] >= VP_Water[index]:
+            PP_Water[index:] = (VP_Water[index]/pressure[index])*pressure[index:]
+            condensation_levels += [len(pressure)-1-index]
+
+    # Calculate theVMR of the Water in the atmosphere
+    VMR_Water = PP_Water/pressure
+    if below_surface is not None:
+        VMR_Water[below_surface] = VMR_Water[above_surface[0]]
+    abundances_VMR['H2O'] = VMR_Water[::-1]
+
+    # Calculate theVMR of the Water in the atmosphere
+    layer_drying = np.log10(drying)*abundances_VMR['H2O'][0]/abundances_VMR['H2O']
+    abundances_VMR['H2O'] = 10**(np.log10(abundances_VMR['H2O'])+layer_drying)
+
+    # Get the layers where cloud formation is possible. If no condensation set clouds to surface
+    condensation_pressures = [pressure[::-1][i] for i in set(condensation_levels).intersection(np.where(layer_drying >= -1)[0])]
+    if condensation_pressures == []:
+        if condensation_pressures == []:
+            condensation_pressures = [pressure[0]]
+        else:
+            condensation_pressures = pressure[::-1][max(condensation_levels)]
+
+    return abundances_VMR, condensation_pressures
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 def assign_cloud_parameters(
-    abundances_VMR: dict, cloud_vars: dict, press: ndarray,phys_vars: dict, median_cond_pressure: float,
+    abundances_VMR: dict, cloud_vars: dict, press: ndarray,phys_vars: dict, condensation_pressures: float,
 ) -> Tuple[dict, dict, dict, int]:
     # TODO test that it works
     """
@@ -465,11 +660,19 @@ def assign_cloud_parameters(
         if cloud =='cloud_fraction':
             cloud_fraction = cloud_vars['cloud_fraction']
             if not (('Pcloud' in cloud_vars.keys()) or ('Position_Pcloud' in cloud_vars.keys())):
-                cloud_Pcloud = median_cond_pressure
+                if condensation_pressures == []:
+                    cloud_Pcloud = 10**phys_vars['log_P0']
+                else:
+                    cloud_Pcloud = np.median(condensation_pressures)
         elif cloud =='Pcloud':
             cloud_Pcloud = cloud_vars['Pcloud']
         elif cloud == 'Position_Pcloud':
-            cloud_Pcloud = 10**(phys_vars['log_P0'] + cloud_vars['Position_Pcloud'] * (np.log10(press[0]) - phys_vars['log_P0']))
+            if condensation_pressures == None:
+                cloud_Pcloud = 10**(phys_vars['log_P0'] + cloud_vars['Position_Pcloud'] * (np.log10(press[0]) - phys_vars['log_P0']))
+            elif condensation_pressures == []:
+                cloud_Pcloud = 10**phys_vars['log_P0']
+            else:
+                cloud_Pcloud = 10**(np.log10(condensation_pressures[0]) + cloud_vars['Position_Pcloud'] * (np.log10(condensation_pressures[-1]) - np.log10(condensation_pressures[0])))
         elif ('_cloud_top' in cloud):
             ind_cltp = np.argmin(np.abs(np.log10(press)-np.log10(cloud_vars['Pcloud'])))
             ind_surf = len(press)-1
@@ -562,7 +765,6 @@ def convert_VMR_to_MMR(abundances_VMR: dict, settings: dict, inert_VMR: ndarray,
         inert_MMR = inert_VMR*settings["mmw_inert"]/mmw
     
     return abundances_MMR, inert_MMR
-
 
 
 def convert_MMR_to_VMR(abundances_MMR: dict, settings: dict, inert_MMR: ndarray, mmw: ndarray) ->  Tuple[dict, ndarray]:
