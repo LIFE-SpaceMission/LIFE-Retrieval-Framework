@@ -576,13 +576,9 @@ class retrieval_plotting_object(RetrievalObject):
         retrieved_instrument_wavelengths = {}
         if plot_instruments_separately or plot_residual:
             for instrument in local_instrument.keys():
-                # Rebin the spectrum according to the input spectrum if wavelenths differ strongly
-                if not np.array([(np.round(local_instrument[instrument]['wavelength'],10)==np.round(local_wavelengths,10))]).all():
-                    retrieved_instrument_median[instrument] = (spectres.spectres(local_instrument[instrument]['wavelength'],local_wavelengths,median_all_wlavelengths)-local_instrument[instrument]['flux']*factor_input_spectrum)*factor_percentage[instrument]
-                    retrieved_instrument_quantiles[instrument] = [(spectres.spectres(local_instrument[instrument]['wavelength'],local_wavelengths,quantiles_all_wlavelengths[q])-local_instrument[instrument]['flux']*factor_input_spectrum)*factor_percentage[instrument] for q in range(len(quantiles))]
-                else:
-                    retrieved_instrument_median[instrument] = (median_all_wlavelengths-local_instrument[instrument]['flux']*factor_input_spectrum)*factor_percentage[instrument]
-                    retrieved_instrument_quantiles[instrument] = [(quantiles_all_wlavelengths[q]-local_instrument[instrument]['flux']*factor_input_spectrum)*factor_percentage[instrument] for q in range(len(quantiles))]
+                # Rebin the spectrum according to the input spectrum
+                retrieved_instrument_median[instrument] = (spectres.spectres(local_instrument[instrument]['wavelength'],local_wavelengths,median_all_wlavelengths)-local_instrument[instrument]['flux']*factor_input_spectrum)*factor_percentage[instrument]
+                retrieved_instrument_quantiles[instrument] = [(spectres.spectres(local_instrument[instrument]['wavelength'],local_wavelengths,quantiles_all_wlavelengths[q])-local_instrument[instrument]['flux']*factor_input_spectrum)*factor_percentage[instrument] for q in range(len(quantiles))]
                 retrieved_instrument_wavelengths[instrument] = local_instrument[instrument]['wavelength']
         else:
             retrieved_instrument_median['full_range'] = median_all_wlavelengths
@@ -615,7 +611,7 @@ class retrieval_plotting_object(RetrievalObject):
             for instrument in instrument_plot:
                 for i in range(N_levels):
                     ax.fill(np.append(retrieved_instrument_wavelengths[instrument],np.flip(retrieved_instrument_wavelengths[instrument])),
-                            np.append(retrieved_instrument_quantiles[instrument][i],np.flip(retrieved_instrument_quantiles[instrument][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+                            np.append(retrieved_instrument_quantiles[instrument][i],np.flip(retrieved_instrument_quantiles[instrument][-i-1])),color = tuple(color_levels[i, :]),lw = 0,clip_on=True,zorder=1)
                 if plot_retrieved_median:
                     ax.plot(retrieved_instrument_wavelengths[instrument],retrieved_instrument_median[instrument],color=color,lw = 0.5, label = 'Best Fit',zorder=2)
                         
@@ -627,7 +623,7 @@ class retrieval_plotting_object(RetrievalObject):
                 # Plot the noise for the input spectrum
                 if plot_noise:
                     ax.fill(np.append(local_instrument[instrument]['wavelength'],np.flip(local_instrument[instrument]['wavelength'])),np.append((local_instrument[instrument]['flux']*abs(factor_input_spectrum-1)+local_instrument[instrument]['error'])*factor_percentage[instrument],
-                            np.flip((local_instrument[instrument]['flux']*abs(factor_input_spectrum-1)-local_instrument[instrument]['error'])*factor_percentage[instrument])),color = (0.8,0.8,0.8,1),lw = 0,clip_box=True,zorder=0)
+                            np.flip((local_instrument[instrument]['flux']*abs(factor_input_spectrum-1)-local_instrument[instrument]['error'])*factor_percentage[instrument])),color = (0.8,0.8,0.8,1),lw = 0,clip_on=True,zorder=0)
                 if plot_true_spectrum:
                     label = None if plot_residual else 'Input Spectrum'
                     ls = ':' if plot_residual else '-'
@@ -797,18 +793,18 @@ class retrieval_plotting_object(RetrievalObject):
         # If wanted: plotting the retrieved cloud top
         if plot_clouds:
             for i in range(N_levels_c):
-                ax.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[-i-1],cloud_top_quantiles[-i-1]],color = tuple(color_levels_c[i, :]),clip_box=True,zorder=-1)
+                ax.fill([-10000,10000,10000,-10000],[cloud_top_quantiles[i],cloud_top_quantiles[i],cloud_top_quantiles[-i-1],cloud_top_quantiles[-i-1]],color = tuple(color_levels_c[i, :]),clip_on=True,zorder=-1)
             for i in range(N_levels_c):
                 ax.hlines([cloud_top_quantiles[i],cloud_top_quantiles[-i-1]],xmin = -10000, xmax = 10000,color = tuple(color_levels_c[i, :]),ls='-',zorder=0)
 
         # Plotting the contours of the retrieved PT profile
         for i in range(N_levels):
-            ax.fill(T_contours[i],p_contours[i],color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+            ax.fill(T_contours[i],p_contours[i],color = tuple(color_levels[i, :]),lw = 0,clip_on=True,zorder=1)
 
         # Plotting the contours of the retrieved PT profile
         #for i in range(len(volume_percentages)):
         #    key = str(np.round(volume_percentages[i],3))
-        #    ax.fill(contours[key]['data_values'],contours[key]['pressure_values'],color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+        #    ax.fill(contours[key]['data_values'],contours[key]['pressure_values'],color = tuple(color_levels[i, :]),lw = 0,clip_on=True,zorder=1)
         if plot_residual:
             ax.semilogy([0,0], y_lim,color ='black', linestyle=':')
             ax.annotate('Retrieved\nP-T Median',[0+0.035*x_lim[1],10**(0.975*(np.log10(y_lim[1])-np.log10(y_lim[0]))+np.log10(y_lim[0]))],color = 'black',rotation=0,ha='left')
@@ -1083,7 +1079,7 @@ class retrieval_plotting_object(RetrievalObject):
             # Plotting the retrieved abundance profile contours
             for i in range(len(volume_percentages)):
                 key = str(np.round(volume_percentages[i],3))
-                ax[index].fill(contours[key]['data_values'],contours[key]['pressure_values'],color = tuple(color_levels[i, :]),lw = 0,clip_box=True,zorder=1)
+                ax[index].fill(contours[key]['data_values'],contours[key]['pressure_values'],color = tuple(color_levels[i, :]),lw = 0,clip_on=True,zorder=1)
 
             ax[index].set_yscale('log')
             ax[index].set_xscale('log')

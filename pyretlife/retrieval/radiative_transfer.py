@@ -282,14 +282,10 @@ def scale_flux_to_distance(
 
 
 def rebin_spectrum(instrument, wavelength, flux):
-    # differ strongly
-    if not np.array(
-        [(np.round(instrument["wavelength"], 10) == np.round(wavelength, 10))]
-    ).all():
+
         return spectres.spectres(
             instrument["wavelength"],
             wavelength,
             flux,
         )
-    else:
-        return flux
+

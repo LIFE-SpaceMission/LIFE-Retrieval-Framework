@@ -530,7 +530,7 @@ class RetrievalObject:
                     self.rt_object.wavelength,
                     self.moon_flux,
                 )
-
+            
             # Calculate log-likelihood
             log_likelihood += -0.5 * np.sum(
                 (

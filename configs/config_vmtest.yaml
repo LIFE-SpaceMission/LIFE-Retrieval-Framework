@@ -8,7 +8,7 @@ GROUND TRUTH DATA:
       unit: micron, erg s-1 Hz-1 m-2
 
 RUN SETTINGS:
-  wavelength_range: [4,18.5]
+  wavelength_range: [3.5,19]
   output_folder: template_retrieval
   include_scattering:
     Rayleigh: False
@@ -75,12 +75,12 @@ PHYSICAL PARAMETERS:
         mean: 1
         sigma: 0.2
     truth: 1.
-    unit: test
   M_pl:
     prior:
-      kind: custom
+      kind: log-gaussian
       prior_specs:
-        prior_path: /home/ipa/quanz/user_accounts/elalei/Guenther_Chains/VISNIR-LUVOIRB/Plots/WeightedPosteriors/M_pl.txt
+        log_mean: 0
+        log_sigma: 0.4
     truth: 1.
 
 CHEMICAL COMPOSITION PARAMETERS:
