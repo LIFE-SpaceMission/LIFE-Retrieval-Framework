@@ -18,4 +18,6 @@ documentation for details.
 
    installation
    config_file
+   units
+   retrieval
    repo_structure
