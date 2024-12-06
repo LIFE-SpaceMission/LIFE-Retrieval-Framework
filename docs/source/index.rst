@@ -21,3 +21,4 @@ documentation for details.
    units
    retrieval
    repo_structure
+   classes

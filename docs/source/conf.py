@@ -15,6 +15,7 @@ release = '2022'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [       'myst_parser',
+    'sphinx.ext.autodoc',
 
 ]
 source_suffix = {
@@ -30,5 +31,10 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, os.path.abspath(os.path.join("..", "..")))

@@ -10,12 +10,17 @@ import sys
 
 def calculate_gravity(phys_vars: dict, config: dict) -> dict:
     """
-    The calculate_gravity function calculates the surface gravity of a planet given its mass and radius.
-        If the surface gravity is already provided, it will skip this step.
+    Calculate the surface gravity of a planet.
 
-    :param phys_vars: The dictionary of all the physical variables
-    :param config:  The dictionary containing all the config file settings/known values/parameters.
-    :return: The updated phys_vars dictionary
+    This function calculates the surface gravity of a planet given its mass and radius.
+    If the surface gravity is already provided, it will skip this step.
+
+    :param phys_vars: Dictionary of all the physical variables
+    :type phys_vars: dict
+    :param config: Dictionary containing all the config file settings/known values/parameters
+    :type config: dict
+    :return: Updated phys_vars dictionary
+    :rtype: dict
     """
 
     # Calculate the surface gravity g given M_Pl and R_pl or log_g.
@@ -34,16 +39,22 @@ def set_log_ground_pressure(
     phys_vars: dict, config: dict, knowns: dict, use_truth: bool = False
 ) -> dict:
     """
-    The set_log_ground_pressure function checks if the surface pressure is provided or can be calculated from the
-    provided parameters and brings it to the correct format for petitRADTRANS. A specific calculation is made in the
-    case of settings_clouds='opaque'.
+    Set the log of ground pressure.
 
-    :param phys_vars: The dictionary of all the physical variables
-    :param config: The dictionary containing all the config file settings/known values/parameters.
-    :param knowns: The dictionary containing all known quantities.
-    :param use_truth: bool: A boolean that allows to use the true value of the pressure rather than 10^{-4}.
-        Used for plotting, for opaque cloudy cases only.
-    :return: The updated phys_vars dictionary
+    This function checks if the surface pressure is provided or can be calculated from the
+    provided parameters and brings it to the correct format for petitRADTRANS. A specific
+    calculation is made in the case of settings_clouds='opaque'.
+
+    :param phys_vars: Dictionary of all the physical variables
+    :type phys_vars: dict
+    :param config: Dictionary containing all the config file settings/known values/parameters
+    :type config: dict
+    :param knowns: Dictionary containing all known quantities
+    :type knowns: dict
+    :param use_truth: Boolean that allows to use the true value of the pressure rather than 10^{-4}
+    :type use_truth: bool
+    :return: Updated phys_vars dictionary
+    :rtype: dict
     """
 
     # Case dependant setting of the surface pressure
@@ -87,13 +98,17 @@ def set_log_ground_pressure(
 
 def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     """
-    The calculate_polynomial_profile function takes in a pressure array and a dictionary of temperature variables,
-    and returns an array of temperatures corresponding to the pressures. The function uses the numpy polyval function
-    to calculate these temperatures.
+    Calculate a polynomial temperature profile.
+
+    This function takes in a pressure array and a dictionary of temperature variables,
+    and returns an array of temperatures corresponding to the pressures using a polynomial function.
 
     :param pressure: The pressure values
-    :param temp_vars: The dictionary of a_i coefficients to calculate the polynomial.
-    :return: The log10 of the pressure profile
+    :type pressure: ndarray
+    :param temp_vars: The dictionary of a_i coefficients to calculate the polynomial
+    :type temp_vars: dict
+    :return: The temperature profile for the given pressure levels
+    :rtype: ndarray
     """
     temperature = np.array(
         np.polyval(
@@ -111,15 +126,22 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
 
 def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict, settings: dict) -> ndarray:
     """
-    The calculate_spline_profile function takes in a pressure array and a dictionary of temperature variables,
-    and returns an array of temperatures corresponding to the pressures. The function uses the scipy.interpolate.make_interp_spline
-    function to calculate these temperatures.
+    Calculate a spline temperature profile.
+
+    This function takes in a pressure array and dictionaries of temperature variables, physical variables, and settings,
+    and returns an array of temperatures corresponding to the pressures using a spline interpolation.
 
     :param pressure: The pressure values
-    :param temp_vars: The dictionary of a_i coefficients to calculate the polynomial.
+    :type pressure: ndarray
+    :param temp_vars: The dictionary of temperature variables
+    :type temp_vars: dict
+    :param phys_vars: The dictionary of physical variables
+    :type phys_vars: dict
+    :param settings: The dictionary of settings
+    :type settings: dict
     :return: The temperature profile for the given pressure levels
+    :rtype: ndarray
     """
-    
     pressure_points = [phys_vars['log_P0']]
     for i in range(1,settings['spline_points']-1):
         pressure_points += [pressure_points[i-1] + temp_vars['Position_P'+str(i)] * (np.log10(pressure[0]) - pressure_points[i-1])]
@@ -149,7 +171,20 @@ def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict
 
 
 def calculate_adiabat_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict) -> ndarray:
+    """
+    Calculate an adiabatic temperature profile.
 
+    This function calculates the temperature profile assuming an adiabatic atmosphere.
+
+    :param pressure: The pressure values
+    :type pressure: ndarray
+    :param temp_vars: The dictionary of temperature variables
+    :type temp_vars: dict
+    :param phys_vars: The dictionary of physical variables
+    :type phys_vars: dict
+    :return: The adiabatic temperature profile for the given pressure levels
+    :rtype: ndarray
+    """
     beta = 2.0/(temp_vars['Gas_Deg_Freedom']+2.0)
 
     temperature = temp_vars['Constant_Factor']**(1-beta) * pressure**beta
@@ -172,16 +207,19 @@ def calculate_vae_profile(
     pressure: ndarray, vae_pt, temp_vars: dict
 ) -> ndarray:
     """
-    TBD
-    The calculate_vae_profile function takes in a pressure array and the vae_pt object,
-    and returns an array of temperatures corresponding to each pressure. The function
-    also takes in a dictionary of temperature variables that are used to calculate the
-    temperatures.
+    Calculate a temperature profile using a variational autoencoder (VAE).
+
+    This function takes in a pressure array, a VAE object, and a dictionary of temperature variables,
+    and returns an array of temperatures corresponding to each pressure.
 
     :param pressure: The pressure values
-    :param vae_pt: Access the get_temperatures function from the vae_pt object
+    :type pressure: ndarray
+    :param vae_pt: The VAE object to access the get_temperatures function
+    :type vae_pt: object
     :param temp_vars: The dictionary of temperature coefficients
+    :type temp_vars: dict
     :return: The temperature profile for the given pressure levels
+    :rtype: ndarray
     """
     return vae_pt.get_temperatures(
         z=np.array(
@@ -195,12 +233,18 @@ def calculate_guillot_profile(
     pressure: ndarray, prt_instance, temp_vars: dict
 ) -> ndarray:
     """
-    The calculate_guillot_profile function calculates the Guillot profile for a given set of parameters.
+    Calculate a Guillot temperature profile.
+
+    This function calculates the Guillot profile for a given set of parameters.
 
     :param pressure: The pressure array
+    :type pressure: ndarray
     :param prt_instance: The instance of petitRADTRANS
-    :param temp_vars: The dictionary of temperature parameters to calculate the Guillot profile.
+    :type prt_instance: object
+    :param temp_vars: The dictionary of temperature parameters to calculate the Guillot profile
+    :type temp_vars: dict
     :return: The temperature profile for the given pressure levels
+    :rtype: ndarray
     """
     return prt_instance.nat_cst.guillot_modif(
         pressure,
@@ -215,14 +259,17 @@ def calculate_guillot_profile(
 
 def calculate_isothermal_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     """
-    The calculate_isothermal_profile function calculates the temperature profile for an isothermal atmosphere.
+    Calculate an isothermal temperature profile.
 
-    :param pressure: The pressure array
-    :param temp_vars: The dictionary of temperature parameters to calculate an isothermal profile.
-    :return: The temperature profile for the given pressure levels
+    This function returns a constant temperature profile for all pressure levels,
+    representing an isothermal atmosphere.
+
+    :param pressure: The pressure array (not used in this function, but included for consistency)
+    :param temp_vars: A dictionary containing temperature variables. Should include 'T_eq' key.
+    :return: An array of constant temperatures (T_eq) for all pressure levels
     """
     return temp_vars["T_eq"] * np.ones_like(pressure)
-
+    
 
 def madhuseager_temperature_calculator(
     pressure_m: float,
@@ -232,19 +279,22 @@ def madhuseager_temperature_calculator(
     beta: float,
 ) -> float:
     """
-    CHECK The madhuseager_temperature_calculator function calculates the temperature of a parcel of air at a given
-    pressure using the Madhusudhan-Seager equation. The function takes in four parameters: pressure_m, pressure_i,
-    temperature_i, and alpha. Pressure_m is the measured (or desired) pressure for which we want to calculate the
-    temperature. Pressure_i is the initial (or reference) atmospheric level from which we are calculating our new
-    value for T(p). Temperature_i is the initial (or reference) atmospheric level's corresponding temperature value
-    at p = p(initial). Alpha and beta are constants that
+    Calculate the temperature of a parcel of air using the Madhusudhan-Seager equation.
 
-    :param pressure_m:  Calculate the temperature at a given pressure
-    :param pressure_i:  Set the initial pressure
-    :param temperature_i:  Set the initial temperature
-    :param alpha:  Calculate the temperature gradient, and beta is used to calculate the adiabatic lapse rate
-    :param beta:  Calculate the temperature of a gas at a given pressure
+    This function calculates the temperature at a given pressure using the Madhusudhan-Seager equation.
+
+    :param pressure_m: The measured (or desired) pressure for which we want to calculate the temperature
+    :type pressure_m: float
+    :param pressure_i: The initial (or reference) atmospheric pressure level
+    :type pressure_i: float
+    :param temperature_i: The initial (or reference) atmospheric temperature
+    :type temperature_i: float
+    :param alpha: A constant used to calculate the temperature gradient
+    :type alpha: float
+    :param beta: A constant used to calculate the adiabatic lapse rate
+    :type beta: float
     :return: The temperature at the pressure level m
+    :rtype: float
     """
     return (np.log(pressure_m / pressure_i) / alpha) ** (
         1 / beta
@@ -255,12 +305,16 @@ def calculate_madhuseager_profile(
     pressure: ndarray, temp_vars: dict
 ) -> ndarray:
     """
-    The calculate_madhuseager_profile function calculates the temperature profile of a planet using the
-    Madhusudhan&Seager (2009) model.
+    Calculate the temperature profile using the Madhusudhan & Seager (2009) model.
+
+    This function calculates the temperature profile of a planet using the Madhusudhan & Seager (2009) model.
 
     :param pressure: The pressure array
-    :param temp_vars: The dictionary of temperature parameters to calculate the Madhusudhan&Seager profile.
+    :type pressure: ndarray
+    :param temp_vars: The dictionary of temperature parameters to calculate the Madhusudhan & Seager profile
+    :type temp_vars: dict
     :return: The temperature profile for the given pressure levels
+    :rtype: ndarray
     """
 
     beta1 = 0.5
@@ -311,14 +365,17 @@ def calculate_mod_madhuseager_profile(
     pressure: ndarray, temp_vars: dict
 ) -> ndarray:
     """
-    The calculate_mod_madhuseager_profile function calculates the temperature profile of a planet using the modified
-    Madhusudhan-Seager model. The function takes in an array of pressures and a dictionary containing all relevant
-    variables for calculating the temperature profile. It returns an array of temperatures corresponding to each
-    pressure value.
+    Calculate the temperature profile using a modified Madhusudhan-Seager model.
+
+    This function calculates the temperature profile of a planet using a modified version 
+    of the Madhusudhan-Seager model.
 
     :param pressure: The pressure array
-    :param temp_vars: The dictionary of temperature values to calculate the modified Madhusudhan-Seager model.
+    :type pressure: ndarray
+    :param temp_vars: The dictionary of temperature values to calculate the modified Madhusudhan-Seager model
+    :type temp_vars: dict
     :return: The temperature array
+    :rtype: ndarray
     """
     beta1 = 0.5
     beta2 = 0.5
@@ -357,79 +414,85 @@ def calculate_mod_madhuseager_profile(
     return temperature
 
 
-
-
-
-def xi(gamma, tau):
+def xi(gamma: float, tau: ndarray) -> ndarray:
     """
     Calculate Equation (14) of Line et al. (2013) Apj 775, 137
 
-    Parameters:
-    -----------
-    gamma: Float
-        Visible-to-thermal stream Planck mean opacity ratio.
-    tau: 1D float ndarray
-        Gray IR optical depth.
+    :param gamma: Visible-to-thermal stream Planck mean opacity ratio
+    :type gamma: float
+    :param tau: Gray IR optical depth
+    :type tau: ndarray
+    :return: The calculated xi value
+    :rtype: ndarray
 
-    Modification History:
-    ---------------------
-    2014-12-10  patricio  Initial implemetation.
+    .. note::
+       2014-12-10  patricio : Initial implementation.
     """
     return (2.0/3) * \
             (1 + (1./gamma) * (1 + (0.5*gamma*tau-1)*np.exp(-gamma*tau)) +
             gamma*(1 - 0.5*tau**2) * scp.special.expn(2, gamma*tau)              )
 
-def calculate_line_profile(pressure: ndarray, temp_vars: dict , phys_vars: dict,
-                R_star = 6.995e8,   T_star = 5780.0, T_int = 0.0, sma = 1.0 * scp.constants.au):#,  T_int_type):
-    '''
-    Generates a PT profile based on input free parameters and pressure array.
+
+def calculate_line_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict,
+                R_star = 6.995e8, T_star = 5780.0, T_int = 0.0, sma = 1.0 * scp.constants.au):
+    """
+    Generate a PT profile based on input free parameters and pressure array.
+
     If no inputs are provided, it will run in demo mode, using free
     parameters given by the Line 2013 paper and some dummy pressure
     parameters.
 
-    Inputs
-    ------
-    pressure: 1D float ndarray
-        Array of pressure values in bars.
-    kappa : float, in log10. Planck thermal IR opacity in units cm^2/gr
-    gamma1: float, in log10. Visible-to-thermal stream Planck mean opacity ratio.
-    gamma2: float, in log10. Visible-to-thermal stream Planck mean opacity ratio.
-    alpha : float.           Visible-stream partition (0.0--1.0).
-    beta  : float.           A 'catch-all' for albedo, emissivity, and day-night
-                            redistribution (on the order of unity)
-    R_star: Float
-        Stellar radius (in meters).
-    T_star: Float
-        Stellar effective temperature (in Kelvin degrees).
-    T_int:  Float
-        Planetary internal heat flux (in Kelvin degrees).
-    sma:    Float
-        Semi-major axis (in meters).
-    grav:   Float
-        Planetary surface gravity (at 1 bar) in cm/second^2.
-    T_int_type: string.
-        Method for determining `T_int`: 'const' (for a supplied constant value)
-                                        'thorngren' (to use Thorngren et al. 2019)
+    :param pressure: Array of pressure values in bars
+    :type pressure: ndarray
+    :param temp_vars: Dictionary containing temperature variables
+    :type temp_vars: dict
+    :param phys_vars: Dictionary containing physical variables
+    :type phys_vars: dict
+    :param R_star: Stellar radius (in meters), defaults to 6.995e8
+    :type R_star: float, optional
+    :param T_star: Stellar effective temperature (in Kelvin degrees), defaults to 5780.0
+    :type T_star: float, optional
+    :param T_int: Planetary internal heat flux (in Kelvin degrees), defaults to 0.0
+    :type T_int: float, optional
+    :param sma: Semi-major axis (in meters), defaults to 1.0 * scp.constants.au
+    :type sma: float, optional
+    :return: Temperature array
+    :rtype: ndarray
 
-    Returns
-    -------
-    T: temperature array
+    .. note::
+        The `temp_vars` dictionary should contain:
+        - kappa: Planck thermal IR opacity in units cm^2/gr (in log10)
+        - gamma1: Visible-to-thermal stream Planck mean opacity ratio (in log10)
+        - gamma2: Visible-to-thermal stream Planck mean opacity ratio (in log10)
+        - alpha: Visible-stream partition (0.0--1.0)
+        - beta: A 'catch-all' for albedo, emissivity, and day-night redistribution (on the order of unity)
 
-    Developers:
-    -----------
-    Madison Stemm      astromaddie@gmail.com
-    Patricio Cubillos  pcubillos@fulbrightmail.org
+        The `phys_vars` dictionary should contain:
+        - grav: Planetary surface gravity (at 1 bar) in cm/second^2
 
-    Modification History:
-    ---------------------
-    2014-09-12  Madison   Initial version, adapted from equations (13)-(16)
-                            in Line et al. (2013), Apj, 775, 137.
-    2014-12-10  patricio  Reviewed and updated code.
-    2015-01-22  patricio  Receive log10 of free parameters now.
-    2019-02-13  mhimes    Replaced `params` arg with each parameter for 
-                            consistency with other PT models
-    2019-09-10  mhimes    Added T_int calculation from Thorngren et al. (2019)
-    '''
+    .. warning::
+        The `T_int_type` parameter mentioned in the original docstring is not used in the function signature.
+
+    .. note::
+        **Developers:**
+
+        Madison Stemm     : astromaddie@gmail.com
+
+        Patricio Cubillos : pcubillos@fulbrightmail.org
+
+        **Modification History:**
+
+        2014-09-12  Madison  : Initial version, adapted from equations (13)-(16) in Line et al. (2013), Apj, 775, 137.
+
+        2014-12-10  patricio : Reviewed and updated code.
+
+        2015-01-22  patricio : Receive log10 of free parameters now.
+
+        2019-02-13  mhimes   : Replaced `params` arg with each parameter for consistency with other PT models
+
+        2019-09-10  mhimes   : Added T_int calculation from Thorngren et al. (2019)
+
+      """
 
     # Stellar input temperature (at top of atmosphere):
     T_irr = temp_vars['beta'] * (R_star / (2.0*sma))**0.5 * T_star
@@ -448,33 +511,25 @@ def calculate_line_profile(pressure: ndarray, temp_vars: dict , phys_vars: dict,
     return temperature
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> dict:
+def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tuple[dict,dict]:
     """
-    TBD
-    The calculate_abundances function takes a dictionary of chemical variables and an array of pressures,
-    and returns a dictionary with the abundances for each molecule.
-    CHECK HOW IT WORKS FOR SLOPES
+    Calculate the abundances of chemical species in an atmosphere.
 
-    :param chem_vars: The dictionary of chemical variables.
-    :param press: The array of pressures.
-    :return: A dictionary of updated abundances.
+    This function takes chemical variables, pressure levels, and settings to compute
+    the abundances of various molecules in an atmosphere. It can handle both
+    Mass Mixing Ratio (MMR) and Volume Mixing Ratio (VMR) units.
+
+    :param chem_vars: A dictionary containing the chemical variables for each molecule
+    :type chem_vars: dict
+    :param press: An array of pressure levels in the atmosphere
+    :type press: ndarray
+    :param settings: A dictionary containing configuration settings, including 'abundance_units'
+    :type settings: dict
+    :return: A tuple containing two dictionaries: The first dictionary contains the calculated abundances for each molecule; The second dictionary contains the chemical variables in VMR units (if conversion was needed)
+    :rtype: Tuple[dict, dict]
+    
+    .. note::
+        TBD CHECK HOW IT WORKS FOR SLOPES
     """
     abundances = {}
 
@@ -493,16 +548,50 @@ def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> dic
         return abundances, chem_vars
 
 
+def calculate_inert(abundances: dict) -> ndarray:
+    """
+    Calculate the abundance of inert gases in the atmosphere.
 
-def calculate_inert(abundances: dict):
+    This function computes the amount of inert gases present in the atmosphere
+    by subtracting the sum of all known abundances from 1.
+
+    :param abundances: A dictionary containing the abundances of various chemical species.
+                       Each key is a species name, and the corresponding value is an array
+                       of abundances at different atmospheric levels.
+    :type abundances: dict
+    :return: An array representing the abundance of inert gases at each atmospheric level.
+    :rtype: ndarray
+    """
     total = np.zeros_like(abundances[list(abundances.keys())[0]])
     for key in abundances.keys():
             total = total + abundances[key]
     return 1.0 - total
 
 
+def water_ice_vapor_pressure(T, T_ST=373.15, p_ST=1.01325, T_0=273.16, p_i0=6.1173*1e-3):
+    """
+    Calculate the vapor pressure of water or ice using the Goff-Gratch equation.
 
-def water_ice_vapor_pressure(T,T_ST=373.15,p_ST=1.01325,T_0=273.16,p_i0=6.1173*1e-3):
+    This function computes the vapor pressure of water (for T >= T_0) or ice (for T < T_0)
+    based on the given temperature using the Goff-Gratch equation.
+
+    :param T: Temperature in Kelvin
+    :type T: float
+    :param T_ST: Steam point temperature in Kelvin, defaults to 373.15 K (100°C)
+    :type T_ST: float, optional
+    :param p_ST: Steam point pressure in bars, defaults to 1.01325 bar (1 atm)
+    :type p_ST: float, optional
+    :param T_0: Triple point temperature of water in Kelvin, defaults to 273.16 K (0.01°C)
+    :type T_0: float, optional
+    :param p_i0: Vapor pressure of ice at the triple point in bars, defaults to 6.1173e-3 bar
+    :type p_i0: float, optional
+    :return: Vapor pressure of water or ice in bars
+    :rtype: float
+
+    .. note::
+        The Goff-Gratch equation is used for its accuracy over a wide range of temperatures.
+        For T >= T_0, the equation for water is used. For T < T_0, the equation for ice is used.
+    """
     
     #Calculated using the Goff–Gratch equation (see wikipedia)
     if (T >= T_0):
@@ -524,7 +613,32 @@ def water_ice_vapor_pressure(T,T_ST=373.15,p_ST=1.01325,T_0=273.16,p_i0=6.1173*1
 
 
 
-def condense_water_old(abundances_VMR,pressure,temperature,phys_vars,settings,drying=0.0):
+def condense_water_old(abundances_VMR, pressure, temperature, phys_vars, settings, drying=0.0):
+    """
+    Calculate the condensation of water in an atmosphere.
+
+    This function computes the condensation of water vapor in an atmosphere
+    based on the given abundances, pressure, temperature, and other parameters.
+
+    :param abundances_VMR: Dictionary of volume mixing ratios for atmospheric constituents
+    :type abundances_VMR: dict
+    :param pressure: Array of pressure levels in the atmosphere
+    :type pressure: ndarray
+    :param temperature: Array of temperature values corresponding to pressure levels
+    :type temperature: ndarray
+    :param phys_vars: Dictionary of physical variables
+    :type phys_vars: dict
+    :param settings: Dictionary of settings for the calculation
+    :type settings: dict
+    :param drying: Drying factor, defaults to 0.0
+    :type drying: float, optional
+    :return: Tuple containing updated abundances_VMR and condensation pressures
+    :rtype: tuple
+
+    .. note::
+        This function calculates the condensation of water vapor by comparing
+        the partial pressure of water to its vapor pressure at each atmospheric level.
+    """
 
     # Convert mass mixing ration to volume mixing ratio
     # and calculate the partial pressure of water
@@ -571,7 +685,33 @@ def condense_water_old(abundances_VMR,pressure,temperature,phys_vars,settings,dr
 
     return abundances_VMR, condensation_pressures
 
-def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying=0.0):
+
+def condense_water(abundances_VMR, pressure, temperature, phys_vars, settings, drying=0.0):
+    """
+    Calculate the condensation of water in an atmosphere.
+
+    This function computes the condensation of water vapor in an atmosphere
+    based on the given abundances, pressure, temperature, and other parameters.
+
+    :param abundances_VMR: Dictionary of volume mixing ratios for atmospheric constituents
+    :type abundances_VMR: dict
+    :param pressure: Array of pressure levels in the atmosphere
+    :type pressure: ndarray
+    :param temperature: Array of temperature values corresponding to pressure levels
+    :type temperature: ndarray
+    :param phys_vars: Dictionary of physical variables
+    :type phys_vars: dict
+    :param settings: Dictionary of settings for the calculation
+    :type settings: dict
+    :param drying: Drying factor, defaults to 0.0
+    :type drying: float, optional
+    :return: Tuple containing updated abundances_VMR and condensation pressures
+    :rtype: tuple
+
+    .. note::
+        This function calculates the condensation of water vapor by comparing
+        the partial pressure of water to its vapor pressure at each atmospheric level.
+    """
 
     # Convert mass mixing ration to volume mixing ratio
     # and calculate the partial pressure of water
@@ -620,38 +760,32 @@ def condense_water(abundances_VMR,pressure,temperature,phys_vars,settings,drying
     return abundances_VMR, condensation_pressures
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def assign_cloud_parameters(
     abundances_VMR: dict, cloud_vars: dict, press: ndarray,phys_vars: dict, condensation_pressures: float,
 ) -> Tuple[dict, dict, dict, int]:
-    # TODO test that it works
     """
-    CHECK The assign_cloud_parameters function takes in the abundances dictionary, cloud_vars dictionary,
-    and pressure array. It then calculates the bottom pressure of each cloud layer by adding its top pressure to its
-    thickness. It sets all abundance values outside a given cloud layer to 0 (i.e., it removes them from
-    consideration). It also creates a new cloud_radii dictionary that contains only the particle radii for each type
-    of condensate (i.e., no more information about the clouds themselves). Finally, it returns these three
-    dictionaries as well as an integer representing lnorm.
+    Assign cloud parameters and update abundances.
 
-    :param abundances: Store the abundances of each element in a dictionary
-    :param cloud_vars: Set the cloud parameters
-    :param press: Set the abundance outside the cloud layer to 0
-    :return: The abundances, cloud_vars, cloud_radii and cloud_lnorm
+    This function takes in the abundances dictionary, cloud_vars dictionary, and pressure array. 
+    It calculates the bottom pressure of each cloud layer by adding its top pressure to its thickness. 
+    It sets all abundance values outside a given cloud layer to 0 (i.e., it removes them from consideration). 
+    It also creates a new cloud_radii dictionary that contains only the particle radii for each type of condensate.
+
+    :param abundances_VMR: Dictionary of volume mixing ratios for each species
+    :type abundances_VMR: dict
+    :param cloud_vars: Dictionary containing cloud parameters
+    :type cloud_vars: dict
+    :param press: Array of pressure levels
+    :type press: ndarray
+    :param phys_vars: Dictionary of physical variables
+    :type phys_vars: dict
+    :param condensation_pressures: Pressures at which condensation occurs
+    :type condensation_pressures: float
+    :return: A tuple containing updated abundances, cloud variables, cloud radii, cloud lognormal distribution parameter, cloud pressure, and cloud fraction
+    :rtype: Tuple[dict, dict, dict, int, float, float]
+
     """
+
     cloud_radii = {}
     cloud_lnorm = 0
     cloud_Pcloud = None
@@ -705,12 +839,21 @@ def assign_cloud_parameters(
 
 def calculate_mmw_VMR(abundances_VMR: dict, settings: dict, inert: ndarray) -> ndarray:
     """
-    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+    Calculate the mean molecular weight of each layer in the atmosphere.
 
-    :param abundances: The abundances dictionary
-    :param settings: The settings dictionary
-    :param inert: The weight of the inert gas
-    :return: The mean molecular weight of the gas in each layer
+    This function calculates the mean molecular weight (MMW) for each layer of the atmosphere
+    based on the provided volume mixing ratios (VMR) of different species, settings, and
+    the weight of inert gas present.
+
+    :param abundances_VMR: Dictionary containing the volume mixing ratios of different species
+    :type abundances_VMR: dict
+    :param settings: Dictionary containing various settings for the calculation
+    :type settings: dict
+    :param inert: Array representing the weight of the inert gas in each layer
+    :type inert: ndarray
+    :return: Array of mean molecular weights for each atmospheric layer
+    :rtype: ndarray
+
     """
     mm = {key: get_mm(key) for key in abundances_VMR.keys()}
     size = np.size(abundances_VMR[list(abundances_VMR.keys())[0]])
@@ -725,15 +868,25 @@ def calculate_mmw_VMR(abundances_VMR: dict, settings: dict, inert: ndarray) -> n
             )
     return mmw
 
+
 def calculate_mmw_MMR(abundances_MMR: dict, settings: dict, inert: ndarray) -> ndarray:
     """
-    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+    Calculate the mean molecular weight of each layer in the atmosphere.
 
-    :param abundances: The abundances dictionary
-    :param settings: The settings dictionary
-    :param inert: The weight of the inert gas
-    :return: The mean molecular weight of the gas in each layer
+    This function computes the mean molecular weight for each atmospheric layer
+    based on the provided mass mixing ratios (MMR) of different species, settings,
+    and the weight of inert gas present.
+
+    :param abundances_MMR: Dictionary containing the mass mixing ratios of different species
+    :type abundances_MMR: dict
+    :param settings: Dictionary containing various settings for the calculation
+    :type settings: dict
+    :param inert: Array representing the weight of the inert gas in each layer
+    :type inert: ndarray
+    :return: Array of mean molecular weights for each atmospheric layer
+    :rtype: ndarray
     """
+
     mm = {key: get_mm(key) for key in abundances_MMR.keys()}
     size = np.size(abundances_MMR[list(abundances_MMR.keys())[0]])
     mmw = np.zeros_like(range(size), dtype=float)
@@ -747,14 +900,25 @@ def calculate_mmw_MMR(abundances_MMR: dict, settings: dict, inert: ndarray) -> n
             )
     return 1.0 / mmw
 
+
 def convert_VMR_to_MMR(abundances_VMR: dict, settings: dict, inert_VMR: ndarray, mmw: ndarray) -> Tuple[dict, ndarray]:
     """
-    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+    Convert Volume Mixing Ratio (VMR) to Mass Mixing Ratio (MMR) for atmospheric species.
 
-    :param abundances: The abundances dictionary
-    :param settings: The settings dictionary
-    :param inert: The weight of the inert gas
-    :return: The mean molecular weight of the gas in each layer
+    This function converts the volume mixing ratios of various atmospheric species to
+    their corresponding mass mixing ratios. It also handles the conversion of inert
+    gases if present.
+
+    :param abundances_VMR: Dictionary containing volume mixing ratios of atmospheric species
+    :type abundances_VMR: dict
+    :param settings: Dictionary containing various settings for the calculation
+    :type settings: dict
+    :param inert_VMR: Array representing the volume mixing ratio of inert gases in each layer
+    :type inert_VMR: ndarray
+    :param mmw: Array of mean molecular weights for each atmospheric layer
+    :type mmw: ndarray
+    :return: A tuple containing the dictionary of mass mixing ratios and the array of inert gas MMR
+    :rtype: Tuple[dict, ndarray]
     """
     abundances_MMR = {}#copy.deepcopy(abundances_VMR)
 
@@ -769,12 +933,22 @@ def convert_VMR_to_MMR(abundances_VMR: dict, settings: dict, inert_VMR: ndarray,
 
 def convert_MMR_to_VMR(abundances_MMR: dict, settings: dict, inert_MMR: ndarray, mmw: ndarray) ->  Tuple[dict, ndarray]:
     """
-    The calc_mmw function calculates the mean molecular weight of each layer in the atmosphere.
+    Convert Mass Mixing Ratio (MMR) to Volume Mixing Ratio (VMR) for atmospheric species.
 
-    :param abundances: The abundances dictionary
-    :param settings: The settings dictionary
-    :param inert: The weight of the inert gas
-    :return: The mean molecular weight of the gas in each layer
+    This function converts the mass mixing ratios of various atmospheric species to
+    their corresponding volume mixing ratios. It also handles the conversion of inert
+    gases if present.
+
+    :param abundances_MMR: Dictionary containing mass mixing ratios of atmospheric species
+    :type abundances_MMR: dict
+    :param settings: Dictionary containing various settings for the calculation
+    :type settings: dict
+    :param inert_MMR: Array representing the mass mixing ratio of inert gases in each layer
+    :type inert_MMR: ndarray
+    :param mmw: Array of mean molecular weights for each atmospheric layer
+    :type mmw: ndarray
+    :return: A tuple containing the dictionary of volume mixing ratios and the array of inert gas VMR
+    :rtype: Tuple[dict, ndarray]
     """
     abundances_VMR = {}#abundances_MMR.copy()
 
@@ -787,16 +961,17 @@ def convert_MMR_to_VMR(abundances_MMR: dict, settings: dict, inert_MMR: ndarray,
     return abundances_VMR, inert_VMR
 
 
-
 def get_mm(species: str) -> float:
     """
     Get the molecular mass of a given species.
 
-    This function uses the molmass package to calculate the mass number for the standard isotope of an input species.
-    If all_iso is part of the input, it will return the mean molar mass.
+    This function uses the molmass package to calculate the mass number for the standard isotope
+    of an input species. If 'all_iso' is part of the input, it will return the mean molar mass.
 
-    :param species: string: The chemical formula of the compound. ie C2H2 or H2O
-    :return: The molar mass of the compound in atomic mass units.
+    :param species: The chemical formula of the compound, e.g., C2H2 or H2O
+    :type species: str
+    :return: The molar mass of the compound in atomic mass units
+    :rtype: float
     """
     name = species.split("_")[0]
     name = name.split(",")[0]
