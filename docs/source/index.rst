@@ -17,8 +17,8 @@ documentation for details.
 
 
    installation
-   config_file
+   retrieval_config
    units
-   retrieval
+   plotting
    repo_structure
    classes
