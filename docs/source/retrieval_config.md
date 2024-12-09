@@ -1,3 +1,4 @@
+
 # Create a Configuration File
 
 The retrieval reads a YAML config file to set up the run. This config file contains all the settings, the known values, and the parameters that the retrieval will need to use, or retrieve for, in a run. If some keywords are not specified, the retrieval falls back into reading the default config file configs/config_default.yaml which contains some standard values generally used in our previous retrievals. In the remainder of the text, we will show in red all the settings/keywords/parameters that must be specified in the config file; in blue the settings/keywords/parameters that have a default value in the config_default.yaml file; in green the settings/keywords/parameters that are optional and/or necessary only if some specific settings are turned on. 
@@ -308,3 +309,22 @@ emissivity: needed when direct_light and/or thermal are True. It is the emissivi
   ```
 
 - **USER-DEFINED UNITS**: This is an optional section that contains all user-defined units, if any (see Units). **TODO** test this
+
+# Running a Retrieval
+
+On any local or remote machine, you can launch the retrieval by using
+
+```
+python path/to/main.py -config path/to/config_file.yaml
+```
+Where you can specify the absolute path to the main.py file and the absolute path to the config file. 
+When running on a shared machine, it is recommended to use nice -n 19 to reduce the priority of your jobs and to allow simultaneous computation by other people.
+
+If you want to run the retrieval on multiple cores (recommended as it speeds up the calculation) you can use `mpiexec -n NUM_CORES` where you can specify the number of cores to use. 
+
+The command then becomes:
+
+```
+nice -n 19 mpiexec -n NUM_CORES python /path/to/main.py --config /path/to/config_file.yaml
+```
+
