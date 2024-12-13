@@ -39,12 +39,73 @@ from pyretlife.retrieval.atmospheric_variables import (
 # -----------------------------------------------------------------------------
 # DEFINITIONS
 # -----------------------------------------------------------------------------
+def parallel_pt_profile_calculation(rp_object,
+                                    parameter_samples,
+                                    skip = 1,
+                                    layers=500,
+                                    p_surf=4,
+                                    n_processes=None,
+                                    process=None,
+                                    use_truth=False):
+    """
+    Calculate Pressure-Temperature (PT) profiles for posterior distributions using parallel processing.
 
-def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=500,p_surf=4,n_processes=None,process=None,use_truth=False):
-    '''
-    Function to calculate the PT profiles corresponding to the retrieved posterior distributions
-    for subsequent plotting in the flux PT plotting functions.
-    '''
+    This function computes PT profiles corresponding to retrieved posterior parameter samples, utilizing 
+    an instance of the `retrieval_plotting_object` class for managing atmospheric and configuration data. 
+    Parallel processing is employed to enhance performance, and extrapolated profiles can be generated 
+    for additional atmospheric layers.
+
+    Parameters
+    ----------
+    rp_object : retrieval_plotting_object
+        An instance of the `retrieval_plotting_object` class, which provides the necessary methods and data 
+        for assigning parameter values, calculating physical variables, and generating PT profiles.
+    
+    parameter_samples : numpy.ndarray
+        A 2D array of parameter samples from posterior distributions. Each row corresponds to a set of parameters.
+    
+    skip : int, optional, default=1
+        Interval for selecting parameter samples. For instance, `skip=2` processes every second sample.
+    
+    layers : int, optional, default=500
+        Number of atmospheric layers for PT profile extrapolation.
+    
+    p_surf : float, optional, default=4
+        Logarithmic surface pressure value used for PT profile calculation.
+    
+    n_processes : int, optional, default=None
+        The number of parallel processes to use for computation. If `None`, the calculation is performed on a single
+        CPU core.
+    
+    process : int, optional, default=None
+        Identifier for the current process when executing in parallel. Defaults to `None`.
+    
+    use_truth : bool, optional, default=False
+        Flag indicating whether to use ground truth values for physical variables during calculations.
+
+    Returns
+    -------
+    pt_profiles : dict
+        A dictionary containing the computed PT profiles:
+            - 'pressures': numpy.ndarray
+              Pressure profiles for each parameter set, shape `(size, n_layers)`.
+            - 'temperatures': numpy.ndarray
+              Temperature profiles for each parameter set, shape `(size, n_layers)`.
+            - 'pressures_extrapolated': numpy.ndarray
+              Extrapolated pressure profiles, shape `(size, layers)`.
+            - 'temperatures_extrapolated': numpy.ndarray
+              Extrapolated temperature profiles, shape `(size, layers)`.
+            - 'pressures_cloud_top': numpy.ndarray, optional
+              Cloud top pressures for each parameter set (if applicable).
+            - 'temperatures_cloud_top': numpy.ndarray, optional
+              Cloud top temperatures for each parameter set (if applicable).
+
+    Notes
+    -----
+    - The `rp_object` must be an instance of the `retrieval_plotting_object` class, properly initialized with 
+      required configuration settings, physical variables, and methods for PT profile calculations.
+    - Progress updates and estimated time remaining are displayed for the master process (`process=0`).
+    """
 
     # Iterate over the equal weighted posterior and Split up the jobs onto the multiple processes
     dimension = np.shape(parameter_samples)[0]//skip
@@ -134,11 +195,66 @@ def parallel_pt_profile_calculation(rp_object,parameter_samples,skip = 1,layers=
 
 
 
-def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_processes=None,process=None,use_truth=False,emission_contribution=True):
-    '''
-    Function to calculate the fluxes corresponding to the retrieved posterior distributions
-    for subsequent plotting in the flux plotting functions.
-    '''
+def parallel_spectrum_calculation(rp_object,
+                                  parameter_samples,
+                                  skip=1,
+                                  n_processes=None,
+                                  process=None,
+                                  use_truth=False,
+                                  emission_contribution=True):
+    """
+    Calculate spectra for posterior distributions using parallel processing.
+
+    This function computes spectra corresponding to retrieved posterior parameter samples, utilizing 
+    an instance of the `retrieval_plotting_object` class for managing atmospheric and configuration data.
+    It supports emission contribution and can account for additional fluxes, such as those from a moon.
+
+    Parameters
+    ----------
+    rp_object : retrieval_plotting_object
+        An instance of the `retrieval_plotting_object` class, which provides the necessary methods and data 
+        for parameter assignment, PT profile calculation, abundance computation, and spectrum generation.
+    
+    parameter_samples : numpy.ndarray
+        A 2D array of parameter samples from posterior distributions. Each row corresponds to a set of parameters.
+    
+    skip : int, optional, default=1
+        Interval for selecting parameter samples. For instance, `skip=2` processes every second sample.
+    
+    n_processes : int, optional, default=None
+        The number of parallel processes to use for computation. If `None`, the calculation is performed on a single
+        CPU core.
+    
+    process : int, optional, default=None
+        Identifier for the current process when executing in parallel. Defaults to `None`.
+    
+    use_truth : bool, optional, default=False
+        Flag indicating whether to use ground truth values for physical variables during calculations.
+    
+    emission_contribution : bool, optional, default=True
+        If `True`, computes and stores the emission contribution for each layer in the atmosphere.
+
+    Returns
+    -------
+    spectra : dict
+        A dictionary containing the calculated spectra and related data:
+            - 'wavelengths': numpy.ndarray
+              Array of wavelengths corresponding to the computed fluxes.
+            - 'gravity': numpy.ndarray
+              Gravitational acceleration for each parameter set.
+            - 'fluxes': numpy.ndarray
+              Flux spectra for each parameter set, shape `(size, n_wavelengths)`.
+            - 'emission_contribution': numpy.ndarray, optional
+              Emission contribution profiles for each layer, shape `(size, n_layers, n_wavelengths)`.
+            - 'moon_fluxes': numpy.ndarray, optional
+              Flux contributions from the moon, if `include_moon` is enabled in `rp_object.settings`.
+
+    Notes
+    -----
+    - The `rp_object` must be an instance of the `retrieval_plotting_object` class and initialized with 
+      required configuration settings, physical variables, and methods for spectrum calculations.
+    - Progress updates and estimated time remaining are displayed for the master process (`process=0`).
+    """
 
     # Iterate over the equal weighted posterior and Split up the jobs onto the multiple processes
     dimension = np.shape(parameter_samples)[0]//skip
@@ -213,8 +329,51 @@ def parallel_spectrum_calculation(rp_object,parameter_samples,skip = 1,n_process
 
 
 
-# Assignment of Tasks to different processes for parallel computation
-def task_assignment(calculation_type,n_processes,dimension,process):
+def task_assignment(calculation_type,
+                    n_processes,
+                    dimension,
+                    process):
+    """
+    Assign tasks to different processes for parallel computation.
+
+    This function divides a computational task into segments based on the number of processes and the
+    total dimension of the task. Each process is assigned a range of indices to handle.
+
+    Parameters
+    ----------
+    calculation_type : str
+        A string indicating the type of calculation being performed (e.g., 'PT-Profile', 'Spectrum').
+        Used for informational purposes when printing task assignments.
+    
+    n_processes : int or None
+        The total number of processes available for computation. If `None`, no parallelization is assumed,
+        and the entire task is assigned to a single process.
+    
+    dimension : int
+        The total number of items (e.g., samples) to be processed.
+    
+    process : int or None
+        The identifier of the current process. If `None`, defaults to single-process execution (process 0).
+
+    Returns
+    -------
+    process : int
+        The process ID. Defaults to 0 if no parallelization is used.
+    
+    ind_start : int
+        The starting index of the task range assigned to the process.
+    
+    ind_end : int
+        The ending index (exclusive) of the task range assigned to the process.
+
+    Notes
+    -----
+    - If both `n_processes` and `process` are provided, the task is divided among the specified number
+      of processes, and the range assigned to the given `process` is returned.
+    - If either `n_processes` or `process` is `None`, the entire range `[0, dimension)` is assigned to a
+      single process with ID 0.
+    - For `process=0`, task assignment details are printed via the `print_task_assignment` function.
+    """
     if (n_processes is not None) and (process is not None):
         if process == 0:
             # Print the task assignment
@@ -229,8 +388,39 @@ def task_assignment(calculation_type,n_processes,dimension,process):
 
 
 
-# Printing function for parallel computation
-def print_task_assignment(calculation_type,n_processes,dimension):
+def print_task_assignment(calculation_type,
+                          n_processes,
+                          dimension):
+    """
+    Print the task assignment details for parallel computation.
+
+    This function outputs the distribution of tasks among multiple processes, providing clarity on
+    which range of calculations is assigned to each process.
+
+    Parameters
+    ----------
+    calculation_type : str
+        A string indicating the type of calculation being performed (e.g., 'PT-Profile', 'Spectrum').
+        Used in the printed output for context.
+    
+    n_processes : int
+        The total number of processes involved in the computation.
+    
+    dimension : int
+        The total number of calculations to be distributed among the processes.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    - The function divides the range `[1, dimension]` into approximately equal parts, one for each process,
+      and prints the task range assigned to each process.
+    - The output provides a clear summary of task distribution, which is helpful for debugging and monitoring
+      parallel computations.
+    """
+
     print('\n-----------------------------------------------------')
     print('\n    '+str(calculation_type)+' calculation on multiple CPUs:')
     print('')
@@ -244,12 +434,61 @@ def print_task_assignment(calculation_type,n_processes,dimension):
 
 
 
-# Routine that calculates the bond albedo of a planet
-def bond_albedo_calculation(rp_object,
-                            stellar_luminosity,
-                            error_stellar_luminosity,
-                            planet_star_separation,
+def bond_albedo_calculation(rp_object, 
+                            stellar_luminosity, 
+                            error_stellar_luminosity, 
+                            planet_star_separation, 
                             error_planet_star_separation):
+    """
+    Calculate the Bond albedo and equilibrium temperature of a planet.
+
+    This routine computes the Bond albedo and equilibrium temperature of a planet 
+    based on the retrieved fluxes, stellar luminosity, and planet-star separation. 
+    It uses random sampling to account for uncertainties in stellar luminosity 
+    and planet-star separation.
+
+    Parameters
+    ----------
+    rp_object : retrieval_plotting_object
+        An instance of the `retrieval_plotting_object` class containing the retrieved 
+        fluxes, posteriors, wavelengths, and known system properties. This object provides 
+        all necessary information for the calculation.
+
+    stellar_luminosity : float
+        The stellar luminosity of the host star in solar luminosities (L_sun).
+
+    error_stellar_luminosity : float
+        The uncertainty in the stellar luminosity, also in solar luminosities.
+
+    planet_star_separation : float
+        The orbital distance between the planet and its host star in astronomical units (au).
+
+    error_planet_star_separation : float
+        The uncertainty in the planet-star separation, also in astronomical units.
+
+    Returns
+    -------
+    retrieved_equilibrium_temperature : numpy.ndarray
+        An array of equilibrium temperatures calculated for each sample in the posterior.
+
+    retrieved_bond_albedo : numpy.ndarray
+        An array of Bond albedos calculated for each sample in the posterior.
+
+    Notes
+    -----
+    - The Bond albedo is calculated using the planet's equilibrium temperature and stellar 
+      luminosity, assuming energy balance between absorbed and emitted radiation.
+    - The equilibrium temperature is derived by fitting a blackbody curve to the integrated 
+      flux of the planet.
+
+    Methods
+    -------
+    - Generates random samples of stellar luminosity and planet-star separation based on the 
+      provided errors to account for uncertainties.
+    - Scales the retrieved planetary flux to account for distance and planetary radius.
+    - Fits a blackbody spectrum to the integrated retrieved flux to compute the equilibrium temperature.
+    - Uses the Stefan-Boltzmann law to compute the Bond albedo.
+    """
 
     wavelengths = rp_object.retrieved_wavelengths*rp_object.units.retrieval_units['wavelength']
     planet_radius = rp_object.posteriors['R_pl'].to_numpy()*rp_object.units.retrieval_units['R_pl']
@@ -282,24 +521,109 @@ def bond_albedo_calculation(rp_object,
 
 
 
-def add_secondary_parameter_to_parameters(parameters,name,unit,title,true_value=None):
-        # add the bond albedo to the parameters
-        parameters[name] = {'input_unit':unit,
-                            'unit':unit,
-                            'input_truth':true_value,
-                            'truth':true_value,
-                            'type':'SECONDARY PARAMETERS',
-                            'title':title,
-                            'prior':{'kind':None}}
+def add_secondary_parameter_to_parameters(parameters,
+                                          name,
+                                          unit,
+                                          title,
+                                          true_value=None):
+    """
+    Add a secondary parameter to the parameters dictionary.
+
+    This function updates the `parameters` dictionary by adding a new secondary parameter. 
+    Secondary parameters are typically derived quantities or parameters not directly retrieved 
+    but useful for analysis and plotting.
+
+    Parameters
+    ----------
+    parameters : dict
+        A dictionary containing parameter definitions. Each key represents a parameter name, 
+        and the value is a dictionary with its attributes (e.g., units, priors, etc.).
+
+    name : str
+        The name of the new secondary parameter to add.
+
+    unit : str or astropy.units.Unit
+        The unit of the secondary parameter.
+
+    title : str
+        A descriptive title for the secondary parameter, used in visualizations or summaries.
+
+    true_value : float or None, optional
+        The true value of the secondary parameter, if known. Defaults to `None`.
+
+    Returns
+    -------
+    parameters : dict
+        The updated parameters dictionary with the new secondary parameter added.
+
+    Notes
+    -----
+    - Secondary parameters are categorized as `"SECONDARY PARAMETERS"` in the `type` field.
+    - The `prior` for secondary parameters is set to `None` by default, as they are typically not retrieved directly.
+    - This function is useful for enriching the parameter set with derived quantities like the Bond albedo.
+    """
+
+    # add the bond albedo to the parameters
+    parameters[name] = {'input_unit':unit,
+                        'unit':unit,
+                        'input_truth':true_value,
+                        'truth':true_value,
+                        'type':'SECONDARY PARAMETERS',
+                        'title':title,
+                        'prior':{'kind':None}}
         
-        return parameters
+    return parameters
 
 
 
-def abundance_profile_calculation(rp_object,layers=500,p_surf=4,use_truth=False):
+def abundance_profile_calculation(rp_object,
+                                  layers=500,
+                                  p_surf=4,
+                                  use_truth=False):
     '''
-    Function to calculate the abundance profiles corresponding to the retrieved
-    posterior distributions for subsequent plotting.
+    Function to calculate the abundance profiles corresponding to the retrieved posterior distributions
+    for subsequent plotting.
+
+    This function computes the volume mixing ratio (VMR) and mass mixing ratio (MMR) abundance profiles 
+    for a range of parameters drawn from the posterior distributions. These profiles are calculated 
+    both for the retrieved and extrapolated pressure-temperature (P-T) profiles.
+
+    Parameters
+    ----------
+    rp_object : retrieval_plotting_object
+        An instance of the `retrieval_plotting_object` class containing the retrieved 
+        fluxes, posteriors, wavelengths, and known system properties. This object provides 
+        all necessary information for the calculation.
+
+    layers : int, optional
+        The number of layers to calculate for the extrapolated  profile (default is 500).
+
+    p_surf : float, optional
+        The surface pressure (in log scale) to which the P-T profile is extrapolated (default is 4).
+
+    use_truth : bool, optional
+        Whether to use the true values of the parameters for physical variables (default is False). 
+        If `True`, the true values of the physical parameters are used for calculations instead of the 
+        retrieved values.
+
+    Returns
+    -------
+    abundance_profiles : dict
+        A dictionary containing the calculated abundance profiles, including:
+        - 'pressures': The pressures at which the abundance profiles are calculated.
+        - 'pressures_extrapolated': The extrapolated pressures for abundance profiles.
+        - For each species (key in `rp_object.abundances_VMR`), both 'VMR' (volume mixing ratio) and 
+          'MMR' (mass mixing ratio) profiles are stored for both the retrieved and extrapolated P-T profiles.
+
+    Notes
+    -----
+    - This function assumes that the `rp_object` contains the necessary posteriors, abundances, 
+      and settings to perform the calculations.
+    - The abundances are calculated for each sample from the posterior distribution and stored for both
+      the retrieved and extrapolated profiles.
+    - The extrapolation is done to higher pressures, and the abundances are adjusted to avoid 
+      unrealistic values by capping them at the last retrieved value.
+    - This function prints the progress of the calculation, including estimated time remaining.
     '''
 
     #Get the Data and the dimension of the data
@@ -380,8 +704,36 @@ def abundance_profile_calculation(rp_object,layers=500,p_surf=4,use_truth=False)
 
 
 
-def VMR_to_MMR(abundances_VMR,settings):
-    
+def VMR_to_MMR(abundances_VMR,
+               settings):
+    '''
+    Convert volume mixing ratio (VMR) abundances to mass mixing ratio (MMR) abundances.
+
+    This function takes the volume mixing ratio (VMR) abundances of various species in the atmosphere, 
+    computes the total atmospheric inert mass, calculates the mean molecular weight (MMW) of the atmosphere, 
+    and converts the VMR abundances to mass mixing ratios (MMR) using the derived MMW.
+
+    Parameters
+    ----------
+    abundances_VMR : dict
+        A dictionary containing the volume mixing ratios (VMR) for various atmospheric species. 
+        The keys are the species names, and the values are arrays representing the VMR values at different pressure levels.
+
+    settings : dict
+        Dictionary containing various settings for the calculation.
+
+    Returns
+    -------
+    abundances_MMR : dict
+        A dictionary containing the mass mixing ratios (MMR) for the same species as the input `abundances_VMR`.
+        The keys are the species names, and the values are arrays representing the MMR values at different pressure levels.
+
+    Notes
+    -----
+    - The inert mass is calculated as the difference between 1 and the total VMR, assuming the remaining volume is made 
+      up of inert species (e.g., He, H2).
+    - The returned MMR abundances represent the mass fraction of each species in the atmosphere.
+    '''
     # Calculate the inert mass of the atmosphere
     total = np.zeros_like(abundances_VMR[list(abundances_VMR.keys())[0]])
     for abundance_VMR in abundances_VMR.keys():
@@ -397,12 +749,72 @@ def VMR_to_MMR(abundances_VMR,settings):
 
 
 
-def calculate_profile_contours(rp_object,pressures_extrapolated,pressures,parameters_extrapolated,parameters,quantiles,plot_residual=False,smoothing=4,ax=None):
+def calculate_profile_contours(rp_object,
+                               pressures_extrapolated,
+                               pressures,
+                               parameters_extrapolated,
+                               parameters,
+                               quantiles,
+                               plot_residual=False,
+                               smoothing=4,
+                               ax=None):
     '''
-    Function to calculate the contours that correspond to a set of provided quantiles
-    for given a set of profiles (e.g. retrieved P-T profiles).
-    '''
-        
+    Calculate the contour profiles corresponding to a set of quantiles for given pressure-temperature (P-T) profiles.
+
+    This function computes the contour lines corresponding to the specified quantiles for a set of pressure-temperature profiles 
+    (e.g., retrieved P-T profiles) and other atmospheric parameters. The contours represent the distribution of parameters 
+    (e.g., temperature, pressure) for the atmospheric layers at different quantile levels.
+
+    Parameters
+    ----------
+    rp_object : retrieval_plotting_object
+        An instance of the `retrieval_plotting_object` class containing retrieved fluxes, posteriors, wavelengths, and known system properties.
+        This object provides all necessary information for the calculation of the P-T profiles and other parameters.
+
+    pressures_extrapolated : ndarray
+        An array representing the extrapolated pressure levels corresponding to the atmospheric layers for which quantiles are calculated.
+
+    pressures : ndarray
+        An array representing the actual pressure levels of the retrieved profiles.
+
+    parameters_extrapolated : ndarray
+        An array representing the extrapolated values of the atmospheric parameters (e.g., temperature, abundance) corresponding to each pressure level.
+
+    parameters : ndarray
+        An array representing the retrieved atmospheric parameters (e.g., temperature, abundance) at different pressure levels.
+
+    quantiles : list
+        A list of quantiles (e.g., [0.16, 0.5, 0.84]) for which to calculate the contours of the pressure-temperature profiles.
+
+    plot_residual : bool, optional
+        A flag indicating whether to plot residuals (default is False). If True, the residuals (differences between the quantiles and the median) will be plotted.
+
+    smoothing : int, optional
+        The smoothing factor applied to the contours (default is 4). A higher value increases the smoothness of the contours.
+
+    ax : matplotlib.axes.Axes, optional
+        The axes object on which to plot the contours. If None, a new plot will be created.
+
+    Returns
+    -------
+    pressure_contours : list
+        A list of arrays containing the pressure levels for each quantile contour.
+
+    parameter_contours : list
+        A list of arrays containing the corresponding atmospheric parameter values (e.g., temperature, abundance) for each quantile contour.
+
+    pressure_max : float
+        The maximum pressure value from the contour calculation.
+
+    Notes
+    -----
+    - The function uses a 2D histogram to generate the initial surface pressure-temperature contours, which are then combined
+      with the extrapolated P-T profile contours for the given quantiles.
+    - The `generate_quantile_color_levels` and `generate_color_map_from_levels` functions are used to generate the color levels 
+      for contour plotting.
+    - The `smoothing` parameter controls the degree of smoothing applied to the contour data.
+    - The `plot_residual` flag enables plotting of residuals, which show the difference between the quantiles and the median profiles.
+    '''        
     # Find the quantiles for the different pressures and temperatures of the extrapolated profiles
     pressure_layers_quantiles = [np.nanquantile(pressures_extrapolated,q,axis=0) for q in quantiles]
     if plot_residual:
@@ -489,13 +901,63 @@ def calculate_profile_contours(rp_object,pressures_extrapolated,pressures,parame
 def calculate_profile_contours_new(data_extrapolated,
                                    pressures_extrapolated,
                                    pressures,
-                                   volume_percentages = [0.30,0.50,0.70,0.90],
-                                   smoothing = 3,
-                                   data_lim = None,
-                                   log_data = True,
-                                   log_pressure = True,
-                                   bins_data = None):
-    
+                                   volume_percentages=[0.30, 0.50, 0.70, 0.90],
+                                   smoothing=3,
+                                   data_lim=None,
+                                   log_data=True,
+                                   log_pressure=True,
+                                   bins_data=None):
+    '''
+    Calculate the contour profiles corresponding to specified volume percentages for a given set of extrapolated atmospheric data.
+
+    This function computes contour levels for atmospheric parameters (e.g., temperature, pressure) corresponding to specified 
+    volume percentages (e.g., 30%, 50%, 70%, 90%) within a set of pressure-temperature profiles. The contours are derived 
+    from a 2D histogram of the extrapolated data, smoothed to reduce noise, and then mapped to the desired volume percentages.
+
+    Parameters
+    ----------
+    data_extrapolated : ndarray
+        An array representing the extrapolated atmospheric data (e.g., temperature, abundance) corresponding to each pressure level.
+
+    pressures_extrapolated : ndarray
+        An array representing the extrapolated pressure levels corresponding to the atmospheric layers.
+
+    pressures : ndarray
+        An array representing the actual pressure levels of the retrieved profiles.
+
+    volume_percentages : list, optional
+        A list of volume percentages (default is [0.30, 0.50, 0.70, 0.90]) for which to calculate the contours of the atmospheric data.
+
+    smoothing : int, optional
+        The smoothing factor applied to the contours (default is 3). A higher value increases the smoothness of the contours.
+
+    data_lim : list, optional
+        Limits for the atmospheric data to avoid outliers or undefined values. The default is None, in which case it is automatically calculated.
+
+    log_data : bool, optional
+        A flag indicating whether to log-transform the data values (default is True). If True, the data is log-transformed; otherwise, raw values are used.
+
+    log_pressure : bool, optional
+        A flag indicating whether to log-transform the pressure values (default is True). If True, the pressures are log-transformed; otherwise, raw values are used.
+
+    bins_data : int, optional
+        The number of bins for the data histogram (default is None). If None, it defaults to the number of layers.
+
+    Returns
+    -------
+    contours : dict
+        A dictionary where the keys are the volume percentages and the values are dictionaries containing:
+        - 'data_values': The smoothed data values corresponding to the contour.
+        - 'pressure_values': The smoothed pressure values corresponding to the contour.
+
+    Notes
+    -----
+    - The function first creates a 2D histogram from the extrapolated data and pressures, and applies a Gaussian filter for smoothing.
+    - The contours are derived by finding the volume layer that corresponds to the specified volume percentages of the posterior distribution.
+    - The `smoothing` parameter controls the degree of smoothing applied to the contour data.
+    - If `log_data` or `log_pressure` is set to `True`, the data and pressure values are log-transformed before further analysis.
+    - The function automatically sets values outside the specified limits (`data_lim`, `pressure_lim`) to NaN.
+    '''    
     # Define the log_switcher
     log_switcher = {True: (lambda x: np.log10(x)),
                     False: (lambda x: x)}
