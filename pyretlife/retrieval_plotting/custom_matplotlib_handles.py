@@ -73,14 +73,11 @@ class MulticolorPatchHandler(object):
 
         :param legend: The `matplotlib.legend.Legend` instance that holds the legend information.
         :type legend: `matplotlib.legend.Legend`
-
         :param orig_handle: The original handle, which is a `MulticolorPatch` object containing the colors 
                              and transparency levels for the gradient.
         :type orig_handle: `MulticolorPatch`
-
         :param fontsize: The font size for the legend text. It is currently unused in this method.
         :type fontsize: int
-
         :param handlebox: The `matplotlib.legend.HandlerBase.HandleBox` object, which provides the 
                           dimensions for the legend entry.
         :type handlebox: `matplotlib.legend.HandlerBase.HandleBox`
@@ -181,15 +178,23 @@ class Handles(HandlerBase):
         'ErrorBar', and others. Each type is customized with specific line styles, markers, and colors.
 
         :param legend: The legend instance to which the artists are being added.
-        :param orig_handle: The original handle (identifier) for the data type being represented.
+        :type legend: matplotlib.legend.Legend
+        :param orig_handle: The original handle (identifier) for the data type being represented. 
                             For example, it could be a string like 'CloudTopPressure', 'SNR5', etc.
+        :type orig_handle: str
         :param x0: The x-coordinate for the legend position.
+        :type x0: float
         :param y0: The y-coordinate for the legend position.
+        :type y0: float
         :param width: The width of the legend entry.
+        :type width: float
         :param height: The height of the legend entry.
+        :type height: float
         :param fontsize: The font size for the legend text.
+        :type fontsize: float
         :param trans: The transformation applied to the legend (e.g., scale or rotation).
-        
+        :type trans: matplotlib.transforms.Transform
+
         :return: A list of matplotlib Line2D objects or other artists that represent the custom legend entry.
         :rtype: list of matplotlib.artist.Artist
         """
