@@ -1,5 +1,5 @@
 """
-This module contains the `RetrievalPlottingObject` class, which is the main
+This module contains the `retrieval_plotting_object` class, which is the main
 class used to generate plots of the pyretlife retrievals.
 """
 
