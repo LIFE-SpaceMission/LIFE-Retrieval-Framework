@@ -23,57 +23,100 @@ from pyretlife.retrieval_plotting.color_handling import (
 # -----------------------------------------------------------------------------
 
 def Generate_Parameter_Titles(rp_object):
-        '''
-        This function reads the input.ini file and fills up the three
-        dictionaries: settings, parameters, knowns.
-        '''
+    """
+    Generate and assign titles to parameters in the `rp_object` based on their type.
 
-        for key in rp_object.parameters.keys():
-            if 'title' not in rp_object.parameters[key].keys():
-                # Define the titles such that they work well for the chemical abundances
-                if rp_object.parameters[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
-                            
-                # Define the titles such that they work well for the physical parameters
-                elif rp_object.parameters[key]['type'] == 'PHYSICAL PARAMETERS':
-                    s = key.split('_')
-                    try:
-                        rp_object.parameters[key]['title'] = '$\\mathrm{'+s[0]+'_{'+s[1]+'}}$'
-                    except:
-                        rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$'
+    This function reads the parameters from the `rp_object` (an instance of `retrieval_plotting_object`) and assigns 
+    appropriate titles for each parameter depending on its type, such as "CHEMICAL COMPOSITION PARAMETERS", 
+    "PHYSICAL PARAMETERS", "TEMPERATURE PARAMETERS", "MOON PARAMETERS", or "CLOUD PARAMETERS". The titles are 
+    formatted with LaTeX-style math formatting.
 
-                # Define the titles such that they work well for the temperature parameters    
-                elif rp_object.parameters[key]['type'] == 'TEMPERATURE PARAMETERS':
-                    # Define the titles such that they work well for the pt parameters
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
-                            
-                # Define the titles such that they work well for the cloud parameters
-                elif rp_object.parameters[key]['type'] == 'CLOUD PARAMETERS':
-                    if (key in ['cloud_fraction','Pcloud']) or ('_cloud_top' in key):
-                        rp_object.parameters[key]['title'] = key
-                    else:
-                        temp = key.split('_')
-                        if 'H2SO4' in temp[0]:
-                            temp[0] = 'H2SO4(c)'
-                        temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
-                        temp.pop(1)
-                        rp_object.parameters[key]['title'] = '\n'.join(temp)
+    :param rp_object: The `retrieval_plotting_object` instance that contains the parameters to be processed.
+    :type rp_object: retrieval_plotting_object
 
-                # Define the titles such that they work well for the Moon        
-                elif rp_object.parameters[key]['type'] == 'MOON PARAMETERS':
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+    :return: None
+    :rtype: None
+    """
 
-                # Define standard titles for any other parameters 
+    for key in rp_object.parameters.keys():
+        if 'title' not in rp_object.parameters[key].keys():
+            # Define the titles such that they work well for the chemical abundances
+            if rp_object.parameters[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
+                rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
+                        
+            # Define the titles such that they work well for the physical parameters
+            elif rp_object.parameters[key]['type'] == 'PHYSICAL PARAMETERS':
+                s = key.split('_')
+                try:
+                    rp_object.parameters[key]['title'] = '$\\mathrm{'+s[0]+'_{'+s[1]+'}}$'
+                except:
+                    rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key).split())+'}$'
+
+            # Define the titles such that they work well for the temperature parameters    
+            elif rp_object.parameters[key]['type'] == 'TEMPERATURE PARAMETERS':
+                # Define the titles such that they work well for the pt parameters
+                rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+                        
+            # Define the titles such that they work well for the cloud parameters
+            elif rp_object.parameters[key]['type'] == 'CLOUD PARAMETERS':
+                if (key in ['cloud_fraction','Pcloud']) or ('_cloud_top' in key):
+                    rp_object.parameters[key]['title'] = key
                 else:
-                    rp_object.parameters[key]['title'] = str(key)
+                    temp = key.split('_')
+                    if 'H2SO4' in temp[0]:
+                        temp[0] = 'H2SO4(c)'
+                    temp[0] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", temp[0][:-3]).split())+'}$'
+                    temp.pop(1)
+                    rp_object.parameters[key]['title'] = '\n'.join(temp)
+
+            # Define the titles such that they work well for the Moon        
+            elif rp_object.parameters[key]['type'] == 'MOON PARAMETERS':
+                rp_object.parameters[key]['title'] = '$\\mathrm{'+str(key)+'}$'
+
+            # Define standard titles for any other parameters 
+            else:
+                rp_object.parameters[key]['title'] = str(key)
 
 
 
-def Scale_Posteriors(rp_object, local_post, local_truths, local_titles, parameters,
-                    log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True):
-    '''
-    This ajusts a local copy of the posterior for plotting.
-    '''
+def Scale_Posteriors(rp_object,
+                     local_post,
+                     local_truths,
+                     local_titles,
+                     parameters,
+                     log_pressures=True,
+                     log_mass=True,
+                     log_abundances=True,
+                     log_particle_radii=True):
+    """
+    Adjusts a local copy of the posterior for plotting.
+
+    This function modifies the `local_post`, `local_truths`, and `local_titles` dictionaries for plotting purposes, 
+    by applying logarithmic transformations to certain parameters based on their type. It allows customization 
+    for logarithmic scaling of abundances, particle radii, mass, and pressures in the posterior distribution.
+
+    :param rp_object: The `retrieval_plotting_object` instance containing parameter types and units.
+    :type rp_object: retrieval_plotting_object
+    :param local_post: A dictionary containing the posterior values for each parameter.
+    :type local_post: dict
+    :param local_truths: A dictionary containing the true values for each parameter.
+    :type local_truths: dict
+    :param local_titles: A dictionary containing the titles for each parameter.
+    :type local_titles: dict
+    :param parameters: A list of parameters to adjust for plotting.
+    :type parameters: list
+    :param log_pressures: Whether to apply a logarithmic transformation to pressures. Default is True.
+    :type log_pressures: bool, optional
+    :param log_mass: Whether to apply a logarithmic transformation to mass. Default is True.
+    :type log_mass: bool, optional
+    :param log_abundances: Whether to apply a logarithmic transformation to abundances. Default is True.
+    :type log_abundances: bool, optional
+    :param log_particle_radii: Whether to apply a logarithmic transformation to particle radii. Default is True.
+    :type log_particle_radii: bool, optional
+
+    :return: The modified `local_post`, `local_truths`, and `local_titles` dictionaries.
+    :rtype: tuple of dicts
+    """
 
     for param in parameters: 
         # If we want to use log abundnces update data to log abundances
@@ -132,9 +175,55 @@ def Scale_Posteriors(rp_object, local_post, local_truths, local_titles, paramete
 
 
 
-# Routine for generating corner plots
-def Corner_Plot(parameters,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quantiles2d=[0.025,0.15,0.25,0.35,0.65,0.75,0.85,0.975],
-                    color='k',color_truth='C3',bins=50,add_table = False,ULU=None,ULU_lim=[-0.15,0.75]):
+def Corner_Plot(parameters,
+                data,
+                titles,
+                truths,
+                quantiles1d=[0.16, 0.5, 0.84],
+                quantiles2d=[0.025,0.15,0.25,0.35,0.65,0.75,0.85,0.975],
+                color='k',
+                color_truth='C3',
+                bins=50,
+                add_table = False,
+                ULU=None,
+                ULU_lim=[-0.15,0.75]):
+    """
+    Generate a corner plot to visualize the distributions and correlations of parameters.
+
+    This function creates a corner plot for a set of parameters, displaying 1D histograms on the diagonal and 2D histograms 
+    below the diagonal to show correlations between pairs of parameters. The plot also includes optional vertical lines indicating 
+    quantiles, the option to overlay ground truth values, and an optional table of retrieved and true values with uncertainties. 
+    Customization options for color, bin size, and contour levels are also provided.
+
+    :param parameters: List of parameter names to be plotted (e.g., ['param1', 'param2', ...]).
+    :type parameters: list of str
+    :param data: Dictionary where keys are parameter names and values are lists or arrays of parameter data.
+    :type data: dict
+    :param titles: Dictionary where keys are parameter names and values are titles for the respective parameters.
+    :type titles: dict
+    :param truths: Dictionary of true parameter values, where keys match the parameter names. True values to be plotted as vertical lines.
+    :type truths: dict
+    :param quantiles1d: List of quantiles (0 to 1) to be marked on the 1D histograms as vertical lines. Default is [0.16, 0.5, 0.84].
+    :type quantiles1d: list of float, optional
+    :param quantiles2d: List of quantiles (0 to 1) for contour levels in the 2D histograms. Default is [0.025,0.15,0.25,0.35,0.65,0.75,0.85,0.975].
+    :type quantiles2d: list of float, optional
+    :param color: Color for the histograms and contours. Default is 'k' (black).
+    :type color: str, optional
+    :param color_truth: Color for the vertical lines representing the true parameter values. Default is 'C3' (matplotlib default).
+    :type color_truth: str, optional
+    :param bins: Number of bins for the histograms. Default is 50.
+    :type bins: int, optional
+    :param add_table: If True, adds a table showing true and retrieved parameter values with uncertainties. Default is False.
+    :type add_table: bool, optional
+    :param ULU: List of parameter names for which specific upper limit uncertainty correction should be applied. Default is None.
+    :type ULU: list of str, optional
+    :param ULU_lim: Limits for the ULU correction (lower bound and smoothing factor). Default is [-0.15, 0.75].
+    :type ULU_lim: list of float, optional
+
+    :return: The generated corner plot figure and axes.
+    :rtype: tuple of (matplotlib.figure.Figure, numpy.ndarray of matplotlib.axes.Axes)
+    """
+
     # Find the dimension of the corner plot.
     dimension=len(parameters)
 
@@ -412,9 +501,73 @@ def Corner_Plot(parameters,data,titles,truths,quantiles1d=[0.16, 0.5, 0.84],quan
 
 
 
-# Routine for plotting the 1d posteriors
-def Posterior_Plot(data,title,truth,quantiles1d = [0.16, 0.5, 0.84],color='k',color_truth='C3',bins=50,lw = 2,
-                ax=None,histtype='stepfilled',alpha=0.5,hatch=None,ULU = False, ULU_lim=[-0.15,0.75]):
+def Posterior_Plot(data,
+                   title,
+                   truth,
+                   quantiles1d = [0.16, 0.5, 0.84],
+                   color='k',
+                   color_truth='C3',
+                   bins=50,
+                   lw = 2,
+                   ax=None,
+                   histtype='stepfilled',
+                   alpha=0.5,
+                   hatch=None,
+                   ULU = False,
+                   ULU_lim=[-0.15,0.75]):
+    """
+    Generate a posterior distribution plot with optional ground truth and quantiles.
+
+    This function creates a histogram of posterior parameter distributions with optional 
+    quantile lines, a vertical line for the ground truth value, and the option to apply 
+    upper limit uncertainty corrections (ULU). The plot can be customized with parameters 
+    such as color, histogram type, alpha transparency, and bin size.
+
+    :param data: Array-like or list containing the posterior parameter data.
+    :type data: array-like or list
+    :param title: Title of the plot to describe the parameter being visualized.
+    :type title: str
+    :param truth: Ground truth value to be marked with a vertical line on the plot. 
+                If None, no line is drawn.
+    :type truth: float or None
+    :param quantiles1d: List of quantiles (0 to 1) to be marked on the histogram. 
+                        Default is [0.16, 0.5, 0.84].
+    :type quantiles1d: list of float, optional
+    :param color: Color for the histogram. Default is 'k' (black).
+    :type color: str, optional
+    :param color_truth: Color for the ground truth vertical line. Default is 'C3' (matplotlib default).
+    :type color_truth: str, optional
+    :param bins: Number of bins for the histogram. Default is 50.
+    :type bins: int, optional
+    :param lw: Line width for the plot. Default is 2.
+    :type lw: int, optional
+    :param ax: Optional axes object for the plot. If None, a new figure and axis are created.
+    :type ax: matplotlib.axes.Axes or None, optional
+    :param histtype: The type of histogram to draw. Default is 'stepfilled'.
+    :type histtype: str, optional
+    :param alpha: Transparency level for the histogram. Default is 0.5.
+    :type alpha: float, optional
+    :param hatch: Pattern to hatch the histogram bars. Default is None (no hatch).
+    :type hatch: str or None, optional
+    :param ULU: If True, applies upper limit uncertainty correction to the data. Default is False.
+    :type ULU: bool, optional
+    :param ULU_lim: Limits for the ULU correction, specifying the lower bound and smoothing factor. Default is [-0.15, 0.75].
+    :type ULU_lim: list of float, optional
+    
+    :return: The figure and axes objects if `ax` is None, or the axes object and histogram data if `ax` is provided.
+    :rtype: tuple of (matplotlib.figure.Figure, matplotlib.axes.Axes) or (matplotlib.axes.Axes, tuple)
+
+    :note: 
+        1. The `quantiles1d` parameter allows users to mark specific quantiles (e.g., 16%, 50%, and 84%) on the histogram, 
+        useful for displaying uncertainty ranges.
+        2. The `ULU` parameter, when set to True, applies a specific correction for upper limit uncertainties, which is useful 
+        in the case of censored data.
+        3. If `truth` is provided, the function will plot a vertical line at the ground truth value to help visually compare 
+        the estimated posterior distribution with the true value.
+        4. The plot will display the title with the median value and the 1-sigma uncertainties if quantiles are provided.
+        5. The `hatch` parameter allows for a pattern to be applied to the histogram bars, which can be useful for distinguishing 
+        multiple datasets or distributions.
+    """
 
     # Start of plotting routine
     ax_arg = ax
