@@ -121,23 +121,44 @@ from pyretlife.retrieval_plotting.inlay_plot import (
 
 class retrieval_plotting_object(RetrievalObject):
     """
-    This class binds together all the different parts of the retrieval.
+    This class is responsible for reading the input configuration and retrieval
+    results files, and storing the relevant data to generate retrieval plots.
 
-    Args:
-        run_retrieval:
-
-    Attributes:
-        config: The configuration (i.e., the contents of the YAML or
-            INI file for a given retrieval) as a dictionary.
-        input_prt_path: Path to the petitRADTRANS installation.
-        input_opacity_path: Path to the o
+    Attributes
+    ----------
+        results_directory: Union[Path, str]
+            The directory where the retrieval results and input configuration are located.
+        
+        posteriors: Optional[object]
+            The posterior data read from the results, initially set to None.
+        
+        log_evidence: Optional[float]
+            The log evidence data, initially set to None.
     """
 
-    def __init__(self,results_directory: Union[Path, str]):
+    def __init__(self,
+                 results_directory: Union[Path, str]):
         """
-        This function reads the input.ini file as well as the retrieval
-        results files of interest to us and stores the read in data
-        in order to generate the retrieval plots of interest to us.
+        Initialize a retrieval_plotting_object to process and store results for generating retrieval plots.
+
+        This constructor reads the configuration file and results from the specified directory, processes
+        relevant data, and prepares the object for generating and storing retrieval plots. It initializes 
+        necessary parameters, loads configuration settings, converts units, and loads posterior distributions.
+
+        :param results_directory: The directory where the retrieval results and configuration files are stored.
+                                It can be provided as a string or a Path object.
+        :type results_directory: Union[Path, str]
+
+        :raises FileNotFoundError: If the specified directory or files cannot be found.
+        :raises ValueError: If there is an error in reading or processing the data files.
+
+        :notes:
+            - This constructor assumes the existence of a configuration file `input_new.yaml` in the results directory.
+            - It creates a subdirectory `Plots_New/` within the results directory to store generated plots if it does not exist.
+            - The class `retrieval_plotting_object` handles the retrieval-related operations and the creation of plots.
+            - The method `unit_conversion()` handles any required unit conversions for the data.
+            - The method `assign_knowns()` assigns known parameters from the configuration file.
+            - The `load_posteriors()` method loads posterior distributions, which are later used for generating plots.
         """
 
         # Execute RetrievalObject initialization
@@ -158,12 +179,32 @@ class retrieval_plotting_object(RetrievalObject):
         self.assign_knowns()
         self.load_posteriors()
 
-
         truths = np.array([[self.parameters[parameter]['truth'] for parameter in self.parameters.keys()]])
 
 
 
     def load_posteriors(self):
+        """
+        Load the posterior distribution from a MultiNest analysis.
+
+        This method uses the `pymultinest` library's Analyzer to read the posterior samples from the 
+        specified retrieval results directory and stores them. It also extracts the log evidence
+        and stores it as an attribute.
+
+        The posterior samples are saved as a DataFrame, with columns corresponding to the model parameters 
+        and the likelihood. The log evidence, along with its error, is also extracted and stored.
+
+        :raises FileNotFoundError: If the posterior distribution files cannot be found in the results directory.
+        :raises ValueError: If there is an issue with the structure of the posterior distribution data.
+
+        :notes:
+            - This method assumes that `pymultinest` is properly installed and configured.
+            - The `len(self.parameters.keys())` argument to the `Analyzer` constructor is used to specify the 
+            number of model parameters.
+            - The resulting DataFrame (`self.posteriors`) contains the posterior samples for the parameters and likelihood.
+            - The log evidence and its error are extracted from the MultiNest stats and stored in `self.log_evidence`.
+        """
+
         # Load the posterior distribution with pymultinest and save it to a pandas DataFrame
         data = nest.Analyzer(len(self.parameters.keys()),outputfiles_basename = self.results_directory)
         posterior_parameter_names = list(self.parameters.keys())+['likelihood']
@@ -190,8 +231,35 @@ class retrieval_plotting_object(RetrievalObject):
 
     def calculate_posterior_spectrum(self,skip=1,n_processes=50,reevaluate_spectra=False,emission_contribution=True):
         '''
-        gets the spectra corresponding to the parameter values
-        of the equal weighted posteriors.
+        Calculate the spectra corresponding to the parameter values of the equal-weighted posteriors.
+
+        This method calculates the spectra for each parameter set from the posterior distribution 
+        (equal-weighted) using a parallel processing approach. If the spectra have not been calculated before, 
+        it triggers the calculation and stores the resulting data. The spectra are derived based on the 
+        posterior parameter values, and the method allows for control over certain calculation parameters 
+        such as skipping points in the posterior, the number of processes, and whether to include the
+        calculation oif the emission contribution function.
+
+        :param skip: The of points in the posterior to skip (e.g., if step = 2 every second point in the
+                        posterior is evaluated). Defaults to 1.
+        :type skip: int, optional
+        :param n_processes: The number of processes to use for parallel spectrum calculation. Defaults to 50.
+        :type n_processes: int, optional
+        :param reevaluate_spectra: If set to True, the spectra will be recalculated even if they have already been generated.
+                                    Defaults to False.
+        :type reevaluate_spectra: bool, optional
+        :param emission_contribution: Whether to include the emission contribution in the spectrum calculation. 
+                                    Defaults to True.
+        :type emission_contribution: bool, optional
+
+        :raises AttributeError: If the `posteriors` attribute is not yet set before calling the method.
+        :raises ValueError: If the posterior data is not in the expected format.
+
+        :notes:
+            - This method uses parallel processing to calculate the spectra for each posterior sample.
+            - The method relies on an internal function `__evaluate_posteriors` to evaluate the spectra.
+            - If the spectra have already been calculated, they are reused unless `reevaluate_spectra` is True.
+            - The `parameter_samples` passed to the spectrum calculation are all the posterior samples except for the last column (assumed to be the likelihood).
         '''
 
         # If not yet done calculate the data corresponding
