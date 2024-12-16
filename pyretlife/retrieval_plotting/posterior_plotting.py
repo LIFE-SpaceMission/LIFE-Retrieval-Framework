@@ -553,7 +553,7 @@ def Posterior_Plot(data,
     :type ULU: bool, optional
     :param ULU_lim: Limits for the ULU correction, specifying the lower bound and smoothing factor. Default is [-0.15, 0.75].
     :type ULU_lim: list of float, optional
-    
+
     :return: The figure and axes objects if `ax` is None, or the axes object and histogram data if `ax` is provided.
     :rtype: tuple of (matplotlib.figure.Figure, matplotlib.axes.Axes) or (matplotlib.axes.Axes, tuple)
 
