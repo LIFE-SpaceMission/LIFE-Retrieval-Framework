@@ -706,11 +706,93 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def Posteriors(self, save=False, plot_corner=True, log_pressures=True, log_mass=True, log_abundances=True, log_particle_radii=True, plot_pt=True, plot_physparam=True,
-                    plot_clouds=True,plot_chemcomp=True,plot_scatt=True,plot_moon=False,plot_secondary_parameters=True, bins=20, quantiles1d=[0.16, 0.5, 0.84],
-                    color='k',add_table=False,color_truth='C3',ULU_lim=[-0.15,0.75],parameter_units='input',custom_unit_titles={},custom_parameter_titles={}):
+    def Posteriors(self,
+                   save=False,
+                   plot_corner=True,
+                   log_pressures=True,
+                   log_mass=True,
+                   log_abundances=True,
+                   log_particle_radii=True,
+                   plot_pt=True,
+                   plot_physparam=True,
+                   plot_clouds=True,
+                   plot_chemcomp=True,
+                   plot_scatt=True,
+                   plot_moon=False,
+                   plot_secondary_parameters=True,
+                   bins=20,
+                   quantiles1d=[0.16, 0.5, 0.84],
+                   color='k',
+                   add_table=False,
+                   color_truth='C3',
+                   ULU_lim=[-0.15,0.75],
+                   parameter_units='input',
+                   custom_unit_titles={},
+                   custom_parameter_titles={}):
         '''
-        This function generates a corner plot for the retrieved parameters.
+        Generate a corner plot for the retrieved parameters or individual posterior plots.
+
+        This method generates a corner plot for visualizing the posterior distributions of retrieved parameters, 
+        or it can create individual posterior plots for each parameter. The plot includes options to customize 
+        the plot appearance, scaling, and the inclusion of true values, as well as handling unit conversions.
+
+        :param save: If True, saves the plot as a PDF. Defaults to False.
+        :type save: bool, optional
+        :param plot_corner: If True, generates a corner plot. Defaults to True.
+        :type plot_corner: bool, optional
+        :param log_pressures: If True, applies a logarithmic scale to pressure values. Defaults to True.
+        :type log_pressures: bool, optional
+        :param log_mass: If True, applies a logarithmic scale to mass values. Defaults to True.
+        :type log_mass: bool, optional
+        :param log_abundances: If True, applies a logarithmic scale to abundance values. Defaults to True.
+        :type log_abundances: bool, optional
+        :param log_particle_radii: If True, applies a logarithmic scale to particle radii values. Defaults to True.
+        :type log_particle_radii: bool, optional
+        :param plot_pt: If True, plots pressure-temperature parameters. Defaults to True.
+        :type plot_pt: bool, optional
+        :param plot_physparam: If True, plots physical parameters. Defaults to True.
+        :type plot_physparam: bool, optional
+        :param plot_clouds: If True, plots cloud parameters. Defaults to True.
+        :type plot_clouds: bool, optional
+        :param plot_chemcomp: If True, plots chemical composition parameters. Defaults to True.
+        :type plot_chemcomp: bool, optional
+        :param plot_scatt: If True, plots scattering parameters. Defaults to True.
+        :type plot_scatt: bool, optional
+        :param plot_moon: If True, plots moon parameters. Defaults to False.
+        :type plot_moon: bool, optional
+        :param plot_secondary_parameters: If True, plots secondary parameters. Defaults to True.
+        :type plot_secondary_parameters: bool, optional
+        :param bins: The number of bins for histograms in the corner plot or individual posterior plots. Defaults to 20.
+        :type bins: int, optional
+        :param quantiles1d: The quantiles to display in 1D plots. Defaults to [0.16, 0.5, 0.84].
+        :type quantiles1d: list, optional
+        :param color: The color for the plots. Defaults to 'k' (black).
+        :type color: str, optional
+        :param add_table: If True, adds a table to the corner plot. Defaults to False.
+        :type add_table: bool, optional
+        :param color_truth: The color for the true value lines. Defaults to 'C3'.
+        :type color_truth: str, optional
+        :param ULU_lim: The limits for upper-log-uniform (ULU) prior scaling. Defaults to [-0.15, 0.75].
+        :type ULU_lim: list, optional
+        :param parameter_units: The units to use for plotting. Defaults to 'input', which are the units specified in the config file.
+        :type parameter_units: str, optional
+        :param custom_unit_titles: A dictionary mapping parameters to custom unit titles. Defaults to an empty dictionary.
+        :type custom_unit_titles: dict, optional
+        :param custom_parameter_titles: A dictionary mapping parameters to custom titles. Defaults to an empty dictionary.
+        :type custom_parameter_titles: dict, optional
+
+        :return: 
+            - If `save=True`, saves the plots as PDF files.
+            - If `save=False`, returns the corner plot figure (`matplotlib.figure.Figure`) and axes (`matplotlib.axes._axes.Axes`) objects.
+        :rtype: None or tuple of (`matplotlib.figure.Figure`, `matplotlib.axes._axes.Axes`)
+
+        :notes:
+            - This method either generates a corner plot for visualizing posterior distributions of multiple parameters, 
+            or it generates individual posterior plots based on the specified flags for plotting different parameter types.
+            - Unit conversions are applied for the plots based on the `parameter_units` setting, with options to use input 
+            units or custom units provided by the user.
+            - The method also supports scaling transformations for parameters (e.g., logarithmic scaling for pressures, masses, 
+            abundances, and particle radii).
         '''
 
         # get the indices of all parameters shown in the corner plot
@@ -809,27 +891,81 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def plot_retrieved_flux(self,  quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, ax = None, color='C2', case_identifier = None, plot_noise = False, plot_true_spectrum = False, plot_datapoints = False,
-                    
-                    figsize=(12,2),
-                    legend_loc = 'best',
-                    x_lim = None,
-                    y_lim = None,
-                    
-                    noise_title = 'Observation Noise',  
-
-                    
-                    plot_instruments_separately=False,     
-                    plot_residual = False,
-                    plot_log_wavelength=False,
-                    plot_log_flux=False,
-                    plot_unit_wavelength=None,
-                    plot_unit_flux=None,
-                    plot_retrieved_median=False):
+    def plot_retrieved_flux(self,
+                            quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                            quantiles_title = None,
+                            ax = None,
+                            color='C2',
+                            case_identifier = None,
+                            plot_noise = False,
+                            plot_true_spectrum = False,
+                            plot_datapoints = False,
+                            figsize=(12,2),
+                            legend_loc = 'best',
+                            x_lim = None,
+                            y_lim = None,
+                            noise_title = 'Observation Noise',                      
+                            plot_instruments_separately=False,     
+                            plot_residual = False,
+                            plot_log_wavelength=False,
+                            plot_log_flux=False,
+                            plot_unit_wavelength=None,
+                            plot_unit_flux=None,
+                            plot_retrieved_median=False):
         '''
-        This Function creates a plot that visualizes the absolute uncertainty on the
+        This function creates a plot that visualizes the absolute uncertainty on the
         retrieval results in comparison with the input spectrum for the retrieval.
+
+        :param quantiles: The quantiles to display for the retrieved spectra. Defaults to [0.05, 0.15, 0.25, 0.35, 0.65, 0.75, 0.85, 0.95].
+        :type quantiles: list of float, optional
+        :param quantiles_title: Custom titles for the quantiles. Defaults to None.
+        :type quantiles_title: list or None, optional
+        :param ax: An existing axis to plot on. If None, a new figure and axis are created. Defaults to None.
+        :type ax: matplotlib.axes.Axes or None, optional
+        :param color: The color for the quantiles and the median plot. Defaults to 'C2'.
+        :type color: str, optional
+        :param case_identifier: A string identifier for the case to annotate the plot. Defaults to None.
+        :type case_identifier: str or None, optional
+        :param plot_noise: If True, plots the observation noise for the input spectrum. Defaults to False.
+        :type plot_noise: bool, optional
+        :param plot_true_spectrum: If True, plots the true input spectrum. Defaults to False.
+        :type plot_true_spectrum: bool, optional
+        :param plot_datapoints: If True, plots the input data points as error bars. Defaults to False.
+        :type plot_datapoints: bool, optional
+        :param figsize: The size of the plot (width, height). Defaults to (12, 2).
+        :type figsize: tuple of int, optional
+        :param legend_loc: The location of the legend. Defaults to 'best'.
+        :type legend_loc: str, optional
+        :param x_lim: The limits for the x-axis. Defaults to None (automatic limits).
+        :type x_lim: tuple of float or None, optional
+        :param y_lim: The limits for the y-axis. Defaults to None (automatic limits).
+        :type y_lim: tuple of float or None, optional
+        :param noise_title: The title for the observation noise in the legend. Defaults to 'Observation Noise'.
+        :type noise_title: str, optional
+        :param plot_instruments_separately: If True, plots each instrument's spectrum separately. Defaults to False.
+        :type plot_instruments_separately: bool, optional
+        :param plot_residual: If True, plots the residuals (input - retrieved spectrum). Defaults to False.
+        :type plot_residual: bool, optional
+        :param plot_log_wavelength: If True, uses a logarithmic scale for the wavelength axis. Defaults to False.
+        :type plot_log_wavelength: bool, optional
+        :param plot_log_flux: If True, uses a logarithmic scale for the flux axis. Defaults to False.
+        :type plot_log_flux: bool, optional
+        :param plot_unit_wavelength: The units for the wavelength axis. Defaults to None (retrieval units).
+        :type plot_unit_wavelength: str or None, optional
+        :param plot_unit_flux: The units for the flux axis. Defaults to None (retrieval units).
+        :type plot_unit_flux: str or None, optional
+        :param plot_retrieved_median: If True, plots the median of the retrieved flux values. Defaults to False.
+        :type plot_retrieved_median: bool, optional
+
+        :return: 
+            - If `ax` is provided, returns the color levels used for the quantiles (`numpy.ndarray`).
+            - If `ax` is `None`, saves the plot to a PDF file and returns `None`.
+        :rtype: numpy.ndarray or None
+
+        :notes:
+            - This method generates a plot of the retrieved fluxes along with uncertainty bands and can compare them to the input spectrum.
+            - It supports various customizations, including the ability to plot individual instruments separately, plot residuals, and adjust axis scales.
+            - The method can also handle different unit conversions for wavelengths and fluxes as specified by the user.
         '''
 
         # Unit conversions for the x and y scales of the graph
@@ -996,22 +1132,116 @@ class retrieval_plotting_object(RetrievalObject):
 
     
 
-    def plot_retrieved_pt_profile(self, save=False,  x_lim =[0,1000], y_lim = [1e-6,1e4], quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                    quantiles_title = None, inlay_loc='upper right', bins_inlay = 15,x_lim_inlay =None, y_lim_inlay = None, figure = None, ax = None, color='C2', case_identifier = '',
-                    legend_n_col = 2, legend_loc = 'best',figsize=(6.4, 4.8),h_cover=0.45, smoothing = 4,
-                    
-                    true_cloud_top=[None,None],
+    def plot_retrieved_pt_profile(self,
+                                  save=False, 
+                                  x_lim =[0,1000],
+                                  y_lim = [1e-6,1e4],
+                                  quantiles=[0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                                  quantiles_title = None,
+                                  inlay_loc='upper right',
+                                  bins_inlay = 15,
+                                  x_lim_inlay =None,
+                                  y_lim_inlay = None,
+                                  figure = None,
+                                  ax = None,
+                                  color='C2',
+                                  case_identifier = '',
+                                  legend_n_col = 2,
+                                  legend_loc = 'best',
+                                  figsize=(6.4, 4.8),
+                                  h_cover=0.45,
+                                  smoothing = 4,
+                                  true_cloud_top=[None,None],
+                                  plot_truth = False,
+                                  plot_residual = False,
+                                  plot_clouds = False,
+                                  plot_unit_temperature=None,
+                                  plot_unit_pressure=None,
+                                  return_levels = False):
+        """
+        Plots the retrieved Pressure-Temperature (P-T) profile along with uncertainty quantiles and optionally
+        compares it with the true/input P-T profile.
 
-                    plot_truth = False,
-                    plot_residual = False,
-                    plot_clouds = False,
-                    plot_unit_temperature=None,
-                    plot_unit_pressure=None,
-                    return_levels = False):
-        '''
-        This Function creates a plot that visualizes the absolute uncertainty on the
-        retrieval results in comparison with the input PT profile for the retrieval.
-        '''
+        This method generates a plot that visualizes the retrieved P-T profile along with uncertainty contours
+        based on specified quantiles. It optionally includes a comparison with the true/input P-T profile and the
+        cloud top levels. The plot includes both the main plot and an inlay plot to provide more detail on the
+        retrieved cloud top or surface temperature/pressure.
+
+        :param save: If True, the plot is saved as an image file.  Defaults to False.
+        :type save: bool, optional
+        :param x_lim: Limits for the x-axis (temperature). Defaults to [0,1000].
+        :type x_lim: list of float, optional
+        :param y_lim: Limits for the y-axis (pressure). Defaults to [1e-6,1e4].
+        :type y_lim: list of float, optional
+        :param quantiles: Quantiles to display the uncertainty in the P-T profile. Defaults to [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95].
+        :type quantiles: list of float, optional
+        :param quantiles_title: Custom titles for the quantile levels. Defaults to None.
+        :type quantiles_title: list of str, optional
+        :param inlay_loc: Location for the inlay plot. Defaults to 'upper right'.
+        :type inlay_loc: str, optional
+        :param bins_inlay: Number of bins for the inlay histogram. Defaults to 15.
+        :type bins_inlay: int, optional
+        :param x_lim_inlay: x-axis limits for the inlay plot. Defaults to None.
+        :type x_lim_inlay: list of float, optional
+        :param y_lim_inlay: y-axis limits for the inlay plot. Defaults to None.
+        :type y_lim_inlay: list of float, optional
+        :param figure: Existing figure to add the plot to. Defaults to None.
+        :type figure: matplotlib.figure.Figure, optional
+        :param ax: Existing axis to add the plot to. Defaults to None.
+        :type ax: matplotlib.axes.Axes, optional
+        :param color: Color for the P-T contours. Defaults to 'C2'.
+        :type color: str, optional
+        :param case_identifier: Identifier for the figure to include in the legend. Defaults to ''.
+        :type case_identifier: str, optional
+        :param legend_n_col: Number of columns in the legend. Defaults to 2.
+        :type legend_n_col: int, optional
+        :param legend_loc: Location of the legend on the plot. Defaults to 'best'.
+        :type legend_loc: str, optional
+        :param figsize: Figure size. Defaults to (6.4, 4.8).
+        :type figsize: tuple of float, optional
+        :param h_cover: Height coverage for the inlay plot. Defaults to 0.45.
+        :type h_cover: float, optional
+        :param smoothing: Smoothing parameter for the contours. Defaults to 4.
+        :type smoothing: int, optional
+        :param true_cloud_top: True cloud top pressure and temperature. Defaults to [None,None].
+        :type true_cloud_top: list of float, optional
+        :param plot_truth: If True, the true/input P-T profile is plotted. Defaults to False.
+        :type plot_truth: bool, optional
+        :param plot_residual: If True, the residual between retrieved and true P-T profiles is shown. Defaults to False.
+        :type plot_residual: bool, optional
+        :param plot_clouds: If True, cloud top pressures and temperatures are plotted. Defaults to False.
+        :type plot_clouds: bool, optional
+        :param plot_unit_temperature: Unit for temperature in the plot. Defaults to None.
+        :type plot_unit_temperature: str, optional
+        :param plot_unit_pressure: Unit for pressure in the plot. Defaults to None.
+        :type plot_unit_pressure: str, optional
+        :param return_levels: If True, returns the calculated quantiles for the levels. Defaults to False.
+        :type return_levels: bool, optional
+
+        :return: 
+            - If `ax_arg` is not None and `return_levels` is True, returns a tuple consisting of:
+                - `color_levels` (numpy.ndarray): The color levels used for the quantiles.
+                - `color_levels_c` (numpy.ndarray): The color levels for color mapping.
+                - `ax2` (matplotlib.axes.Axes): The second axis for the plot (inlay with surface pressure and temperature).
+                - A list containing `map`, `norm`, and `levels`.
+            - If `ax_arg` is not None and `return_levels` is False, returns a tuple consisting of:
+                - `color_levels` (numpy.ndarray): The color levels used for the quantiles.
+                - `color_levels_c` (numpy.ndarray): The color levels for color mapping.
+                - `ax2` (matplotlib.axes.Axes): The second axis for the plot (inlay with surface pressure and temperature).
+            - If `save` is True and `plot_residual` is True, saves the plot as 'plot_pt_structure_residual.pdf' and returns:
+                - `figure` (matplotlib.figure.Figure): The figure object of the plot.
+                - `ax` (matplotlib.axes.Axes): The axis object of the plot.
+                - `ax2` (matplotlib.axes.Axes): The second axis of the plot (inlay with surface pressure and temperature).
+            - If `save` is True and `plot_residual` is False, saves the plot as 'plot_pt_structure.pdf' and returns:
+                - `figure` (matplotlib.figure.Figure): The figure object of the plot.
+                - `ax` (matplotlib.axes.Axes): The axis object of the plot.
+                - `ax2` (matplotlib.axes.Axes): The second axis of the plot (inlay with surface pressure and temperature).
+            - If no specific conditions are met, returns:
+                - `figure` (matplotlib.figure.Figure): The figure object of the plot.
+                - `ax` (matplotlib.axes.Axes): The axis object of the plot.
+                - `ax2` (matplotlib.axes.Axes): The second axis of the plot (inlay with surface pressure and temperature).
+        :rtype: tuple or None
+        """
 
         # Unit conversions for the x and y scales of the graph
         retrieval_units = {'x_unit':self.units.retrieval_units['temperature'], 'y_unit':self.units.retrieval_units['pressure']}
@@ -1051,17 +1281,6 @@ class retrieval_plotting_object(RetrievalObject):
                                                                    ax=ax,
                                                                    smoothing = smoothing)
 
-        #volume_percentages = [1-level for level in level_thresholds[:-1]]
-        #contours = calculate_profile_contours_new(local_retrieved_temperatures_extrapolated,
-        #                                          local_retrieved_pressures_extrapolated,
-        #                                          local_retrieved_pressures,
-        #                                          volume_percentages = volume_percentages[::-1],
-        #                                          smoothing = 3,
-        #                                          data_lim = [0,700],
-        #                                          log_data = False,
-        #                                          log_pressure = True,
-        #                                          bins_data=1000)
-            
         # If wanted find the quantiles for cloud top and bottom pressures
         if plot_clouds:
             cloud_top_quantiles = [np.quantile(local_retrieved_pressures_cloud_top,q) for q in quantiles]
