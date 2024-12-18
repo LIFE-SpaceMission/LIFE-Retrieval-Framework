@@ -1544,7 +1544,44 @@ class retrieval_plotting_object(RetrievalObject):
                                 y_lim = [1e4,1e-6],
                                 species = None,
                                 smoothing = 3,):
-        
+        '''
+        Plot abundance profiles for different species.
+
+        This method generates a plot of abundance profiles for specified species, displaying how their abundance 
+        varies with pressure. The plot includes options for customizing the abundance unit, pressure unit, 
+        quantiles, smoothing, and axis limits. The abundances are plotted as contours based on quantiles 
+        of the posterior distribution.
+
+        :param quantiles: The quantiles to display in the abundance profile plots. Defaults to [0.05, 0.15, 0.25, 0.35, 0.65, 0.75, 0.85, 0.95].
+        :type quantiles: list, optional
+        :param plot_unit_abundance: The unit for abundance ('VMR' for volume mixing ratio or 'MMR' for mass mixing ratio). Defaults to 'VMR'.
+        :type plot_unit_abundance: str, optional
+        :param plot_unit_pressure: The unit for pressure. If None, uses the pressure unit specified in the `retrieval_units`. Defaults to None.
+        :type plot_unit_pressure: str, optional
+        :param color: The color for the quantile contours. Defaults to 'C2'.
+        :type color: str, optional
+        :param figsize: The figure size for the plot. Defaults to (5, 20).
+        :type figsize: tuple, optional
+        :param x_lim: The x-axis limits for the plot. Defaults to [1e-10, 1e0].
+        :type x_lim: list, optional
+        :param y_lim: The y-axis limits for the plot. Defaults to [1e4, 1e-6].
+        :type y_lim: list, optional
+        :param species: A list of species to plot. If None, plots all species in the abundance profiles. Defaults to None.
+        :type species: list, optional
+        :param smoothing: The smoothing factor for the abundance profiles. Defaults to 3.
+        :type smoothing: int, optional
+
+        :return: tuple containing the figure (`matplotlib.figure.Figure`) and axes (`matplotlib.axes._axes.Axes`) objects used for plotting.
+        :rtype: tuple of (`matplotlib.figure.Figure`, `matplotlib.axes._axes.Axes`)
+
+        :notes:
+            - The method generates a set of contour plots for the abundance profiles of the specified species.
+            - The quantiles of the posterior distribution are used to create the contours of the abundance profiles.
+            - The x-axis represents the abundance of the species (in either VMR or MMR), and the y-axis represents pressure.
+            - The plots are created with logarithmic scaling for both the x and y axes, and the pressure axis is inverted to follow the convention for pressure altitude.
+            - If no species are specified, the method will plot abundance profiles for all species present in the `abundance_profiles` attribute.
+        '''
+
         # Check that the abundance units are valid
         if plot_unit_abundance not in ['VMR','MMR']:
             raise ValueError(plot_unit_abundance + ' is not a valid abundance unit. Please either use \'VMR\' (volume mixing ratio) or \'MMR\' (mass mixing ratio).')
