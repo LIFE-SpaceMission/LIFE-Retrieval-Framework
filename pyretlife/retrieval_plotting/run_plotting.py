@@ -229,7 +229,11 @@ class retrieval_plotting_object(RetrievalObject):
 
     
 
-    def calculate_posterior_spectrum(self,skip=1,n_processes=50,reevaluate_spectra=False,emission_contribution=True):
+    def calculate_posterior_spectrum(self,
+                                     skip=1,
+                                     n_processes=50,
+                                     reevaluate_spectra=False,
+                                     emission_contribution=True):
         '''
         Calculate the spectra corresponding to the parameter values of the equal-weighted posteriors.
 
@@ -272,7 +276,24 @@ class retrieval_plotting_object(RetrievalObject):
 
     def calculate_true_spectrum(self):
         '''
-        calculates the spectrum from the provided true values
+        Calculate the spectrum from the provided true parameter values.
+
+        This method calculates the spectrum based on the true parameter values stored in the `parameters` 
+        attribute of the object. If the spectrum has not been calculated previously, it triggers the computation 
+        and stores the resulting data as object attributes prefixed with `true_`. 
+
+        The calculation is performed using the `parallel_spectrum_calculation` function, and the provided 
+        true values are used as input.
+
+        :raises AttributeError: If the `parameters` attribute or its structure does not contain the required 
+                                true parameter values.
+        :raises RuntimeError: If an error occurs during spectrum calculation due to missing or invalid true values.
+
+        :notes:
+            - The true parameter values are expected to be stored in the `parameters` attribute under the key `'truth'`.
+            - Computed spectrum data is saved as attributes prefixed with `true_`, such as `true_fluxes`.
+            - If the spectrum calculation fails, a warning is printed, but no exception is propagated.
+            - Uses `parallel_spectrum_calculation` for computation, with `use_truth=True`.
         '''
                 
         # If not yet done calculate the data corresponding
@@ -292,10 +313,43 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def calculate_posterior_pt_profile(self,skip=1,n_processes=50,reevaluate_PT=False,layers=500,p_surf=4):
+    def calculate_posterior_pt_profile(self,
+                                       skip=1,
+                                       n_processes=50,
+                                       reevaluate_PT=False,
+                                       layers=500,
+                                       p_surf=4):
         '''
-        gets the PT profiles corresponding to the parameter values
-        of the equal weighted posteriors.
+        Calculate the pressure-temperature (PT) profiles corresponding to the parameter values of 
+        the equal-weighted posteriors.
+
+        This method calculates the PT profiles based on the parameter sets from the posterior distribution 
+        using a parallel processing approach. If the PT profiles have not been calculated previously, 
+        it triggers the computation and stores the resulting data.
+
+        :param skip: The number of points in the posterior to skip (e.g., if `skip=2`, every second 
+                    point in the posterior is evaluated). Defaults to 1.
+        :type skip: int, optional
+        :param n_processes: The number of processes to use for parallel PT profile calculation. 
+                            Defaults to 50.
+        :type n_processes: int, optional
+        :param reevaluate_PT: If set to True, the PT profiles will be recalculated even if they 
+                            have already been generated. Defaults to False.
+        :type reevaluate_PT: bool, optional
+        :param layers: The number of atmospheric layers to use for the PT profile. Defaults to 500.
+        :type layers: int, optional
+        :param p_surf: The log surface pressure value for the PT profile calculation, in bars. Defaults to 4.
+        :type p_surf: float, optional
+
+        :raises AttributeError: If the `posteriors` attribute is not set before calling this method.
+
+        :notes:
+            - This method uses parallel processing to calculate PT profiles for each posterior sample.
+            - It internally calls the `__evaluate_posteriors` method with the specified arguments.
+            - If the PT profiles have already been calculated, they are reused unless `reevaluate_PT` is True.
+            - The PT profiles are derived from posterior samples, excluding the last column (assumed to 
+            represent the likelihood).
+            - Computed PT profiles are stored as attributes for subsequent use.
         '''
 
         # If not yet done calculate the data corresponding
@@ -306,9 +360,30 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def calculate_true_pt_profile(self,layers=500,p_surf=4):
+    def calculate_true_pt_profile(self,
+                                  layers=500,
+                                  p_surf=4):
         '''
-        calculates the PT profile from the provided true values
+        Calculate the pressure-temperature (PT) profile from the provided true parameter values.
+
+        This method calculates the PT profile based on the true parameter values stored in the `parameters` 
+        attribute of the object. If the PT profile has not been calculated previously, it triggers the computation 
+        and stores the resulting data as object attributes prefixed with `true_`.
+
+        :param layers: The number of atmospheric layers to use for the PT profile. Defaults to 500.
+        :type layers: int, optional
+        :param p_surf: The surface pressure value for the PT profile calculation, in bars. Defaults to 4.
+        :type p_surf: float, optional
+
+        :raises AttributeError: If the `parameters` attribute or its structure does not contain the required 
+                                true parameter values.
+        :raises RuntimeError: If an error occurs during PT profile calculation due to missing or invalid true values.
+
+        :notes:
+            - The true parameter values are retrieved from the `parameters` attribute under the `'truth'` key.
+            - Computed PT profile data is stored as attributes prefixed with `true_` (e.g., `true_pressures`).
+            - If the PT profile calculation fails, a warning is printed, but no exception is propagated.
+            - The calculation is performed using `parallel_pt_profile_calculation` with `use_truth=True`.
         '''
 
         # If not yet done calculate the data corresponding
@@ -328,10 +403,49 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def __evaluate_posteriors(self,data_type,data_name,function_name,function_args,force_evaluate=False):
+    def __evaluate_posteriors(self,
+                              data_type,
+                              data_name,
+                              function_name,
+                              function_args,
+                              force_evaluate=False):
         '''
-        gets the data corresponding to the parameter values
-        of the equal weighted posteriors.
+        Evaluate the data corresponding to the parameter values of the equal-weighted posteriors.
+
+        This method retrieves or calculates data based on the posterior parameter values. If the data 
+        has been previously calculated and saved, it loads the data; otherwise, it performs the 
+        calculation using parallel processing and saves the results for future use.
+
+        :param data_type: The type of data to process (e.g., 'PT' for pressure-temperature profiles).
+        :type data_type: str
+        :param data_name: A descriptive name for the data being processed, used in logging and messages.
+        :type data_name: str
+        :param function_name: The name of the function to use for processing the data in parallel.
+        :type function_name: str
+        :param function_args: A dictionary of arguments to pass to the processing function.
+        :type function_args: dict
+        :param force_evaluate: If True, recalculates the data even if previously saved data exists. 
+                            Defaults to False.
+        :type force_evaluate: bool, optional
+
+        :raises ValueError: If recalculation is forced or if there are not enough jobs for the specified 
+                            number of processes.
+
+        :notes:
+            - If previously saved data exists for the given parameters, it is loaded and assigned as 
+            class attributes.
+            - If recalculation is required or no saved data exists, the method performs a parallel 
+            computation using the specified function and arguments.
+            - To ensure efficient parallel processing, the method reduces the number of processes if 
+            there are insufficient jobs for the specified configuration.
+            - The combined results from all processes are stored as class attributes prefixed with 
+            `retrieved_` (e.g., `retrieved_PT`).
+            - Computed data is saved as a pickle file for reuse, reducing computational overhead.
+
+        :data storage:
+            - The calculated results are saved as a pickle file:
+            `results_directory+'Plots_New/Ret_'+data_type+'_Skip_'+skip+'.pkl'`.
+            - If loaded, the same path is used to retrieve results.
         '''
 
         # check if the data for the specified skip
@@ -391,7 +505,52 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def deduce_bond_albedo(self,stellar_luminosity,error_stellar_luminosity,planet_star_separation,error_planet_star_separation,true_equilibrium_temperature = None,true_bond_albedo = None, reevaluate_bond_albedo=False):
+    def deduce_bond_albedo(self,
+                           stellar_luminosity,
+                           error_stellar_luminosity,
+                           planet_star_separation,
+                           error_planet_star_separation,
+                           true_equilibrium_temperature = None,
+                           true_bond_albedo = None,
+                           reevaluate_bond_albedo=False):
+        '''
+        Deduce the Bond albedo and equilibrium temperature of the planet.
+
+        This method calculates or loads the Bond albedo (`A_b`) and equilibrium temperature (`T_eq`) 
+        of the planet based on the provided stellar and orbital parameters. If previously calculated 
+        data is available, it loads the results unless recalculation is explicitly requested.
+
+        :param stellar_luminosity: The luminosity of the host star in solar luminosity units.
+        :type stellar_luminosity: float
+        :param error_stellar_luminosity: The uncertainty in the stellar luminosity.
+        :type error_stellar_luminosity: float
+        :param planet_star_separation: The orbital separation of the planet from its star in astronomical units (AU).
+        :type planet_star_separation: float
+        :param error_planet_star_separation: The uncertainty in the planet-star separation.
+        :type error_planet_star_separation: float
+        :param true_equilibrium_temperature: The true equilibrium temperature of the planet, if known. Defaults to None.
+        :type true_equilibrium_temperature: float, optional
+        :param true_bond_albedo: The true Bond albedo of the planet, if known. Defaults to None.
+        :type true_bond_albedo: float, optional
+        :param reevaluate_bond_albedo: If True, recalculates the Bond albedo and equilibrium temperature even if 
+                                    previously saved data exists. Defaults to False.
+        :type reevaluate_bond_albedo: bool, optional
+
+        :raises ValueError: If recalculation is forced or the Bond albedo cannot be deduced from the inputs.
+
+        :notes:
+            - The method uses `bond_albedo_calculation` to calculate `T_eq` and `A_b` based on the input parameters.
+            - If previously saved results exist and `reevaluate_bond_albedo` is False, the method loads these results.
+            - The calculated or loaded results are added to the object's `posteriors` and `parameters` attributes:
+            - `T_eq` is added with units of Kelvin.
+            - `A_b` is added as a dimensionless quantity.
+            - The results are saved to a pickle file for future use, reducing computational overhead.
+
+        :data storage:
+            - The calculated results are saved as a pickle file:
+            `self.results_directory + 'Plots_New/Ret_Bond_Albedo.pkl'`
+            - If loaded, the same path is used to retrieve results.
+        '''
 
         # check if the data for the specified skip
         # values are already calculated
@@ -429,6 +588,31 @@ class retrieval_plotting_object(RetrievalObject):
 
 
     def deduce_abundance_profiles(self, reevaluate_abundance_profiles=False):
+        '''
+        Deduce the abundance profiles for the atmospheric retrieval.
+
+        This method calculates or loads the abundance profiles of atmospheric species based on the retrieval results. 
+        If previously calculated data is available, it loads the results unless recalculation is explicitly requested.
+
+        :param reevaluate_abundance_profiles: If True, recalculates the abundance profiles even if previously saved 
+                                            data exists. Defaults to False.
+        :type reevaluate_abundance_profiles: bool, optional
+
+        :raises ValueError: If recalculation is forced or an error occurs while processing the abundance profiles.
+
+        :notes:
+            - If `reevaluate_abundance_profiles` is False and previously saved data exists, the abundance profiles 
+            are loaded from the pickle file.
+            - If recalculation is required or no saved data exists, the method computes the abundance profiles using 
+            `abundance_profile_calculation`.
+            - The computed profiles are saved as a pickle file for reuse, reducing computational overhead.
+            - The abundance profiles are stored in the `abundance_profiles` attribute of the object.
+        
+        :data storage:
+            - The calculated abundance profiles are saved to a pickle file:
+            `self.results_directory + 'Plots_New/Ret_Abundance_Profiles.pkl'`
+            - If loaded, the same path is used to retrieve results.
+        '''
 
         # check if the data for the specified skip
         # values are already calculated
@@ -459,7 +643,23 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def deduce_gravity(self, true_gravity = None):
+    def deduce_gravity(self,
+                       true_gravity = None):
+        '''
+        Deduce the surface gravity of the planet.
+
+        This method assigns the retrieved surface gravity (`g`) from the spectrum calculation to the 
+        `posteriors` attribute and updates the `parameters` attribute with the corresponding parameter.
+
+        :param true_gravity: The true surface gravity of the planet, if known. Defaults to None.
+        :type true_gravity: float, optional
+
+        :notes:
+            - The surface gravity (`g`) is retrieved from the `retrieved_gravity` attribute and added to 
+            the `posteriors` as a new column.
+            - The method also adds `g` as a secondary parameter to the `parameters` attribute, with the 
+            appropriate units and optional true value.
+        '''
 
         # take the surface gravityfrom the spectrum calculation
         self.posteriors['g'] = self.retrieved_gravity
@@ -469,7 +669,24 @@ class retrieval_plotting_object(RetrievalObject):
 
 
 
-    def deduce_surface_temperature(self, true_surface_temperature = None):
+    def deduce_surface_temperature(self,
+                                   true_surface_temperature = None):
+        '''
+        Deduce the surface temperature of the planet.
+
+        This method assigns the retrieved surface temperature (`T_0`) from the lowest layer of the 
+        pressure-temperature (P-T) profiles to the `posteriors` attribute and updates the `parameters` 
+        attribute with the corresponding parameter.
+
+        :param true_surface_temperature: The true surface temperature of the planet, if known. Defaults to None.
+        :type true_surface_temperature: float, optional
+
+        :notes:
+            - The surface temperature (`T_0`) is retrieved from the lowest layer of the `retrieved_temperatures` 
+            array and added to the `posteriors` as a new column.
+            - The method also adds `T_0` as a secondary parameter to the `parameters` attribute, with the 
+            appropriate units and optional true value.
+        '''
 
         # take the temperature in the lowest layer of the retrieved P-T profiles
         self.posteriors['T_0'] = self.retrieved_temperatures[:,-1]
