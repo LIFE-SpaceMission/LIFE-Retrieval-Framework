@@ -409,7 +409,7 @@ class RetrievalObject:
         self.rt_object.pressures = self.press * 1e6
 
         if self.settings["include_moon"]:
-            self.moon_flux = calculate_moon_flux(self.rt_object.freq, self.moon_vars)
+            self.moon_flux = calculate_moon_flux(self.rt_object.frequencies, self.moon_vars)
 
         if (
             self.settings["include_scattering"]["direct_light"]

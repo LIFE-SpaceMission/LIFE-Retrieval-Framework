@@ -26,7 +26,7 @@ def get_cli_arguments() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
         "--config",
-        required=False,
+        required=True,
         help="Path to the configuration file.",
     )
     args = parser.parse_args()
@@ -40,7 +40,6 @@ def get_cli_arguments() -> Namespace:
 if __name__ == "__main__":
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
-    args.config = '/home/ipa/quanz/user_accounts/zaburr/sampling/config/simple_spec.yaml'
 
     # Initializes a RetrievalObject (the pyret_ship)
     pyret_ship = RetrievalObject(run_retrieval=True)
