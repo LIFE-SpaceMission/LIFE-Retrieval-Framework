@@ -1,7 +1,7 @@
-__author__ = "Konrad, Alei, Molliere, Quanz"
+__author__ = "Konrad, Alei, Burr, Molliere, Quanz"
 __copyright__ = "Copyright 2022, Konrad, Alei, Molliere, Quanz"
-__maintainer__ = "Björn S. Konrad, Eleonora Alei"
-__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
+__maintainer__ = "Björn S. Konrad, Eleonora Alei, Zachary Burr"
+__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch, zaburr@phys.ethz.ch"
 __status__ = "Development"
 
 # -----------------------------------------------------------------------------
@@ -244,11 +244,11 @@ def parallel_spectrum_calculation(rp_object,
     size = ind_end-ind_start
     spectra = {}
     spectra['gravity'] = np.zeros(size)
-    spectra['fluxes'] = np.zeros((size,len(rp_object.rt_object.freq)))
+    spectra['fluxes'] = np.zeros((size,len(rp_object.rt_object.frequencies)))
     if emission_contribution:
-        spectra['emission_contribution'] = np.zeros((size,rp_object.settings["n_layers"],len(rp_object.rt_object.freq)))
+        spectra['emission_contribution'] = np.zeros((size,rp_object.settings["n_layers"],len(rp_object.rt_object.frequencies)))
     if rp_object.settings['include_moon'] == 'True':
-        spectra['moon_fluxes'][save,:] = np.zeros((size,len(rp_object.rt_object.freq)))
+        spectra['moon_fluxes'] = np.zeros((size,len(rp_object.rt_object.frequencies)))
 
     # Print status of calculation
     if process == 0:
@@ -460,13 +460,13 @@ def bond_albedo_calculation(rp_object,
     def blackbody_lam(x, temperature):
         exponent = apc.h*apc.c/(wavelengths.to(u.m)*apc.k_B*temperature*u.K)
         BB_flux = (2*np.pi*apc.h*apc.c**2/(wavelengths.to(u.m)**5*(np.exp(exponent) - 1)))
-        return [sp.integrate.simps(BB_flux.value,wavelengths.to(u.m).value)]
+        return [sp.integrate.simpson(BB_flux.value,wavelengths.to(u.m).value)]
 
     # calculate the equilibrium temperature for all points in the posterior
     for i in range(np.size(retrieved_equilibrium_temperature)):
         rescaled_retrieved_flux = scale_flux_to_distance(rp_object.retrieved_fluxes[i,:],rp_object.knowns['d_syst']['truth'],planet_radius[i].to(u.m).value)*rp_object.units.retrieval_units['flux']
         converted_retrieved_flux = rescaled_retrieved_flux.to(u.J/(u.m**3*u.s),equivalencies=u.spectral_density(wavelengths))
-        integrated_retrieved_flux = sp.integrate.simps(converted_retrieved_flux.value,wavelengths.to(u.m).value)
+        integrated_retrieved_flux = sp.integrate.simpson(converted_retrieved_flux.value,wavelengths.to(u.m).value)
 
         retrieved_equilibrium_temperature[i], cov = sp.optimize.curve_fit(blackbody_lam, [1], integrated_retrieved_flux,p0=[300])
         retrieved_bond_albedo[i] = 1 - 16*np.pi*planet_star_separations[i]**2*apc.sigma_sb*(retrieved_equilibrium_temperature[i]*u.K)**4/stellar_luminosities[i]

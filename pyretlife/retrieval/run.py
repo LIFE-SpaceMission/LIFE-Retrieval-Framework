@@ -3,10 +3,10 @@ This module contains the `RetrievalObject` class, which is the main
 class of the pyretlife package.
 """
 
-__author__ = "Alei, Konrad, Molliere, Quanz"
-__copyright__ = "Copyright 2022, Alei, Konrad, Molliere, Quanz"
-__maintainer__ = "Björn S. Konrad, Eleonora Alei"
-__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
+__author__ = "Konrad, Alei, Burr, Molliere, Quanz"
+__copyright__ = "Copyright 2022, Konrad, Alei, Molliere, Quanz"
+__maintainer__ = "Björn S. Konrad, Eleonora Alei, Zachary Burr"
+__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch, zaburr@phys.ethz.ch"
 __status__ = "Development"
 
 
@@ -21,6 +21,9 @@ import sys
 from pathlib import Path
 import numpy as np
 from typing import Union, Tuple
+from astropy import constants as const
+
+from petitRADTRANS.radtrans import Radtrans
 
 from pyretlife.retrieval.atmospheric_variables import (
     calculate_gravity,
@@ -142,12 +145,11 @@ class RetrievalObject:
         self.input_prt_path = get_check_prt_path()
         self.input_retrieval_path = get_retrieval_path()
         sys.path.append(str(self.input_prt_path))
-        set_prt_opacity(self.input_prt_path, self.input_opacity_path)
-
-        self.petitRADTRANS = importlib.import_module("petitRADTRANS")
+        # set_prt_opacity(self.input_prt_path, self.input_opacity_path) #outdated
+        os.environ["pRT_input_data_path"] = str(self.input_opacity_path)
 
         # Create a units object to enable unit conversions
-        self.units = UnitsUtil(self.petitRADTRANS.nat_cst)
+        self.units = UnitsUtil()
 
     def load_configuration(self, config_file: str):
         # Load standard configurations (hard-coded)
@@ -186,7 +188,8 @@ class RetrievalObject:
             self.settings,
             self.units
         )
-        self.instrument = load_data(self.settings, self.units,retrieval=self.run_retrieval)
+        if "data_files" in self.settings.keys():
+            self.instrument = load_data(self.settings, self.units,retrieval=self.run_retrieval)
 
         # IF CLOUDS, ASSIGN P0 WHEN NOT PROVIDED
         # TODO P0_test()
@@ -263,7 +266,7 @@ class RetrievalObject:
             used_cia_species,
             used_cloud_species,
         ) = define_linelists(
-            self.config, self.settings, self.input_opacity_path#, self.petitRADTRANS
+            self.config, self.settings, self.input_opacity_path
         )
 
         # TODO implement verbose output
@@ -271,24 +274,20 @@ class RetrievalObject:
         sys.stdout = open(os.devnull, "w")
         ls = sorted(used_line_species)[::-1]
 
-        self.rt_object = self.petitRADTRANS.Radtrans(
-            line_species=ls,
-            rayleigh_species=sorted(used_rayleigh_species),
-            continuum_opacities=sorted(used_cia_species),
-            cloud_species=sorted(used_cloud_species),
-            wlen_bords_micron=self.settings["wavelength_range"],
-            mode="c-k",
-            do_scat_emis= True in self.settings["include_scattering"].values(),)
-        sys.stdout = old_stdout
-
-        self.rt_object.setup_opa_structure(
-            np.logspace(
+        self.rt_object = Radtrans(
+            pressures=np.logspace(
                 self.settings["log_top_pressure"],
                 0,
                 self.settings["n_layers"],
-                base=10,
-            )
-        )
+                base=10,),
+            line_species=ls,
+            rayleigh_species=sorted(used_rayleigh_species),
+            gas_continuum_contributors=sorted(used_cia_species),
+            cloud_species=sorted(used_cloud_species),
+            wavelength_boundaries=self.settings["wavelength_range"],
+            line_opacity_mode="c-k",
+            scattering_in_emission= True in self.settings["include_scattering"].values(),)
+        sys.stdout = old_stdout
 
     def unity_cube_to_prior_space(self, cube):
         cube_copy = cube.copy()
@@ -352,7 +351,7 @@ class RetrievalObject:
             self.temp = calculate_vae_profile(self.press, self.vae_pt, self.temp_vars)
 
         elif parameterization == "guillot":
-            self.temp = calculate_guillot_profile(self.press, self.petitRADTRANS, self.temp_vars)
+            self.temp = calculate_guillot_profile(self.press, self.temp_vars)
 
         elif self.settings["parameterization"] == "isothermal":
             self.temp = calculate_isothermal_profile(self.press, self.temp_vars)
@@ -407,10 +406,10 @@ class RetrievalObject:
         abundances_MMR, inert_MMR = convert_VMR_to_MMR(self.abundances_VMR, self.settings, self.inert, self.MMW)
 
         # initialize calculated pressure
-        self.rt_object.setup_opa_structure(self.press)
+        self.rt_object.pressures = self.press * 1e6
 
         if self.settings["include_moon"]:
-            self.moon_flux = calculate_moon_flux(self.rt_object.freq, self.petitRADTRANS, self.moon_vars)
+            self.moon_flux = calculate_moon_flux(self.rt_object.freq, self.moon_vars)
 
         if (
             self.settings["include_scattering"]["direct_light"]
@@ -420,7 +419,7 @@ class RetrievalObject:
                 self.rt_object.reflectance,
                 self.rt_object.emissivity,
             ) = assign_reflectance_emissivity(
-                self.scat_vars, self.rt_object.freq
+                self.scat_vars, self.rt_object.frequencies
             )
 
         # Calculate the forward model; this returns the frequency
@@ -428,13 +427,13 @@ class RetrievalObject:
         freq, cloud_free_flux, cloud_free_em_contr = calculate_emission_flux(self.rt_object, self.settings, self.temp,
                                                                     abundances_MMR, self.phys_vars["g"],
                                                                     self.MMW, self.cloud_radii, self.cloud_lnorm,
-                                                                    self.scat_vars, em_contr=em_contr,Pcloud=None)
+                                                                    self.scat_vars, em_contr=em_contr, Pcloud=None)
 
         if self.cloud_fraction is not None:
             freq, cloudy_flux, cloudy_em_contr = calculate_emission_flux(self.rt_object, self.settings, self.temp,
                                                                             abundances_MMR, self.phys_vars["g"],
                                                                             self.MMW, self.cloud_radii, self.cloud_lnorm,
-                                                                            self.scat_vars, em_contr=em_contr,Pcloud=self.cloud_Pcloud)
+                                                                            self.scat_vars, em_contr=em_contr, Pcloud=self.cloud_Pcloud)
             mixed_flux = cloud_free_flux*(1-self.cloud_fraction) + cloudy_flux*self.cloud_fraction
             if em_contr:
                 mixed_em_contr = cloud_free_em_contr#*(1-self.cloud_fraction) + cloudy_em_contr*self.cloud_fraction
@@ -445,7 +444,7 @@ class RetrievalObject:
                 mixed_em_contr = cloud_free_em_contr
 
         wavelength = (
-            self.petitRADTRANS.nat_cst.c / freq * 1e4
+            const.c.cgs.value / freq * 1e4
         )
 
         if em_contr:
@@ -541,6 +540,66 @@ class RetrievalObject:
                 #+ np.log(2*np.pi*self.instrument[inst]["error"]**2)
             )
         return log_likelihood
+    
+    def generate_new_spectrum(self):
+        """
+        Runs the forward model and calculates a (new) spectrum rather than
+        running a retrieval.
+        """
+
+        # Calculate values from given parameters
+        
+        self.phys_vars = set_log_ground_pressure(self.phys_vars, self.config, self.knowns)
+        self.phys_vars = calculate_gravity(self.phys_vars,self.config)
+        
+        if self.settings["parameterization"] != "input":
+            self.calculate_pt_profile(
+                parameterization=self.settings["parameterization"],
+                log_ground_pressure=self.phys_vars["log_P0"],
+                log_top_pressure=self.settings["log_top_pressure"],
+                layers=self.settings["n_layers"],
+            )
+
+        if validate_positive_temperatures(self.temp):
+            raise ValueError("PT profile parameters resulted in negative temperatures!")
+        
+        self.calculate_abundances()
+        #if validate_abundances(self.abundances_VMR,self.chem_vars_VMR):
+        #    return -1e99
+        if validate_clouds(self.press, self.temp, self.cloud_vars):
+            raise ValueError("Issue with cloud positioning!")
+        if validate_sum_of_abundances(self.abundances_VMR):
+            raise ValueError("Gas abundances do not sum to 1!")
+        
+        # Perform radiative transfer
+        self.rt_object.wavelength, self.rt_object.flux = self.calculate_spectrum()
+        # if validate_spectrum_goodness(self.rt_object.flux):
+        #     return -1e99
+
+        self.distance_scale_spectrum()
+        
+        # Rebin to match desired spectral resolution
+        instrument = {}
+        instrument["wavelength"] = np.exp(np.arange(
+            np.log(self.rt_object.wavelength[0]), 
+            np.log(self.rt_object.wavelength[-1]), 
+            1/self.settings["resolution"]))
+        
+        rebinned_flux = rebin_spectrum(
+            instrument,
+            self.rt_object.wavelength,
+            self.rt_object.flux,
+        )
+        if self.settings["include_moon"] == "True":
+            rebinned_flux += rebin_spectrum(
+                instrument,
+                self.rt_object.wavelength,
+                self.moon_flux,
+            )
+        
+        # Save output to file
+        np.savetxt(self.settings["output_folder"], 
+                   np.column_stack((instrument["wavelength"], rebinned_flux)))
 
     def vae_initialization(self):
         # TODO see if it can be improved
@@ -572,7 +631,7 @@ class RetrievalObject:
         save_input_spectra(self.settings["data_files"],
                            self.settings["output_folder"])
         
-        save_configuration(input_path = Path(self.input_retrieval_path+"configs/config_default.yaml"),
+        save_configuration(input_path = Path(self.input_retrieval_path+"/configs/config_default.yaml"),
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_default_config.yaml'))
         save_configuration(input_path = config_file,
                            output_path = Path(self.config['RUN SETTINGS']['output_folder']+'/input_new.yaml'))

@@ -3,10 +3,10 @@ This module contains the `retrieval_plotting_object` class, which is the main
 class used to generate plots of the pyretlife retrievals.
 """
 
-__author__ = "Konrad, Alei, Molliere, Quanz"
+__author__ = "Konrad, Alei, Burr, Molliere, Quanz"
 __copyright__ = "Copyright 2022, Konrad, Alei, Molliere, Quanz"
-__maintainer__ = "Björn S. Konrad, Eleonora Alei"
-__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch"
+__maintainer__ = "Björn S. Konrad, Eleonora Alei, Zachary Burr"
+__email__ = "konradb@ethz.ch, elalei@phys.ethz.ch, zaburr@phys.ethz.ch"
 __status__ = "Development"
 
 # -----------------------------------------------------------------------------
@@ -177,13 +177,17 @@ class retrieval_plotting_object(RetrievalObject):
         self.load_configuration(config_file=self.results_directory+'/input_new.yaml')
         self.unit_conversion()
         self.assign_knowns()
-        self.load_posteriors()
+        try:
+            self.load_posteriors_nautilus()
+        except FileNotFoundError:
+            print('Nautilus output not found, trying MultiNest...')
+            self.load_posteriors_multinest()
 
         truths = np.array([[self.parameters[parameter]['truth'] for parameter in self.parameters.keys()]])
 
 
 
-    def load_posteriors(self):
+    def load_posteriors_multinest(self):
         """
         Load the posterior distribution from a MultiNest analysis.
 
@@ -214,6 +218,37 @@ class retrieval_plotting_object(RetrievalObject):
         #pd.set_option('display.max_columns', 500)
         #print(self.posteriors)
         self.log_evidence = [data.get_stats()['global evidence'],data.get_stats()['global evidence error']]
+        
+    def load_posteriors_nautilus(self):
+        """
+        Load the posterior distribution from a Nautilus analysis.
+
+        This method reads the posterior samples from the specified retrieval 
+        results directory and stores them.
+
+        The posterior samples are saved as a DataFrame, with columns corresponding 
+        to the model parameters and the likelihood.
+
+        :raises FileNotFoundError: If the posterior distribution files cannot be found in the results directory.
+        :raises ValueError: If there is an issue with the structure of the posterior distribution data.
+
+        :notes:
+            - This method assumes that the equal weighted posteriors are written to 
+            [output_dir]/posteriors_equal.txt (the default for pyRetLIFE)
+            - The `len(self.parameters.keys())` argument to the `Analyzer` constructor is used to specify the 
+            number of model parameters.
+            - The resulting DataFrame (`self.posteriors`) contains the posterior samples for the parameters and likelihood.
+            - The log evidence is NOT extracted.
+        """
+
+        # Load the posterior distribution and save it to a pandas DataFrame
+        data = np.genfromtxt(self.results_directory + 'posteriors_equal.txt')
+        posterior_parameter_names = list(self.parameters.keys())+['likelihood']
+
+        self.posteriors = pd.DataFrame(np.delete(data, -2, axis=1),columns=posterior_parameter_names)
+
+        #pd.set_option('display.max_columns', 500)
+        #print(self.posteriors)
 
 
 

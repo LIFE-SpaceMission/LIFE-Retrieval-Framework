@@ -12,8 +12,8 @@ The code in this repository is organized as a Python package named `pyretlife`.
 Clone this repository and install `pyretlife` using pip as follows:
 
 ```bash
-git clone https://github.com/konradbjorn/Terrestrial_Retrieval ;
-cd Terrestrial_Retrieval ;
+git clone https://github.com/LIFE-SpaceMission/LIFE-Retrieval-Framework ;
+cd LIFE-Retrieval-Framework ;
 pip install -e .
 ```
 

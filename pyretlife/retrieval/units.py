@@ -1,4 +1,5 @@
 import astropy.units as u
+import astropy.constants as const
 import numpy as np
 
 
@@ -8,7 +9,7 @@ import numpy as np
 
 
 class UnitsUtil:
-    def __init__(self, pRT_const):
+    def __init__(self):
         # Standard units for input of the retrieval. All parameters not
         # mentioned here are assumed to be dimensionless
 
@@ -21,15 +22,13 @@ class UnitsUtil:
             "WMAX": u.micron,
             # PHYSICAL PARAMETERS
             "P0": u.bar,
-            "d_syst": self.custom_unit("pRT_pc", pRT_const.pc * u.cm),
-            "R_pl": self.custom_unit("pRT_R_earth", pRT_const.r_earth * u.cm),
-            "M_pl": self.custom_unit("pRT_M_earth", pRT_const.m_earth * u.g),
+            "d_syst": self.custom_unit("pRT_pc", const.pc.cgs),
+            "R_pl": self.custom_unit("pRT_R_earth", const.R_earth.cgs),
+            "M_pl": self.custom_unit("pRT_M_earth", const.M_earth.cgs),
             # SCATTERING PARAMETERS
             "stellar_temperature": u.K,
-            "stellar_radius": self.custom_unit(
-                "pRT_R_sun", pRT_const.r_sun * u.cm
-            ),
-            "semimajor_axis": self.custom_unit("pRT_AU", pRT_const.AU * u.cm),
+            "stellar_radius": self.custom_unit("pRT_R_sun", const.R_sun.cgs),
+            "semimajor_axis": self.custom_unit("pRT_AU", const.au.cgs),
             # MOON PARAMETERS
             "T_m": u.K,
             "R_m": u.pRT_R_earth,

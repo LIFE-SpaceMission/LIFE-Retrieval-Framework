@@ -237,7 +237,7 @@ def populate_dictionaries(
                         linelist.append(config[section][subsection]["lines"])
                     else:
                         linelist.extend(config[section][subsection]["lines"])
-        settings["opacity_linelist"] = linelist
+    settings["opacity_linelist"] = linelist
     return knowns, parameters, settings, units
 
 

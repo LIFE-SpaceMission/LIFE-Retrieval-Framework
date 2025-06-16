@@ -2,7 +2,8 @@ from typing import Tuple
 import scipy.ndimage as sci
 import scipy as scp
 import numpy as np
-from astropy.constants import G
+import astropy.constants as const
+from petitRADTRANS.physics import temperature_profile_function_guillot_modif
 from molmass import Formula
 from numpy import ndarray
 import sys
@@ -30,7 +31,7 @@ def calculate_gravity(phys_vars: dict, config: dict) -> dict:
             phys_vars["g"] = 10 ** phys_vars["log_g"]
         else:
             phys_vars["g"] = (
-                G.cgs.value * phys_vars["M_pl"] / (phys_vars["R_pl"]) ** 2
+                const.G.cgs.value * phys_vars["M_pl"] / (phys_vars["R_pl"]) ** 2
             )
     return phys_vars
 
@@ -230,7 +231,7 @@ def calculate_vae_profile(
 
 
 def calculate_guillot_profile(
-    pressure: ndarray, prt_instance, temp_vars: dict
+    pressure: ndarray, temp_vars: dict
 ) -> ndarray:
     """
     Calculate a Guillot temperature profile.
@@ -239,14 +240,12 @@ def calculate_guillot_profile(
 
     :param pressure: The pressure array
     :type pressure: ndarray
-    :param prt_instance: The instance of petitRADTRANS
-    :type prt_instance: object
     :param temp_vars: The dictionary of temperature parameters to calculate the Guillot profile
     :type temp_vars: dict
     :return: The temperature profile for the given pressure levels
     :rtype: ndarray
     """
-    return prt_instance.nat_cst.guillot_modif(
+    return temperature_profile_function_guillot_modif(
         pressure,
         1e1 ** temp_vars["log_delta"],
         1e1 ** temp_vars["log_gamma"],
@@ -434,7 +433,7 @@ def xi(gamma: float, tau: ndarray) -> ndarray:
 
 
 def calculate_line_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict,
-                R_star = 6.995e8, T_star = 5780.0, T_int = 0.0, sma = 1.0 * scp.constants.au):
+                R_star = 6.995e8, T_star = 5780.0, T_int = 0.0, sma = 1.0 * const.au.value):
     """
     Generate a PT profile based on input free parameters and pressure array.
 
@@ -454,7 +453,7 @@ def calculate_line_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict,
     :type T_star: float, optional
     :param T_int: Planetary internal heat flux (in Kelvin degrees), defaults to 0.0
     :type T_int: float, optional
-    :param sma: Semi-major axis (in meters), defaults to 1.0 * scp.constants.au
+    :param sma: Semi-major axis (in meters), defaults to 1.0 * astropy.constants.au
     :type sma: float, optional
     :return: Temperature array
     :rtype: ndarray

@@ -6,6 +6,7 @@ from typing import Union, Tuple, Set
 import numpy as np
 import spectres
 from numpy import ndarray
+from astropy import constants as const
 
 #from pyretlife.retrieval.atmospheric_variables import (
 #    get_mm
@@ -99,16 +100,17 @@ def ingest_opacity_linelists(
     settings: dict, input_opacity_path: Union[str, Path]
 ) -> list:
     string = ""
-    if settings["resolution"] != "1000":
-        string = "_R_" + str(settings["resolution"])
+    # if settings["resolution"] != "1000":
+    #     string = "_R_" + str(settings["resolution"])
     species_at_resolution = []
     for line in settings["opacity_linelist"]:
         species_at_resolution.append(line + string)
 
     line_species = os.listdir(
-        Path(input_opacity_path) / "opacities" / "lines" / "corr_k"
+        Path(input_opacity_path) / "opacities" / "lines" / "correlated_k"
     )
-    return list(set(species_at_resolution) & set(line_species))
+    # return list(set(species_at_resolution) & set(line_species))
+    return list(set(species_at_resolution))
 
 
 def ingest_rayleigh_linelists(species: list) -> list:
@@ -131,7 +133,7 @@ def ingest_cia_linelists(
 ) -> list:
     used_cia_species = []
     continuum_opacities = os.listdir(
-        Path(input_opacity_path) / "opacities" / "continuum" / "CIA"
+        Path(input_opacity_path) / "opacities" / "continuum" / "collision_induced_absorptions"
     )
     for cia in continuum_opacities:
         cia: str
@@ -175,13 +177,13 @@ def ingest_cloud_linelists(
     return used_cloud_species
 
 
-def calculate_moon_flux(frequency: ndarray, prt_instance, moon_vars: dict):
-    exponent = prt_instance.nat_cst.h * frequency / (prt_instance.nat_cst.kB * moon_vars["T_m"])
+def calculate_moon_flux(frequency: ndarray, moon_vars: dict):
+    exponent = const.h.cgs.value * frequency / (const.k_B.cgs.value * moon_vars["T_m"])
     blackbody_nu = (
             2
-            * prt_instance.nat_cst.h
+            * const.h.cgs.value
             * frequency ** 3
-            / prt_instance.nat_cst.c ** 2
+            / const.c.cgs.value ** 2
             / (np.exp(exponent) - 1)
     )  # in erg/cm^2/s/Hz/sr
     return np.pi * blackbody_nu  # in erg/cm^2/s/Hz
@@ -211,7 +213,8 @@ def calculate_emission_flux(
 ) -> Tuple[ndarray, ndarray]:
     """
     Creates the pressure-temperature profile for the current atmosphere
-    and calculates the corresponding emitted flux.
+    and calculates the corresponding emitted flux using petitRADTRANS.
+    See the documentation for petitRADTRANS.radtrans.Radtrans.calculate_flux.
     """
 
     # Calculate the Spectrum of the planet, prevent unnecessary printing
@@ -219,57 +222,60 @@ def calculate_emission_flux(
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, "w")
     if not settings["include_scattering"]["direct_light"]:
-        rt_object.calc_flux(
+        freq, flux, additional_output = rt_object.calculate_flux(
             temp,
             abundances_MMR,
-            gravity,
             mmw,
-            radius=cloud_radii,
-            sigma_lnorm=cloud_lnorm,
-            add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
-            contribution=em_contr,
-            Pcloud=Pcloud
+            gravity,
+            cloud_particles_mean_radii=cloud_radii,
+            cloud_particle_radius_distribution_std=cloud_lnorm,
+            # add_cloud_scat_as_abs=settings["include_scattering"]["clouds"], #Deprecated #TODO: add warning if config has cloud scattering on
+            return_contribution=em_contr,
+            opaque_cloud_top_pressure=Pcloud,
+            frequencies_to_wavelengths=False
         )
     else:
         if settings['geometry'] == 'quadrature':
-            rt_object.calc_flux(
+            freq, flux, additional_output = rt_object.calculate_flux(
                 temp,
                 abundances_MMR,
-                gravity,
                 mmw,
-                radius=cloud_radii,
-                sigma_lnorm=cloud_lnorm,
-                geometry='non-isotropic',
-                theta_star=77.756,
-                Tstar=scat_vars["stellar_temperature"],
-                Rstar=scat_vars["stellar_radius"],
-                semimajoraxis=scat_vars["semimajor_axis"],
-                add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
-                contribution=em_contr,
-                Pcloud=Pcloud
+                gravity,
+                cloud_particles_mean_radii=cloud_radii,
+                cloud_particle_radius_distribution_std=cloud_lnorm,
+                irradiation_geometry='non-isotropic',
+                star_irradiation_angle=77.756,
+                star_effective_temperature=scat_vars["stellar_temperature"],
+                star_radius=scat_vars["stellar_radius"],
+                orbit_semi_major_axis=scat_vars["semimajor_axis"],
+                # add_cloud_scat_as_abs=settings["include_scattering"]["clouds"], #Deprecated
+                return_contribution=em_contr,
+                opaque_cloud_top_pressure=Pcloud,
+                frequencies_to_wavelengths=False
             )
         else:
-            rt_object.calc_flux(
+            freq, flux, additional_output = rt_object.calculate_flux(
                 temp,
                 abundances_MMR,
-                gravity,
                 mmw,
-                radius=cloud_radii,
-                sigma_lnorm=cloud_lnorm,
-                geometry=settings["geometry"],
-                Tstar=scat_vars["stellar_temperature"],
-                Rstar=scat_vars["stellar_radius"],
-                semimajoraxis=scat_vars["semimajor_axis"],
-                add_cloud_scat_as_abs=settings["include_scattering"]["clouds"],
-                contribution=em_contr,
-                Pcloud=Pcloud
+                gravity,
+                cloud_particles_mean_radii=cloud_radii,
+                cloud_particle_radius_distribution_std=cloud_lnorm,
+                irradiation_geometry=settings["geometry"],
+                star_effective_temperature=scat_vars["stellar_temperature"],
+                star_radius=scat_vars["stellar_radius"],
+                orbit_semi_major_axis=scat_vars["semimajor_axis"],
+                # add_cloud_scat_as_abs=settings["include_scattering"]["clouds"], #Deprecated
+                return_contribution=em_contr,
+                opaque_cloud_top_pressure=Pcloud,
+                frequencies_to_wavelengths=False
             )
 
     # sys.stdout = old_stdout
     if em_contr:
-        return rt_object.freq.copy(), rt_object.flux.copy(), rt_object.contr_em.copy()
+        return freq, flux, additional_output['emission_contribution'].copy()
     else:
-        return rt_object.freq.copy(), rt_object.flux.copy(), None
+        return freq, flux, None
 
 
 def scale_flux_to_distance(
