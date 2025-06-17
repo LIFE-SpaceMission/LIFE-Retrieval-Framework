@@ -25,6 +25,7 @@ If you need developer tools (e.g., for running tests, linting, or type-checking)
 pip install -e ".[develop]"
 ```
 
+The full installation guide with all necessary packages can be found here: https://drive.google.com/file/d/1okJilHcWick3Po6ZepaG0v-EXjdgTect/view?usp=sharing
 
 ### 🐭 Running unit tests
 
