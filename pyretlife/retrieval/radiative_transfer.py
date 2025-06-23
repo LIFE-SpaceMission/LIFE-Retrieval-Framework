@@ -99,12 +99,9 @@ def define_linelists(
 def ingest_opacity_linelists(
     settings: dict, input_opacity_path: Union[str, Path]
 ) -> list:
-    string = ""
-    # if settings["resolution"] != "1000":
-    #     string = "_R_" + str(settings["resolution"])
     species_at_resolution = []
     for line in settings["opacity_linelist"]:
-        species_at_resolution.append(line + string)
+        species_at_resolution.append(line + ".R" + str(settings["resolution"]))
 
     line_species = os.listdir(
         Path(input_opacity_path) / "opacities" / "lines" / "correlated_k"
@@ -137,7 +134,7 @@ def ingest_cia_linelists(
     )
     for cia in continuum_opacities:
         cia: str
-        cia_components = cia.split("-")
+        cia_components = cia.split("--")
         if len(cia_components) > 1:
             if (
                 species.count(cia_components[0])
