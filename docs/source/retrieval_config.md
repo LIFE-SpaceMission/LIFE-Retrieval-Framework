@@ -30,13 +30,13 @@ This is itself a dictionary that has the following keys:
 The currently implemented priors are the ones specified in `pyretlife/priors.py`. These are:
 
 
-|Kind| Description|
-|:---| :----------|
-|uniform|A boxcar prior between a lower and upper limit.|
-|gaussian|A gaussian prior of known mean and sigma.|
-|log-uniform|A uniform prior on the logarithm (base 10) of the parameter.|
-|log-gaussian|A gaussian prior on the logarithm (base 10) of the parameter.|
-|custom|A user-defined prior.|
+  |Kind| Description|
+  |:---| :----------|
+  |uniform|A boxcar prior between a lower and upper limit.|
+  |gaussian|A gaussian prior of known mean and sigma.|
+  |log-uniform|A uniform prior on the logarithm (base 10) of the parameter.|
+  |log-gaussian|A gaussian prior on the logarithm (base 10) of the parameter.|
+  |custom|A user-defined prior.|
 
 
 - **prior_specs [dict]**: the specific keywords required by the prior kind used. These are:
@@ -44,11 +44,12 @@ The currently implemented priors are the ones specified in `pyretlife/priors.py`
 
   |Kind| Prior_specs keywords|
   |:---| :-------------------|
-  |uniform| lower [float]: the lower limit of the boxcar prior <br> upper [float]: the upper limit of the boxcar prior|
-  |gaussian| mean [float]: the mean of the gaussian prior <br> sigma [float]: the sigma of the gaussian prior|
-  |log-uniform|log_lower [float]: the lower limit of the boxcar prior (in logarithm space) <br> log_upper [float]: the upper limit of the boxcar prior (in logarithm space)|
-  |log-gaussian| log_mean [float]: the mean of the gaussian prior (in logarithm space) <br> log_sigma [float]: the sigma of the gaussian prior (in logarithm space)|
-  |custom|prior_path [str]: the path to a file containing the data used to produce a custom prior distribution (e.g. the posterior of a previous run)|
+  |uniform| **lower** [float]: the lower limit of the boxcar prior <br> **upper** [float]: the upper limit of the boxcar prior|
+  |gaussian| **mean** [float]: the mean of the gaussian prior <br> **sigma** [float]: the sigma of the gaussian prior|
+  |log-uniform|**log_lower** [float]: the lower limit of the boxcar prior (in logarithm space) <br> **log_upper** [float]: the upper limit of the boxcar prior (in logarithm space)|
+  |log-gaussian| **log_mean** [float]: the mean of the gaussian prior (in logarithm space) <br> **log_sigma** [float]: the sigma of the gaussian prior (in logarithm space)|
+  |custom|**prior_path** [str]: the path to a file containing the data used to produce a custom prior distribution (e.g. the posterior of a previous run)|
+
 
 
 - **truth [float]**: If desired, it is possible to specify the truth value of the parameter. This will be used by the plotting routine.
@@ -103,7 +104,10 @@ The config file needs to have specific sections for the run to work properly.
         - **include_CIA [bool] (Default: False)**: a boolean to turn on the collision-induced-absorption (CIA) calculation for each theoretical model calculated during the run.
         
         - **include_moon [bool] (Default: False)**: a boolean to turn on the calculation of the moon spectrum (blackbody) to be added to the planetary spectrum.
-    - **resolution [int] (Default: 1000)**: an integer to specify the spectral resolution to use for the calculation for each theoretical model calculated during the run. If not specified, it will default to R=1000 which is the default resolution of petitRADTRANS. However, we strongly recommend using a lower resolution setting if you only require R=50-200 (LIFE scenario), since it will result in a significant increase in computational speed. It is also recommended to make sure that precomputed correlated-k tables for every species of interest are included in the opacity folder (i.e. the path of the PYRETLIFE_OPACITY_PATH environment variable). TODO: include rebinning of corr-k at any resolution in the retrieval
+    - **resolution [int] (Default: 1000)**: an integer to specify the spectral resolution to use for the calculation for each theoretical model calculated during the run. If not specified, it will default to R=1000 which is the default resolution of petitRADTRANS. However, we strongly recommend using a lower resolution setting if you only require R=50-200 (LIFE scenario), since it will result in a significant increase in computational speed. It is also recommended to make sure that precomputed correlated-k tables for every species of interest are included in the opacity folder (i.e. the path of the PYRETLIFE_OPACITY_PATH environment variable).
+      ```{warning}
+  Documentation work in progress. (rebinning of corr-k at any resolution in retrievals)
+  ```
     - **n_layers [int] (Default: 100)**: an integer to specify the number of layers in which to split the atmosphere.
     - **log_top_pressure [float] (Default: -6)**: a float to specify the pressure (in log scale) of the top layer of the atmosphere.
     - **live_points [int] (Default: 600)**: an integer to specify the number of live points used by MultiNest.
@@ -152,8 +156,8 @@ The config file needs to have specific sections for the run to work properly.
       |:---| :-------------------|
       |isothermal| An isothermal atmospheric profile.|
       |polynomial |A polynomial atmospheric profile of degree n (>0). |
-      |guillot |A Guillot atmospheric profile (used in the petitRADTRANS documentation). (eq.29 Guillot (2010))|
-      |madhuseager|A Madhusudhan-Seager profile (arXiv:0910.1347) |
+      |guillot |A Guillot atmospheric profile (used in the petitRADTRANS documentation). (eq.29 [Guillot (2010)](http://adsabs.harvard.edu/abs/2010A%26A...520A..27G))|
+      |madhuseager|A Madhusudhan-Seager profile ([arXiv:0910.1347](https://arxiv.org/abs/0910.1347)) |
       |mod_madhuseager|A modified Madhusudhan-Seager profile (which excludes the isothermal deep layers)|
       |spline| A P-T profile defined by a set of points and a spline interpolation between these points|
 
@@ -161,14 +165,12 @@ The config file needs to have specific sections for the run to work properly.
 
       |Parameterization| Parameterization-specific parameters/known values|
       |:---| :-------------------|
-      |isothermal| T_eq [float]: the temperature of the isothermal profile|
-      |polynomial|a_i (with i ranging from 0 to n-1) [float]: the coefficients of the polynomial function from the highest degree to the constant term. The retrieval automatically recognizes the degree of the polynomial by reading the a_i coefficients. All a_i coefficients need to be present either as parameters or known values for the polynomial fit to work. [For example: if we want to assume a special polynomial function f(x)=a_2*x^2, we would need to keep a_2 as a parameter to be retrieved, but also set a_1 and a_0 as known values to 0]|
-      |guillot| log_delta [float]:<br> log_gamma [float]: <br> t_int [float]: <br> t_equ [float]: <br> log_p_trans [float]: <br> alpha [float]:|
-      |madhuseager| log_P1 [float]: <br> log_P2 [float]: <br> log_P3 [float]: <br> T0 [float]: <br> alpha1 [float]: <br> alpha2 [float]:|
-      |mod_madhuseager| log_P1 [float]: <br> log_P2 [float]: <br> T0 [float]: <br> alpha1 [float]: <br> alpha2 [float]:|
-      |spline| spline_degree_k [int]: degree of the spline interpolation (1: linear; 2:quadratic;...)<br> spline_points: Number of points in the atmosphere n. Minimum: 2 (1 at top and 1 at bottom of the atmosphere)<br> spline_smooting [float]: option to add a Gaussian filter over the spline profile to smooth it out<br> Ti [float]: (i lies between 0 and n-1) Temperature at the ith point in the atmosphere. i=0 is the surface and i=n-1 is the temperature at the top of the atmosphere <br> Position_Pi [float]: (i lies between 1 and n-2) lies between 0 and. Position of the ith pressure point in the atmosphere.<br>|
-
-
+      |isothermal| **T_eq** [float]: the temperature of the isothermal profile|
+      |polynomial|**a_i** (with i ranging from 0 to n-1) [float]: the coefficients of the polynomial function from the highest degree to the constant term. The retrieval automatically recognizes the degree of the polynomial by reading the **a_i** coefficients. All **a_i** coefficients need to be present either as parameters or known values for the polynomial fit to work. For example: if we want to assume a special polynomial function f(x)=**a_2***x^2, we would need to keep **a_2** as a parameter to be retrieved, but also set **a_1** and **a_0** as known values to 0.  |
+      |guillot| **log_delta** [float]: ratio of $\\kappa_{\\rm IR}$ - the atmospheric opacity in the IR wavelengths (i.e. the cross-section per unit mass) and $g$ - the atmospheric surface gravity <br> **log_gamma** [float]: is the ratio between the optical and IR opacity, <br> **t_int** [float]: planetary internal temperature <br> **t_equ** [float]: the atmospheric equilibrium temperature <br> **log_p_trans** [float]: <br> **alpha** [float]:|
+      |madhuseager| **log_P1** [float]: first pressure point (highest) <br> **log_P2** second pressure point (medium) [float]: <br> **log_P3** [float]: third pressure point (lowest) <br> **T0** [float]: temperature at lowest pressure point <br> **alpha1** [float]: first alpha coefficient <br> **alpha2** [float]: second alpha coefficient|
+      |mod_madhuseager| **log_P1** [float]: first pressure point <br> **log_P2** [float]: second pressure point<br> **T0** [float]:temperature at lowest pressure point <br> **alpha1** [float]: first alpha coefficient <br> **alpha2** [float]:second alpha coefficient|
+      |spline| **spline_degree_k** [int]: degree of the spline interpolation (1: linear; 2:quadratic;...)<br> **spline_points**: Number of points in the atmosphere n. Minimum: 2 (1 at top and 1 at bottom of the atmosphere)<br> **spline_smooting** [float]: option to add a Gaussian filter over the spline profile to smooth it out<br> **Ti** [float]: (i lies between 0 and n-1) Temperature at the ith point in the atmosphere. i=0 is the surface and i=n-1 is the temperature at the top of the atmosphere <br> **Position_Pi** [float]: (i lies between 1 and n-2) lies between 0 and. Position of the ith pressure point in the atmosphere.<br>|
   ```
   TEMPERATURE PARAMETERS:
     parameterization: polynomial
@@ -202,32 +204,32 @@ The config file needs to have specific sections for the run to work properly.
     - **M_pl**: the mass of the planet. The default unit is M_earth (astropy constant).
 	Here is an example:
 
-```
-PHYSICAL PARAMETERS:
-  P0:
-    prior:
-      kind: log-uniform
-      prior_specs:
-        log_lower: -4
-        log_upper: 2
-    truth: 1.0294
-  d_syst:
-    truth: 10.
-  R_pl:
-    prior:
-      kind: gaussian
-      prior_specs:
-        mean: 1
-        sigma: 0.2
-    truth: 1.
-  M_pl:
-    prior:
-      kind: log-gaussian
-      prior_specs:
-        log_mean: 0
-        log_sigma: 0.4
-    truth: 1.
-```
+  ```
+  PHYSICAL PARAMETERS:
+    P0:
+      prior:
+        kind: log-uniform
+        prior_specs:
+          log_lower: -4
+          log_upper: 2
+      truth: 1.0294
+    d_syst:
+      truth: 10.
+    R_pl:
+      prior:
+        kind: gaussian
+        prior_specs:
+          mean: 1
+          sigma: 0.2
+      truth: 1.
+    M_pl:
+      prior:
+        kind: log-gaussian
+        prior_specs:
+          log_mean: 0
+          log_sigma: 0.4
+      truth: 1.
+  ```
 
 
 - **CHEMICAL COMPOSITION PARAMETERS**: In this section, we must list all the parameters or known values concerning the atmospheric composition of the atmosphere. These are:
@@ -272,15 +274,25 @@ PHYSICAL PARAMETERS:
 
 
 - **CLOUD PARAMETERS**:
+```{warning}
+Documentation work in progress.
+```
+
 
 - **SCATTERING PARAMETERS**: In this section, we must list all the parameters or known values concerning the scattering treatment. This section is optional and relevant only if any of the scattering settings are True (see above). The keywords that could be added are:
 
-  - **reflectance:** needed when direct_light and/or thermal are True. It is the reflectance of the surface. **TODO:** implement wavelength-dependent reflectance
-emissivity: needed when direct_light and/or thermal are True. It is the emissivity of the surface. 
-  - **geometry [str]**: It is a setting needed when direct_light is True. It represents the geometry of the star-planet system (see https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light). Currently implemented (and validated) geometries are planetary_ave and dayside_ave.  **TODO** add quadrature
-  - **stellar_temperature [float]**: it is a known value needed when direct_light is True. It is the stellar temperature, used to calculate the incident stellar spectrum (see https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light ). The default unit is K.
-  - **stellar_radius [float]**: it is a known value needed when direct_light is True. It is the stellar radius, used to calculate the incident stellar spectrum (see https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light ). The default unit is R_sun.
-  - **semimajor_axis [float]**: it is a known value needed when direct_light is True. It is the semimajor axis of the stellar-planet system, used to calculate the incident stellar spectrum (see https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light ). The default unit is AU.
+  - **reflectance:** needed when direct_light and/or thermal are True. It is the reflectance of the surface.
+  ```{warning}
+Documentation work in progress. (implement wavelength-dependent reflectance)
+```
+-**emissivity**: needed when direct_light and/or thermal are True. It is the emissivity of the surface. 
+  - **geometry [str]**: It is a setting needed when direct_light is True. It represents the geometry of the star-planet system (see [petitRADTRANS docs](https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light)). Currently implemented (and validated) geometries are planetary_ave and dayside_ave. 
+  ```{warning}
+  Documentation work in progress. (add quadrature)
+  ```
+  - **stellar_temperature [float]**: it is a known value needed when direct_light is True. It is the stellar temperature, used to calculate the incident stellar spectrum (see [petitRADTRANS docs](https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light) ). The default unit is K.
+  - **stellar_radius [float]**: it is a known value needed when direct_light is True. It is the stellar radius, used to calculate the incident stellar spectrum (see [petitRADTRANS docs](https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light) ). The default unit is R_sun.
+  - **semimajor_axis [float]**: it is a known value needed when direct_light is True. It is the semimajor axis of the stellar-planet system, used to calculate the incident stellar spectrum (see [petitRADTRANS docs](https://petitradtrans.readthedocs.io/en/latest/content/notebooks/emis_scat.html#Scattering-of-stellar-light) ). The default unit is AU.
 
   ```
   SCATTERING PARAMETERS:
@@ -308,23 +320,5 @@ emissivity: needed when direct_light and/or thermal are True. It is the emissivi
 
   ```
 
-- **USER-DEFINED UNITS**: This is an optional section that contains all user-defined units, if any (see Units). **TODO** test this
-
-# Running a Retrieval
-
-On any local or remote machine, you can launch the retrieval by using
-
-```
-python path/to/main.py -config path/to/config_file.yaml
-```
-Where you can specify the absolute path to the main.py file and the absolute path to the config file. 
-When running on a shared machine, it is recommended to use nice -n 19 to reduce the priority of your jobs and to allow simultaneous computation by other people.
-
-If you want to run the retrieval on multiple cores (recommended as it speeds up the calculation) you can use `mpiexec -n NUM_CORES` where you can specify the number of cores to use. 
-
-The command then becomes:
-
-```
-nice -n 19 mpiexec -n NUM_CORES python /path/to/main.py --config /path/to/config_file.yaml
-```
+- **USER-DEFINED UNITS**: This is an optional section that contains all user-defined units, if any (see [Units](units.md)). 
 

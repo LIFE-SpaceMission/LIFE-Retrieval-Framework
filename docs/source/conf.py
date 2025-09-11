@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath("../../pyretlife"))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "pyRetLIFE"
-copyright = "2024, Alei, Konrad, et al."
+copyright = "2022, Alei, Konrad, et al."
 author = "Alei, Konrad, et al."
 release = "2022"
 
@@ -46,5 +46,11 @@ autodoc_mock_imports = ["petitRADTRANS", "normflows", "spectres", "deepdiff"]
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
+html_theme = "sphinx_book_theme"
+html_theme_options = {
+    "show_toc_level": 2,
+    "repository_url": "https://github.com/LIFE-SpaceMission/LIFE-Retrieval-Framework",
+    "path_to_docs": "docs/source",
+    "use_issues_button": True,
+    "use_repository_button": True,
+}

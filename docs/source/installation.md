@@ -18,7 +18,7 @@ python -m venv venvname
 source venvname/bin/activate
 ```
 
-##  Numpy needs to be installed
+##  Install Numpy
 
 ```
 pip install numpy

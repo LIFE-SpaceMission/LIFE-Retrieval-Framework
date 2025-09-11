@@ -1,6 +1,6 @@
 
 
-## Plotting of the Retrieval Results
+# Plotting of the Retrieval Results
 
 To plot retrieval results, run the following command from a terminal window:
 The routine uses the same YAML configuration file as the retrieval itself. The file was copied to the output directory. Calling the plotting routine must include:
@@ -17,7 +17,7 @@ from pyretlife.retrieval_plotting.run_plotting import retrieval_plotting_object
 
 The retrieval plotting routine is organized in a class structure, which inherits from the retrieval_object class.
 
-## INITIALIZATION
+## Initialization
 
 In order to initialize an instance of the retrieval plotting class the following parameters need to be specified:
 
@@ -120,7 +120,10 @@ There are the following routines to visualize the retrieved posterior distributi
     - **color [str] (Default: 'k')**: colours in which the posteriors will be plotted. Any colour valid in pyplot.matplotlib will work also RGB colours.
     - **add_table [bool] (Default: False)**: If True‘, a table summarizing the retrieved values of all parameters is added to the top right corner of the corner plot.
     - **color_truth [str] (Default: 'C3')**: colours in which the provided true values will be plotted. Any colour valid in pyplot.matplotlib will work also RGB colours.
-    - **ULU_lim [list] (Default: [-0.15,0.75])**: TBD
+    - **ULU_lim [list] (Default: [-0.15,0.75])**: 
+      ```{warning}
+  Documentation work in progress. 
+  ```
     - **parameter_units='input' [str, dict]**: Units for the parameters that are to be used in the plots. If ‘input’, the units specified in the configuration file are used. Otherwise, the standard retrieval units are used. Alternatively, a dictionary can be passed to specify units for individual parameters. The key specifies the name of the parameter as defined in the configuration file. The corresponding value should be an astropy.units unit.
     - **custom_unit_titles [dict] (Default: {})**: Allows the user to provide custom titles for the units of specific parameters. The key specifies the name of the parameter as defined in the configuration file. The corresponding value should be a string (TeX format) describing the unit of the parameter. If no unit title is provided, it will be generated from the astropy unit automatically.
     - **custom_parameter_titles [dict] (Default: {})**: Allows the user to provide custom titles for specific parameters. The key specifies the name of the parameter as defined in the configuration file. The corresponding value should be a string (TeX format) describing the name of the parameter. If no unit title is provided, the name from the configuration file will be used
@@ -156,7 +159,7 @@ Posteriors(save=False,
        
 There are the following routines to visualize the spectra corresponding to the retrieved posterior distributions of the parameters:
 - **plot_retrieved_flux**: plots spectra corresponding to the retrieved parameter posterior distributions. It requires:
-    - **ax [matplotlib.pyplot.axes] (Default: None)**: TBD
+    - **ax [matplotlib.pyplot.axes] (Default: None)**: The subplot object.
     - **color [str] (Default: 'C2')**: colours in which the spectra corresponding to the retrieved posterior distributions will be plotted. Any colour valid in matplotlib.pyplol will work also RGB colours.
     - **case_identifier [string] (Default: None)**: Option to print a text specifying the retrieval run in the plot.
     - **plot_noise [bool] (Default: False)**: specifies if the noise on the spectrum that was used as input for the retrieval should be shown in the spectrum plot.
@@ -211,8 +214,8 @@ There are the following routines to visualize the P–T profiles corresponding t
     - **bins_inlay [int] (Default: 20)**: Specifies the number of bins used for the 2d histogram in the surface conditions inlay plot.
     - **x_lim_inlay [list] (Default: None)**: Specifies the x-range plotted in the inlay plot. If none is provided, it will be automatically chosen.
     - **y_lim_inlay [list] (Default: None)**: Specifies the y-range plotted in the inlay plot. If none is provided, it will be automatically chosen.
-    - **figure [matplotlib.pyplot.figure] (Default: None)**: TBD
-    - **ax [matplotlib.pyplot.axes] (Default: None)**: TBD
+    - **figure [matplotlib.pyplot.figure] (Default: None)**: The figure object.
+    - **ax [matplotlib.pyplot.axes] (Default: None)**: The subplot object.
     - **color [string] (Default: 'C2')**: colours in which the P–T profiles corresponding to the retrieved posterior distributions will be plotted. Any colour valid in matplotlib.pyplot will work also RGB colours.
     - **case_identifier [string] (Default: '')**: Option to print a text specifying the retrieval run in the plot.
     - **legend_n_col [int] (Default: 2)**: Number of columns in the legend of the plot.

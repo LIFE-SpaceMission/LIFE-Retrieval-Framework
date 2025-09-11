@@ -21,7 +21,7 @@ The default units assumed when ingesting the config file (unless specified, see 
 | wavelength | micron | 
 | flux | erg s-1 Hz-1 m-2 |
 
-These are all associated with astropy units and constants (https://docs.astropy.org/en/stable/units/index.html#module-astropy.units.si) and can be indexed with any aliases associated with this module.
+These are all associated with [astropy units and constants](https://docs.astropy.org/en/stable/units/index.html#module-astropy.units.si) and can be indexed with any aliases associated with this module.
 All other quantities (e.g.mass fractions, reflectance, emissivity) are assumed to be unitless.
 
 If you need a custom unit, you can define a custom unit in the USER-DEFINED UNITS section. This needs to be expressed in terms of astropy constants in the config file (e.g. custom_meter: 1.01 m).
