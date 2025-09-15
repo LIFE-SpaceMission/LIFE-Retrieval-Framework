@@ -5,7 +5,7 @@ corner==2.2.1
 cuthon==0.5
 cycler==0.10.0
 Cython==0.29.23
-dataclasses==0.8
+dataclasses
 docopt==0.6.2
 h5py==3.1.0
 idna==3.3
