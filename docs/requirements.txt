@@ -14,3 +14,10 @@ mpi4py
 nautilus-sampler
 jupyter
 ipykernel
+sphinx
+sphinx_book_theme
+nbsphinx
+ipython
+pandoc
+furo
+myst_parser
