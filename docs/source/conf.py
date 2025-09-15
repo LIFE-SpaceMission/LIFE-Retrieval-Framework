@@ -54,3 +54,5 @@ html_theme_options = {
     "use_issues_button": True,
     "use_repository_button": True,
 }
+
+html_logo = "logo.png"

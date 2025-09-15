@@ -1,7 +1,7 @@
 
 # Create a Configuration File
 
-The retrieval reads a YAML config file to set up the run. This config file contains all the settings, the known values, and the parameters that the retrieval will need to use, or retrieve for, in a run. If some keywords are not specified, the retrieval falls back into reading the default config file configs/config_default.yaml which contains some standard values generally used in our previous retrievals. In the remainder of the text, we will show in red all the settings/keywords/parameters that must be specified in the config file; in blue the settings/keywords/parameters that have a default value in the config_default.yaml file; in green the settings/keywords/parameters that are optional and/or necessary only if some specific settings are turned on. 
+The retrieval reads a YAML config file to set up the run. This config file contains all the settings, the known values, and the parameters that the retrieval will need to use, or retrieve for, in a run. If some keywords are not specified, the retrieval falls back into reading the default config file `configs/config_default.yaml` which contains some standard values generally used in our previous retrievals. In the remainder of the text, we will show in red all the settings/keywords/parameters that must be specified in the config file; in blue the settings/keywords/parameters that have a default value in the `config_default.yaml` file; in green the settings/keywords/parameters that are optional and/or necessary only if some specific settings are turned on. 
 
 These three categories need to follow specific rules to be recognized correctly by the script when reading the configuration file.
 
@@ -198,7 +198,7 @@ The config file needs to have specific sections for the run to work properly.
   ```
 
 - **PHYSICAL PARAMETERS**: In this section, we must list all the parameters or known values concerning the physics of the planet/system must be included. These are:
-    - **P0**: the ground pressure of the atmosphere. In the case of opaque clouds (see CLOUDS), it must not be specified as a parameter, but it can be specified as a known. In all other cases, it must be specified either as a parameter or known. The default unit is bar.
+    - **P0**: the ground pressure of the atmosphere. In the case of opaque clouds (see [CLOUDS]), it must not be specified as a parameter, but it can be specified as a known. In all other cases, it must be specified either as a parameter or known. The default unit is bar.
     - **d_syst**: the distance of the system from the observer. The default unit is parsec.
     - **R_pl**: the radius of the planet. The default unit is R_earth (astropy constant).
     - **M_pl**: the mass of the planet. The default unit is M_earth (astropy constant).
