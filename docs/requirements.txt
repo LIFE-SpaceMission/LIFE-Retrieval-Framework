@@ -1,0 +1,16 @@
+numpy==1.26.4
+meson-python
+ninja
+pymultinest
+matplotlib
+scipy
+astropy
+h5py
+molmass
+spectres
+pandas
+deepdiff
+mpi4py
+nautilus-sampler
+jupyter
+ipykernel
