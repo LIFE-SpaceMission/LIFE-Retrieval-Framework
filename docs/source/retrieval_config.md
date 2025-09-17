@@ -113,20 +113,20 @@ The config file needs to have specific sections for the run to work properly.
     - **live_points [int] (Default: 600)**: an integer to specify the number of live points used by MultiNest.
 
   ```
-  RUN SETTINGS:
-    wavelength_range: [2,20]
-    output_folder: template_retrieval/
-    include_scattering:
-      Rayleigh: True
-      thermal: False
-      direct_light: False
-      clouds: False
-    include_CIA: True
-    include_moon: False
-    resolution: 50
-    n_layers: 100
-    log_top_pressure: -4
-    live_points: 600
+    RUN SETTINGS:
+      wavelength_range: [2,20]
+      output_folder: template_retrieval/
+      include_scattering:
+        Rayleigh: True
+        thermal: False
+        direct_light: False
+        clouds: False
+      include_CIA: True
+      include_moon: False
+      resolution: 50
+      n_layers: 100
+      log_top_pressure: -4
+      live_points: 600
   ```
 
 - **GROUND TRUTH DATA**: In this section, all the paths to the input data must be specified. Units can be specified if different from the default units.
