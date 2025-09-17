@@ -54,7 +54,7 @@ if __name__ == "__main__":
     # Read the command line arguments (config file path)
     args = get_cli_arguments()
     
-    if str(args.sampler).casefold() == "multinest":
+    if str(args.sampler).casefold() == "multinest" or str(args.sampler).casefold() == "none":
         from mpi4py import MPI
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     pyret_ship.assign_prior_functions()
     pyret_ship.vae_initialization()
     pyret_ship.petitRADTRANS_initialization()
-    if args.sampler.casefold() == "multinest":
+    if str(args.sampler).casefold() == "multinest" or str(args.sampler).casefold() == "none":
         comm.Barrier()
 
     if rank == 0:
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     
     
     # # Run Nautilus
-    if str(args.sampler).casefold() == "nautilus" or str(args.sampler).casefold() == "none":
+    if str(args.sampler).casefold() == "nautilus":
         print("Begining retrieval with Nautilus")
         import numpy as np
         # from mpi4py.futures import MPIPoolExecutor
@@ -106,7 +106,7 @@ if __name__ == "__main__":
                    np.hstack((points, log_w.reshape((len(log_w),1)), log_l.reshape((len(log_l),1)))))
     
     # # Run MultiNest
-    elif str(args.sampler).casefold() == "multinest":
+    elif str(args.sampler).casefold() == "multinest" or str(args.sampler).casefold() == "none":
         comm.Barrier()
         from pymultinest.solve import solve
         result = solve(

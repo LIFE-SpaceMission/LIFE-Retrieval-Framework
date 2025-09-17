@@ -31,7 +31,7 @@ def get_cli_arguments() -> Namespace:
     parser.add_argument(
         "--sampler",
         required=False,
-        help="Nested sampling algorithm ([Nautilus] or MultiNest)."
+        help="Nested sampling algorithm ([MultiNest] or Nautilus)."
     )
     args = parser.parse_args()
     return args
@@ -51,13 +51,18 @@ if __name__ == "__main__":
         config_file = yaml.safe_load(file)
     path = str(config_file['RUN SETTINGS']['output_folder'])
     
-    if str(args.sampler).casefold() == 'multinest':
-        inputs  = shlex.split('mpiexec -n '+str(int(args.nproc))+\
-                              ' python /home/ipa/quanz/user_accounts/zaburr/packages/LIFE-Retrieval-Framework/scripts/main.py --config '\
-                              +str(args.config) + ' --sampler ' +str(args.sampler))
-    else:
-        inputs  = shlex.split('python /home/ipa/quanz/user_accounts/zaburr/packages/LIFE-Retrieval-Framework/scripts/main.py --config '\
+    if not os.path.exists(os.getcwd() + '/main.py'):
+        raise FileNotFoundError('Could not locate file LIFE-Retrieval-Framework/scripts/main.py.' + \
+                                'Make sure to launch this file from the scripts dir or create a new version and point to main.py.')
+    
+    if str(args.sampler).casefold() == 'nautilus':
+        inputs  = shlex.split('python ' + os.getcwd() + '/main.py --config '\
                               +str(args.config) + ' --sampler ' +str(args.sampler) +' --nproc ' +str(args.nproc))
+    else:
+        inputs  = shlex.split('mpiexec -n ' + str(int(args.nproc)) + \
+                              ' python ' + os.getcwd() + '/main.py --config '\
+                              +str(args.config) + ' --sampler ' +str(args.sampler))
+        
 
     process = subprocess.Popen(inputs,env=os.environ)
     process.wait()
