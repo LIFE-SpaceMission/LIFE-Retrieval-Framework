@@ -105,28 +105,29 @@ The config file needs to have specific sections for the run to work properly.
         
         - **include_moon [bool] (Default: False)**: a boolean to turn on the calculation of the moon spectrum (blackbody) to be added to the planetary spectrum.
     - **resolution [int] (Default: 1000)**: an integer to specify the spectral resolution to use for the calculation for each theoretical model calculated during the run. If not specified, it will default to R=1000 which is the default resolution of petitRADTRANS. However, we strongly recommend using a lower resolution setting if you only require R=50-200 (LIFE scenario), since it will result in a significant increase in computational speed. It is also recommended to make sure that precomputed correlated-k tables for every species of interest are included in the opacity folder (i.e. the path of the PYRETLIFE_OPACITY_PATH environment variable).
-      ```{warning}
+  ```{warning}
   Documentation work in progress. (rebinning of corr-k at any resolution in retrievals)
   ```
+
     - **n_layers [int] (Default: 100)**: an integer to specify the number of layers in which to split the atmosphere.
     - **log_top_pressure [float] (Default: -6)**: a float to specify the pressure (in log scale) of the top layer of the atmosphere.
     - **live_points [int] (Default: 600)**: an integer to specify the number of live points used by MultiNest.
 
   ```
-    RUN SETTINGS:
-      wavelength_range: [2,20]
-      output_folder: template_retrieval/
-      include_scattering:
-        Rayleigh: True
-        thermal: False
-        direct_light: False
-        clouds: False
-      include_CIA: True
-      include_moon: False
-      resolution: 50
-      n_layers: 100
-      log_top_pressure: -4
-      live_points: 600
+  RUN SETTINGS:
+    wavelength_range: [2,20]
+    output_folder: template_retrieval/
+    include_scattering:
+      Rayleigh: True
+      thermal: False
+      direct_light: False
+      clouds: False
+    include_CIA: True
+    include_moon: False
+    resolution: 50
+    n_layers: 100
+    log_top_pressure: -4
+    live_points: 600
   ```
 
 - **GROUND TRUTH DATA**: In this section, all the paths to the input data must be specified. Units can be specified if different from the default units.
