@@ -51,16 +51,17 @@ if __name__ == "__main__":
         config_file = yaml.safe_load(file)
     path = str(config_file['RUN SETTINGS']['output_folder'])
     
-    if not os.path.exists(os.getcwd() + '/main.py'):
-        raise FileNotFoundError('Could not locate file LIFE-Retrieval-Framework/scripts/main.py.' + \
-                                'Make sure to launch this file from the scripts dir or create a new version and point to main.py.')
+    script_path = os.path.abspath(os.path.dirname(__file__)) + '/main.py'
+    if not os.path.exists(script_path):
+        raise FileNotFoundError('Could not locate file ' + script_path + \
+                                '\nMake sure to launch this file from the scripts dir or create a new version and point to main.py')
     
     if str(args.sampler).casefold() == 'nautilus':
-        inputs  = shlex.split('python ' + os.getcwd() + '/main.py --config '\
+        inputs  = shlex.split('python ' + script_path + ' --config '\
                               +str(args.config) + ' --sampler ' +str(args.sampler) +' --nproc ' +str(args.nproc))
     else:
         inputs  = shlex.split('mpiexec -n ' + str(int(args.nproc)) + \
-                              ' python ' + os.getcwd() + '/main.py --config '\
+                              ' python ' + script_path + ' --config '\
                               +str(args.config) + ' --sampler ' +str(args.sampler))
         
 
