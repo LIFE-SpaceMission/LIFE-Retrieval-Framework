@@ -234,6 +234,12 @@ def populate_dictionaries(
                     and "parameterization" in config[section][subsection].keys()
                     and config[section][subsection]["parameterization"] == "polynomial"
                 ):
+                    # Get the unit of the parent molecule for the coefficients
+                    if "unit" in config[section][subsection].keys():
+                        parent_unit = u.Unit(config[section][subsection]["unit"])
+                    else:
+                        parent_unit = units.return_units(subsection, units.std_input_units)
+
                     for nested_key, nested_value in config[section][subsection].items():
                         if nested_key.startswith(subsection + "_"):
                             if type(nested_value) is dict:
@@ -241,23 +247,13 @@ def populate_dictionaries(
                                     parameters[nested_key] = nested_value
                                     if not "truth" in nested_value.keys():
                                         parameters[nested_key]["truth"] = None
-                                    if "unit" in nested_value.keys():
-                                        input_unit = u.Unit(nested_value["unit"])
-                                    else:
-                                        input_unit = units.return_units(
-                                            nested_key, units.std_input_units
-                                        )
-                                    parameters[nested_key]["unit"] = input_unit
+                                    # Polynomial coefficients inherit the unit of their parent molecule
+                                    parameters[nested_key]["unit"] = parent_unit
                                     parameters[nested_key]["type"] = section
                                 elif "truth" in nested_value.keys():
                                     knowns[nested_key] = nested_value
-                                    if "unit" in nested_value.keys():
-                                        input_unit = u.Unit(nested_value["unit"])
-                                    else:
-                                        input_unit = units.return_units(
-                                            nested_key, units.std_input_units
-                                        )
-                                    knowns[nested_key]["unit"] = input_unit
+                                    # Polynomial coefficients inherit the unit of their parent molecule
+                                    knowns[nested_key]["unit"] = parent_unit
                                     knowns[nested_key]["type"] = section
 
                 # read lists if available. Can be a str or list.

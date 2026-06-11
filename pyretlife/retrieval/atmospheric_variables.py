@@ -124,9 +124,13 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict, molecule: s
     )
     if (np.min(temperature) <= 0) and (np.max(temperature) > 0):
         print(
-            "WARNING: The polynomial profile has negative values. Negative values are replaced with a small positive value."
+            "WARNING: The polynomial profile has negative values. Negative values are replaced with a small positive value or zero."
         )
-    return np.maximum(temperature, 0.000001)
+    
+    if (molecule == "a"): # This is the temperature profile
+        return np.maximum(temperature, 1e-15)
+    else: # This is an abundance profile, so we set negative values to zero
+        return np.maximum(temperature, 0.0)
 
 
 def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict, settings: dict) -> ndarray:
@@ -537,6 +541,12 @@ def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tup
     abundances = {}
 
     for molecule in chem_vars.keys():
+        # Skip polynomial coefficients - they're not abundances themselves
+        parts = molecule.split('_')
+        if len(parts) > 1 and parts[-1].isdigit():
+            # This is a polynomial coefficient (e.g., O3_0, O3_1), skip it
+            continue
+
         if 'Drying' not in molecule:
             if isinstance(chem_vars[molecule], (list, np.ndarray)):
                 abundances[molecule] = np.array(chem_vars[molecule])
