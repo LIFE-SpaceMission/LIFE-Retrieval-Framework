@@ -123,10 +123,12 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict, molecule: s
         )
     )
     if (np.min(temperature) <= 0) and (np.max(temperature) > 0):
-        print(
-            "WARNING: The polynomial profile has negative values. Negative values are replaced with a small positive value or zero."
-        )
+        '''print(
+            "WARNING: The polynomial profile has negative values."
+        )'''
     
+    return temperature
+
     if (molecule == "a"): # This is the temperature profile
         return np.maximum(temperature, 1e-15)
     else: # This is an abundance profile, so we set negative values to zero
