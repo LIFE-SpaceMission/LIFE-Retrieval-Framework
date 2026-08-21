@@ -114,26 +114,7 @@ def generate_color_map_from_levels(Z,color_levels,level_thresholds):
     while len(levels) <= np.shape(color_levels)[0]:
         levels += [levels[-1]*10]
 
-    # Ensure levels are sorted and strictly increasing
-    levels = sorted(set(levels))
-
-    # If levels are not strictly increasing, add small increments
-    for i in range(1, len(levels)):
-        if levels[i] <= levels[i-1]:
-            levels[i] = levels[i-1] * (1.000001)
-
-    # Ensure the number of levels matches the number of colors + 1
-    # from_levels_and_colors requires len(levels) = len(colors) + 1
-    expected_levels = np.shape(color_levels)[0] + 1
-    if len(levels) < expected_levels:
-        # Extend levels if needed
-        while len(levels) < expected_levels:
-            levels.append(levels[-1] * 1.1)
-    elif len(levels) > expected_levels:
-        # Truncate levels if there are too many
-        levels = levels[:expected_levels]
-
-    # Generate the colormap
+    # Generate the colormap 
     map, norm  = col.from_levels_and_colors(levels,color_levels)
 
     # Return the colormap

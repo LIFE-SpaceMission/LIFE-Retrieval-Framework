@@ -42,14 +42,7 @@ def Generate_Parameter_Titles(rp_object):
         if 'title' not in rp_object.parameters[key].keys():
             # Define the titles such that they work well for the chemical abundances
             if rp_object.parameters[key]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                # Check if this is a polynomial parameter (e.g., O3_0, O3_1)
-                parts = key.split('_')
-                if len(parts) > 1 and parts[-1].isdigit():
-                    # For polynomial parameters, display the full name
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+key+'}$'
-                else:
-                    # For regular chemical parameters, use the old formatting
-                    rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
+                rp_object.parameters[key]['title'] = '$\\mathrm{'+'_'.join(re.sub( r"([0-9])", r" \1", key.split('_')[0]).split())+'}$'
                         
             # Define the titles such that they work well for the physical parameters
             elif rp_object.parameters[key]['type'] == 'PHYSICAL PARAMETERS':
@@ -125,18 +118,12 @@ def Scale_Posteriors(rp_object,
     :rtype: tuple of dicts
     """
 
-    for param in parameters:
+    for param in parameters: 
         # If we want to use log abundnces update data to log abundances
-        if log_abundances:
+        if log_abundances:    
             # Adjust retrieved abundances for the line absorbers
             if rp_object.parameters[param]['type'] == 'CHEMICAL COMPOSITION PARAMETERS':
-                # Skip polynomial parameters - they are not abundances
-                is_polynomial_param = False
-                parts = param.split('_')
-                if len(parts) > 1 and parts[-1].isdigit():
-                    is_polynomial_param = True
-
-                if 'Slope' not in param and not is_polynomial_param:
+                if 'Slope' not in param:
                     local_post[param] = np.log10(local_post[param])
                     local_titles[param] = '$L\\left('+local_titles[param][1:-1]+'\\right)$'
                     if not local_truths[param] is None:
@@ -290,15 +277,7 @@ def Corner_Plot(parameters,
             axs[i,i].vlines(q,axs[i,i].get_ylim()[0],axs[i,i].get_ylim()[1],colors='k', ls='--')
 
             # Round q and print the retrieved value above the histogram plot
-            quantile_diff_1 = abs(q[2]-q[1])
-            quantile_diff_2 = abs(q[0]-q[1])
-
-            # Handle case where quantile differences are zero or extremely small
-            if quantile_diff_1 > 0 and quantile_diff_2 > 0:
-                round = min(np.log10(quantile_diff_1), np.log10(quantile_diff_2))
-            else:
-                # If differences are zero, use a default round value
-                round = 0
+            round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
             if round>=0.5:
                 if add_table:
                     if truths[param] is not None:
@@ -311,17 +290,7 @@ def Corner_Plot(parameters,
             else:
                 if add_table:
                     if truths[param] is not None:
-                        # Check if this is a polynomial parameter
-                        parts = param.split('_')
-                        is_polynomial = len(parts) > 1 and parts[-1].isdigit()
-
-                        # Format truth value with scientific notation for very small numbers
-                        if is_polynomial and abs(truths[param]) < 1e-3:
-                            truth_str = f"{truths[param]:.2e}"
-                        else:
-                            truth_str = str(np.round(truths[param],int(-np.floor(round-0.5))))
-
-                        table.append([truth_str,
+                        table.append([str(np.round(truths[param],int(-np.floor(round-0.5)))),
                             str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                             str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                             str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$'])
@@ -388,17 +357,7 @@ def Corner_Plot(parameters,
                                 axs[j,j].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
                         else:
                             if add_table:
-                                # Check if this is a polynomial parameter
-                                parts = param_j.split('_')
-                                is_polynomial = len(parts) > 1 and parts[-1].isdigit()
-
-                                # Format truth value with scientific notation for very small numbers
-                                if is_polynomial and abs(truths[param_j]) < 1e-3:
-                                    truth_str = f"{truths[param_j]:.2e}"
-                                else:
-                                    truth_str = str(np.round(truths[param_j],int(-np.floor(round-0.5))))
-
-                                table[j] = [truth_str,
+                                table[j] = [str(np.round(truths[param_j],int(-np.floor(round-0.5)))),
                                         str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$']
@@ -439,17 +398,7 @@ def Corner_Plot(parameters,
                                 axs[i,i].set_title(str(int(q[1]))+r' $_{\,'+str(int(q[0]-q[1]))+r'}^{\,+'+str(int(q[2]-q[1]))+r'}$',fontsize=fs)
                         else:
                             if add_table:
-                                # Check if this is a polynomial parameter
-                                parts = param_i.split('_')
-                                is_polynomial = len(parts) > 1 and parts[-1].isdigit()
-
-                                # Format truth value with scientific notation for very small numbers
-                                if is_polynomial and abs(truths[param_i]) < 1e-3:
-                                    truth_str = f"{truths[param_i]:.2e}"
-                                else:
-                                    truth_str = str(np.round(truths[param_i],int(-np.floor(round-0.5))))
-
-                                table[i] = [truth_str,
+                                table[i] = [str(np.round(truths[param_i],int(-np.floor(round-0.5)))),
                                         str(np.round(q[1],int(-np.floor(round-0.5))))+r' $_{\,'+\
                                         str(np.round(q[0]-q[1],int(-np.floor(round-0.5))))+r'}^{\,+'+\
                                         str(np.round(q[2]-q[1],int(-np.floor(round-0.5))))+r'}$']

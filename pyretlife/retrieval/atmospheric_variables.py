@@ -97,7 +97,7 @@ def set_log_ground_pressure(
     return phys_vars
 
 
-def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict, molecule: str = "a") -> ndarray:
+def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict) -> ndarray:
     """
     Calculate a polynomial temperature profile.
 
@@ -115,24 +115,14 @@ def calculate_polynomial_profile(pressure: ndarray, temp_vars: dict, molecule: s
         np.polyval(
             np.array(
                 [
-                    temp_vars[molecule + "_" + str(len(temp_vars) - 1 - i)]
+                    temp_vars["a_" + str(len(temp_vars) - 1 - i)]
                     for i in range(len(temp_vars))
                 ]
             ),
             np.log10(pressure),
         )
     )
-    if (np.min(temperature) <= 0) and (np.max(temperature) > 0):
-        '''print(
-            "WARNING: The polynomial profile has negative values."
-        )'''
-    
-    return temperature
-
-    if (molecule == "a"): # This is the temperature profile
-        return np.maximum(temperature, 1e-15)
-    else: # This is an abundance profile, so we set negative values to zero
-        return np.maximum(temperature, 0.0)
+    return temperature # np.maximum(temperature,0.01)
 
 
 def calculate_spline_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict, settings: dict) -> ndarray:
@@ -520,6 +510,36 @@ def calculate_line_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict,
     return temperature
 
 
+def calculate_polynomial_abundance_profile(
+    pressure: ndarray, abundance_vars: dict, molecule: str
+) -> ndarray:
+    """Calculate a polynomial molecular-abundance profile.
+
+    The polynomial is evaluated as a function of log10 pressure. Coefficients
+    are expected in ascending-order keys, for example ``O3_0``, ``O3_1``, ...,
+    where ``O3_0`` is the constant term. Any negative abundances produced by
+    the polynomial are clipped to zero.
+
+    :param pressure: Pressure values at which to evaluate the profile
+    :type pressure: ndarray
+    :param abundance_vars: Dictionary containing the molecular coefficients
+    :type abundance_vars: dict
+    :param molecule: Molecule prefix used by the coefficient keys
+    :type molecule: str
+    :return: Non-negative abundance profile at the given pressure levels
+    :rtype: ndarray
+    """
+    coefficients = np.array(
+        [
+            abundance_vars[f"{molecule}_{degree}"]
+            for degree in range(len(abundance_vars) - 1, -1, -1)
+        ]
+    )
+    abundance = np.polyval(coefficients, np.log10(pressure))
+
+    return np.maximum(np.asarray(abundance), 0.0)
+
+
 def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tuple[dict,dict]:
     """
     Calculate the abundances of chemical species in an atmosphere.
@@ -575,7 +595,7 @@ def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tup
                     coeff = value
                 polynomial_coefficients[key] = float(coeff)
 
-            abundances[molecule] = np.maximum(calculate_polynomial_profile(
+            abundances[molecule] = np.maximum(calculate_polynomial_abundance_profile(
                 press, polynomial_coefficients, molecule=molecule
             ), 0.0)
             # this is all a little ugly and can probably be cleaned up
@@ -654,7 +674,6 @@ def water_ice_vapor_pressure(T, T_ST=373.15, p_ST=1.01325, T_0=273.16, p_i0=6.11
         term4 = np.log10(p_i0)
         p_vp = 10**(term1+term2+term3+term4)
     return p_vp
-
 
 
 def condense_water_old(abundances_VMR, pressure, temperature, phys_vars, settings, drying=0.0):
