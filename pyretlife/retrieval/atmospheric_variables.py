@@ -517,8 +517,7 @@ def calculate_polynomial_abundance_profile(
 
     The polynomial is evaluated as a function of log10 pressure. Coefficients
     are expected in ascending-order keys, for example ``O3_0``, ``O3_1``, ...,
-    where ``O3_0`` is the constant term. Any negative abundances produced by
-    the polynomial are clipped to zero.
+    where ``O3_0`` is the constant term. Abundances are clipped to [0.0, 1.0].
 
     :param pressure: Pressure values at which to evaluate the profile
     :type pressure: ndarray
@@ -537,7 +536,7 @@ def calculate_polynomial_abundance_profile(
     )
     abundance = np.polyval(coefficients, np.log10(pressure))
 
-    return np.clip(np.asarray(abundance), min=0.0, max=1.0)
+    return np.clip(np.asarray(abundance), 0.0, 1.0)
 
 
 def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tuple[dict,dict]:
