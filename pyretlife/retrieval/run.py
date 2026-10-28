@@ -18,12 +18,21 @@ import importlib
 import json
 import os
 import sys
+import warnings
 from pathlib import Path
 import numpy as np
 from typing import Union, Tuple
 from astropy import constants as const
 
 from petitRADTRANS.radtrans import Radtrans
+
+# pyretlife deliberately updates Radtrans attributes between likelihood calls;
+# silence pRT's warning about that so MPI logs stay readable.
+warnings.filterwarnings(
+    "ignore",
+    message=r"setting a Radtrans property directly is not recommended",
+    category=UserWarning,
+)
 
 from pyretlife.retrieval.atmospheric_variables import (
     calculate_gravity,
@@ -36,6 +45,7 @@ from pyretlife.retrieval.atmospheric_variables import (
     calculate_line_profile,
     calculate_spline_profile,
     calculate_adiabat_profile,
+    load_pt_profile_from_file,
     calculate_abundances,
     condense_water,
     set_log_ground_pressure,
@@ -391,6 +401,9 @@ class RetrievalObject:
         
         elif self.settings["parameterization"] == "line":
             self.temp = calculate_line_profile(self.press, self.temp_vars, self.phys_vars)
+            
+        elif os.path.exists(self.settings["parameterization"]):
+            self.temp = load_pt_profile_from_file(self.settings["parameterization"], self.press)
 
         else:
             raise ValueError("Unknown PT setting!")
@@ -406,7 +419,7 @@ class RetrievalObject:
             if 'H2O_Drying' in self.chem_vars.keys():
                 self.abundances_VMR, self.condensation_pressures = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=self.chem_vars['H2O_Drying'])
             else:
-                self.abundances_VMR, self.condensation_pressures = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=0)
+                self.abundances_VMR, self.condensation_pressures = condense_water(self.abundances_VMR,self.press[::-1],self.temp[::-1],self.phys_vars,self.settings,drying=1)
         
         (
             self.abundances_VMR,
@@ -563,6 +576,7 @@ class RetrievalObject:
                 ** 2.0 
                 #+ np.log(2*np.pi*self.instrument[inst]["error"]**2)
             )
+        
         return log_likelihood
     
     def generate_new_spectrum(self):
@@ -596,7 +610,7 @@ class RetrievalObject:
             raise ValueError("Gas abundances do not sum to 1!")
         
         # Perform radiative transfer
-        self.rt_object.wavelength, self.rt_object.flux = self.calculate_spectrum()
+        self.rt_object.wavelength, self.rt_object.flux, self.rt_object.contr = self.calculate_spectrum(em_contr=True)
         # if validate_spectrum_goodness(self.rt_object.flux):
         #     return -1e99
 
@@ -624,6 +638,8 @@ class RetrievalObject:
         # Save output to file
         np.savetxt(self.settings["output_folder"], 
                    np.column_stack((instrument["wavelength"], rebinned_flux)))
+        # np.savetxt(self.settings["output_folder"].split('.')[0] + '_contribution.txt', 
+        #            self.rt_object.contr)
 
     def vae_initialization(self):
         # TODO see if it can be improved

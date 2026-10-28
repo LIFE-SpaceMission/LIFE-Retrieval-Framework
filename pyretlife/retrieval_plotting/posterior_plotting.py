@@ -262,7 +262,7 @@ def Corner_Plot(parameters,
         axs[i,i].set_xlim([h[1][0],h[1][-1]])
         axs[i,i].set_ylim([0,1.1*np.max(h[0])])
         axs[i,i].set_yticks([])
-
+        
         # Plotting the secified quantiles
         if quantiles1d is not None:
             if ULU is not None:
@@ -278,6 +278,8 @@ def Corner_Plot(parameters,
 
             # Round q and print the retrieved value above the histogram plot
             round = min(np.log10(abs(q[2]-q[1])),np.log10(abs(q[0]-q[1])))
+            if np.isnan(round) or np.isinf(round):
+                round = 1
             if round>=0.5:
                 if add_table:
                     if truths[param] is not None:

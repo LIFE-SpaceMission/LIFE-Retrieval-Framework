@@ -509,6 +509,27 @@ def calculate_line_profile(pressure: ndarray, temp_vars: dict, phys_vars: dict,
 
     return temperature
 
+def load_pt_profile_from_file(path: str, press: ndarray) -> ndarray:
+    """
+    Load the temperature profile from a file.
+
+    This function loads the temperature profile of a planet from a given csv file
+    and interpolates it to the correct pressure grid.
+    
+    :param path: Path to the PT profile that should be loaded
+    :type path: string
+    :param pressure: The pressure array
+    :type pressure: ndarray
+    :return: The temperature array
+    :rtype: ndarray
+    """
+    
+    PT_profile = np.genfromtxt(path, delimiter=',', skip_header=1)
+    temperature = np.interp(press, PT_profile[:,0], PT_profile[:,1])
+    
+    return temperature
+    
+
 
 def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tuple[dict,dict]:
     """
@@ -685,7 +706,7 @@ def condense_water_old(abundances_VMR, pressure, temperature, phys_vars, setting
     return abundances_VMR, condensation_pressures
 
 
-def condense_water(abundances_VMR, pressure, temperature, phys_vars, settings, drying=0.0):
+def condense_water(abundances_VMR, pressure, temperature, phys_vars, settings, drying=1.0):
     """
     Calculate the condensation of water in an atmosphere.
 
@@ -702,7 +723,7 @@ def condense_water(abundances_VMR, pressure, temperature, phys_vars, settings, d
     :type phys_vars: dict
     :param settings: Dictionary of settings for the calculation
     :type settings: dict
-    :param drying: Drying factor, defaults to 0.0
+    :param drying: Drying factor, defaults to 1.0 (no drying)
     :type drying: float, optional
     :return: Tuple containing updated abundances_VMR and condensation pressures
     :rtype: tuple
@@ -722,7 +743,7 @@ def condense_water(abundances_VMR, pressure, temperature, phys_vars, settings, d
         VP_Water[index] = water_ice_vapor_pressure(temperature[index]) #10**(np.log10(relative_humidity)-index*drying)*
 
     # Calculation of the variable water partial pressure profile.
-    # If water partial pressure exceeds vapor pressure the water condenses 
+    # If water partial pressure exceeds vapor pressure the water condenses
     # condensation_pressures stores the layers wher condensation occurrs
     #layer_thickness = np.log10(pressure[0])-np.log10(pressure[1])
     if len(pressure) == settings['n_layers']:
@@ -742,9 +763,12 @@ def condense_water(abundances_VMR, pressure, temperature, phys_vars, settings, d
     VMR_Water = PP_Water/pressure
     if below_surface is not None:
         VMR_Water[below_surface] = VMR_Water[above_surface[0]]
+    # Floor the VMR: the ice vapour pressure underflows to 0 below ~8 K, which
+    # would otherwise give 0/0 and log10(0) in the drying step below
+    VMR_Water = np.maximum(VMR_Water, 1e-30)
     abundances_VMR['H2O'] = VMR_Water[::-1]
 
-    # Calculate theVMR of the Water in the atmosphere
+    # Calculate the VMR of the Water in the atmosphere
     layer_drying = np.log10(drying)*abundances_VMR['H2O'][0]/abundances_VMR['H2O']
     abundances_VMR['H2O'] = 10**(np.log10(abundances_VMR['H2O'])+layer_drying)
 

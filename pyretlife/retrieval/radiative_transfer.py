@@ -8,9 +8,19 @@ import spectres
 from numpy import ndarray
 from astropy import constants as const
 
+from petitRADTRANS.opacities.opacities import Opacity
+
 #from pyretlife.retrieval.atmospheric_variables import (
 #    get_mm
 #)
+
+def rename_abundances_to_line_species(mass_fractions, line_names):
+    renamed = dict(mass_fractions)
+    for name in line_names:
+        base = Opacity.get_species_base_name(name)   # 'H2O-NatAbund__HN24' -> 'H2O'
+        if name != base and base in renamed:
+            renamed[name] = renamed.pop(base)
+    return renamed
 
 
 def define_linelists(
@@ -213,7 +223,9 @@ def calculate_emission_flux(
     and calculates the corresponding emitted flux using petitRADTRANS.
     See the documentation for petitRADTRANS.radtrans.Radtrans.calculate_flux.
     """
-
+    #accounts for pRT naming scheme
+    abundances_MMR = rename_abundances_to_line_species(abundances_MMR, settings["opacity_linelist"])
+    
     # Calculate the Spectrum of the planet, prevent unnecessary printing
     # TODO implement better logging
     # old_stdout = sys.stdout

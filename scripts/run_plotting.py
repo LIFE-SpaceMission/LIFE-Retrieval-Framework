@@ -10,6 +10,7 @@ import numpy as np
 import pickle
 import shlex,subprocess
 import yaml
+import signal
 
 # -----------------------------------------------------------------------------
 # DEFINITIONS
@@ -64,11 +65,19 @@ if __name__ == "__main__":
                               ' python ' + script_path + ' --config '\
                               +str(args.config) + ' --sampler ' +str(args.sampler))
         
-
+    # Run retrieval
     process = subprocess.Popen(inputs,env=os.environ)
-    process.wait()
-    process.terminate()
- 
+    returncode = process.wait()
+    # process.terminate()
+    
+    # Print exit status
+    print("\n\n##############################################################")
+    if returncode < 0:
+        print(f"Process terminated by signal {-returncode} ({signal.Signals(-returncode).name})\n", flush=True)
+    else:
+        print(f"Process exited with status {returncode}\n", flush=True)
+    
+    
     # Initializes a RetrievalObject (the pyret_ship)
     results = retrieval_plotting_object(results_directory = path)
 
@@ -88,7 +97,7 @@ if __name__ == "__main__":
     
     results.deduce_gravity(true_gravity = 981)
     results.deduce_surface_temperature(true_surface_temperature = 273)
-
+    
     unit_titles = {'R_pl':'$\mathrm{R_{Earth}}$','M_pl':'$\mathrm{M_{Earth}}$'}
     
     #Corner plot
@@ -158,16 +167,18 @@ if __name__ == "__main__":
                         plot_datapoints = False)
     
     #Retrieved PT profile
-    results.plot_retrieved_pt_profile(save = True,
-                                      quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
-                                      quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
-                                      x_lim = [0, 700],
-                                      y_lim = [1e-4, 1e2],
-                                      ax = None,
-                                      color = '#009e73',
-                                      case_identifier = None,
-                                      legend_loc = 'lower right',
-                                      plot_truth = False,)
+    if sum([1 if results.parameters[param]['type'] == 'TEMPERATURE PARAMETERS' else 0 for param in results.parameters]): #first check if PT profile was being fit
+        results.plot_retrieved_pt_profile(save = True,
+                                          quantiles = [0.05,0.15,0.25,0.35,0.65,0.75,0.85,0.95],
+                                          quantiles_title = [r'$5-95\%$',r'$15-85\%$',r'$25-75\%$',r'$35-65\%$'],
+                                          x_lim = [0, 700],
+                                          y_lim = [1e-4, 1e2],
+                                          ax = None,
+                                          color = '#009e73',
+                                          case_identifier = None,
+                                          legend_loc = 'lower right',
+                                          plot_truth = False,)
     
     # #Gas abundances
     # results.plot_abundance_profiles()
+    
