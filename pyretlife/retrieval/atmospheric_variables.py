@@ -531,6 +531,35 @@ def load_pt_profile_from_file(path: str, press: ndarray) -> ndarray:
     
 
 
+def calculate_polynomial_abundance_profile(
+    pressure: ndarray, abundance_vars: dict, molecule: str
+) -> ndarray:
+    """Calculate a polynomial molecular-abundance profile.
+
+    The polynomial is evaluated as a function of log10 pressure. Coefficients
+    are expected in ascending-order keys, for example ``O3_0``, ``O3_1``, ...,
+    where ``O3_0`` is the constant term. Abundances are clipped to [0.0, 1.0].
+
+    :param pressure: Pressure values at which to evaluate the profile
+    :type pressure: ndarray
+    :param abundance_vars: Dictionary containing the molecular coefficients
+    :type abundance_vars: dict
+    :param molecule: Molecule prefix used by the coefficient keys
+    :type molecule: str
+    :return: Non-negative abundance profile at the given pressure levels
+    :rtype: ndarray
+    """
+    coefficients = np.array(
+        [
+            abundance_vars[f"{molecule}_{degree}"]
+            for degree in range(len(abundance_vars) - 1, -1, -1)
+        ]
+    )
+    abundance = np.polyval(coefficients, np.log10(pressure))
+
+    return np.clip(np.asarray(abundance), 0.0, 1.0)
+
+
 def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tuple[dict,dict]:
     """
     Calculate the abundances of chemical species in an atmosphere.
@@ -554,8 +583,29 @@ def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tup
     abundances = {}
 
     for molecule in chem_vars.keys():
+        # Skip polynomial coefficients - they're not abundances themselves
+        parts = molecule.split('_')
+        if len(parts) > 1 and parts[-1].isdigit():
+            # This is a polynomial coefficient (e.g., O3_0, O3_1), skip it
+            continue
+
         if 'Drying' not in molecule:
-            abundances[molecule] = np.ones_like(press) * chem_vars[molecule]
+            if isinstance(chem_vars[molecule], (list, np.ndarray)):
+                abundances[molecule] = np.array(chem_vars[molecule])
+            else:
+                abundances[molecule] = np.ones_like(press) * chem_vars[molecule]
+
+    for molecule, profile in settings.items():
+        if isinstance(profile, dict) and profile.get("parameterization") == "polynomial":
+            # Coefficients (e.g. O3_0, O3_1, ...) are validated in populate_dictionaries
+            # and ingested as parameters or knowns, so their values are in chem_vars
+            polynomial_coefficients = {
+                key: float(chem_vars[key]) for key in profile if key.startswith(molecule + "_")
+            }
+            abundances[molecule] = calculate_polynomial_abundance_profile(
+                press, polynomial_coefficients, molecule=molecule
+            )
+
 
     if settings['abundance_units']=='MMR':
         inert = calculate_inert(abundances)
@@ -630,7 +680,6 @@ def water_ice_vapor_pressure(T, T_ST=373.15, p_ST=1.01325, T_0=273.16, p_i0=6.11
         term4 = np.log10(p_i0)
         p_vp = 10**(term1+term2+term3+term4)
     return p_vp
-
 
 
 def condense_water_old(abundances_VMR, pressure, temperature, phys_vars, settings, drying=0.0):

@@ -228,6 +228,54 @@ def populate_dictionaries(
                 else:
                     settings[subsection] = config[section][subsection]
 
+                # Handle polynomial parameterization for nested parameters
+                if (
+                    type(config[section][subsection]) is dict
+                    and "parameterization" in config[section][subsection].keys()
+                    and config[section][subsection]["parameterization"] == "polynomial"
+                ):
+                    # Get the unit of the parent molecule for the coefficients
+                    if "unit" in config[section][subsection].keys():
+                        parent_unit = u.Unit(config[section][subsection]["unit"])
+                    else:
+                        parent_unit = units.return_units(subsection, units.std_input_units)
+
+                    coefficient_keys = []
+                    for nested_key, nested_value in config[section][subsection].items():
+                        if nested_key.startswith(subsection + "_"):
+                            coefficient_keys.append(nested_key)
+                            if type(nested_value) is dict and "prior" in nested_value.keys():
+                                parameters[nested_key] = nested_value
+                                if not "truth" in nested_value.keys():
+                                    parameters[nested_key]["truth"] = None
+                                # Polynomial coefficients inherit the unit of their parent molecule
+                                parameters[nested_key]["unit"] = parent_unit
+                                parameters[nested_key]["type"] = section
+                            elif type(nested_value) is dict and "truth" in nested_value.keys():
+                                knowns[nested_key] = nested_value
+                                # Polynomial coefficients inherit the unit of their parent molecule
+                                knowns[nested_key]["unit"] = parent_unit
+                                knowns[nested_key]["type"] = section
+                            else:
+                                raise ValueError(
+                                    f"Polynomial coefficient {nested_key} for {subsection} "
+                                    "needs either a 'prior' or a 'truth' entry."
+                                )
+
+                    # Coefficients must be numbered <molecule>_0 to <molecule>_N without gaps
+                    if not coefficient_keys:
+                        raise ValueError(
+                            f"No polynomial coefficients ({subsection}_0, {subsection}_1, ...) "
+                            f"found for {subsection}."
+                        )
+                    expected_keys = {f"{subsection}_{degree}" for degree in range(len(coefficient_keys))}
+                    if set(coefficient_keys) != expected_keys:
+                        raise ValueError(
+                            f"Polynomial coefficients for {subsection} must be numbered "
+                            f"{subsection}_0 to {subsection}_{len(coefficient_keys) - 1} "
+                            f"without gaps, got {sorted(coefficient_keys)}."
+                        )
+
                 # read lists if available. Can be a str or list.
                 if (
                     type(config[section][subsection]) is dict

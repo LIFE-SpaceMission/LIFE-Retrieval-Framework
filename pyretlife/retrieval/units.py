@@ -97,23 +97,35 @@ class UnitsUtil:
         # Conversion of LogUniform priors
         if prior["kind"] == "log-uniform":
             for spec in prior["prior_specs"]:
+                # Convert to float if it's a string (e.g., 'log_lower' from YAML)
+                spec_value = prior["prior_specs"][spec]
+                if isinstance(spec_value, str):
+                    spec_value = float(spec_value)
                 converted_prior[spec] = np.log10(
-                    (10 ** prior["prior_specs"][spec] * input_unit)
+                    (10 ** spec_value * input_unit)
                     .to(target_unit)
                     .value
                 )
         elif prior["kind"] == "log-gaussian":
             # only translate the mean but leave the sigma the same (in log space)
+            # Convert to float if it's a string (e.g., 'log_mean' from YAML)
+            log_mean_value = prior["prior_specs"]["log_mean"]
+            if isinstance(log_mean_value, str):
+                log_mean_value = float(log_mean_value)
             converted_prior["log_mean"] = np.log10(
-                (10 ** prior["prior_specs"]["log_mean"] * input_unit)
+                (10 ** log_mean_value * input_unit)
                 .to(target_unit)
                 .value
             )
             converted_prior["log_sigma"] = prior["prior_specs"]["log_sigma"]
         else:
             for spec in prior["prior_specs"]:
+                # Convert to float if it's a string (e.g., '1e-8' from YAML)
+                spec_value = prior["prior_specs"][spec]
+                if isinstance(spec_value, str):
+                    spec_value = float(spec_value)
                 converted_prior[spec] = (
-                    (prior["prior_specs"][spec] * input_unit)
+                    (spec_value * input_unit)
                     .to(target_unit)
                     .value
                 )
