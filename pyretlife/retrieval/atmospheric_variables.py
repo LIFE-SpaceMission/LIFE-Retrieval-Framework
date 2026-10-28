@@ -537,7 +537,7 @@ def calculate_polynomial_abundance_profile(
     )
     abundance = np.polyval(coefficients, np.log10(pressure))
 
-    return np.maximum(np.asarray(abundance), 0.0)
+    return np.clip(np.asarray(abundance), min=0.0, max=1.0)
 
 
 def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tuple[dict,dict]:
@@ -577,28 +577,14 @@ def calculate_abundances(chem_vars: dict, press: ndarray, settings: dict) -> Tup
 
     for molecule, profile in settings.items():
         if isinstance(profile, dict) and profile.get("parameterization") == "polynomial":
-            polynomial_coefficients = {}
-            for key, value in profile.items():
-                if not key.startswith(molecule + "_"):
-                    continue
-                # Check if the coefficient is in chem_vars first (from retrieval)
-                if key in chem_vars:
-                    coeff = chem_vars[key]
-                elif isinstance(value, dict):
-                    if "truth" in value:
-                        coeff = value["truth"]
-                    else:
-                        raise RuntimeError(
-                            f"Polynomial coefficient {key} for {molecule} has no 'truth' entry"
-                        )
-                else:
-                    coeff = value
-                polynomial_coefficients[key] = float(coeff)
-
-            abundances[molecule] = np.maximum(calculate_polynomial_abundance_profile(
+            # Coefficients (e.g. O3_0, O3_1, ...) are validated in populate_dictionaries
+            # and ingested as parameters or knowns, so their values are in chem_vars
+            polynomial_coefficients = {
+                key: float(chem_vars[key]) for key in profile if key.startswith(molecule + "_")
+            }
+            abundances[molecule] = calculate_polynomial_abundance_profile(
                 press, polynomial_coefficients, molecule=molecule
-            ), 0.0)
-            # this is all a little ugly and can probably be cleaned up
+            )
 
 
     if settings['abundance_units']=='MMR':
