@@ -468,7 +468,8 @@ def bond_albedo_calculation(rp_object,
         converted_retrieved_flux = rescaled_retrieved_flux.to(u.J/(u.m**3*u.s),equivalencies=u.spectral_density(wavelengths))
         integrated_retrieved_flux = sp.integrate.simpson(converted_retrieved_flux.value,wavelengths.to(u.m).value)
 
-        retrieved_equilibrium_temperature[i], cov = sp.optimize.curve_fit(blackbody_lam, [1], integrated_retrieved_flux,p0=[300])[0]
+        popt, cov = sp.optimize.curve_fit(blackbody_lam, [1], integrated_retrieved_flux,p0=[300])
+        retrieved_equilibrium_temperature[i] = popt[0]
         retrieved_bond_albedo[i] = 1 - 16*np.pi*planet_star_separations[i]**2*apc.sigma_sb*(retrieved_equilibrium_temperature[i]*u.K)**4/stellar_luminosities[i]
 
     return retrieved_equilibrium_temperature, retrieved_bond_albedo
